@@ -25,14 +25,14 @@ export default function Index() {
   }
 
   return (
-    <div className="min-h-screen flex w-full bg-background">
+    <div className="min-h-screen flex w-full bg-white">
       {/* Left Pane - Image & Brand */}
-      <div className="hidden lg:flex flex-1 relative bg-white flex-col justify-center items-center p-12 overflow-hidden border-r">
+      <div className="hidden lg:flex flex-1 relative bg-white flex-col justify-center items-center p-12 overflow-hidden border-r border-slate-100">
         <div className="relative z-20 flex flex-col items-center gap-8 max-w-lg text-center">
           <img
             src={logoUrl}
             alt="Haas Madeiras"
-            className="w-80 object-contain mix-blend-multiply"
+            className="w-80 object-contain mix-blend-multiply bg-transparent"
           />
 
           <div className="space-y-4">
@@ -53,20 +53,20 @@ export default function Index() {
       </div>
 
       {/* Right Pane - Login */}
-      <div className="flex-1 flex items-center justify-center p-8 animate-fade-in bg-slate-50/50">
+      <div className="flex-1 flex items-center justify-center p-8 animate-fade-in bg-white">
         <div className="w-full max-w-md space-y-8">
           <div className="lg:hidden flex flex-col items-center justify-center gap-4 mb-8">
             <img
               src={logoUrl}
               alt="Haas Madeiras"
-              className="h-20 object-contain mix-blend-multiply"
+              className="h-32 object-contain mix-blend-multiply bg-transparent"
             />
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight text-center">
               Portal de Documentos
             </h1>
           </div>
 
-          <Card className="border-border/50 shadow-lg">
+          <Card className="border-slate-200 shadow-xl bg-slate-50">
             <CardHeader className="space-y-2 pb-6">
               <CardTitle className="text-2xl text-center">Acesse sua conta</CardTitle>
               <CardDescription className="text-center text-base">
