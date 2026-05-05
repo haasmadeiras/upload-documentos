@@ -37,7 +37,11 @@ export function AppSidebar() {
   return (
     <Sidebar variant="inset" className="border-r shadow-sm">
       <SidebarHeader className="p-4 flex flex-col justify-center">
-        <img src={logoUrl} alt="Haas Madeiras" className="h-12 w-auto object-contain mb-2 px-2" />
+        <img
+          src={logoUrl}
+          alt="Haas Madeiras"
+          className="h-12 w-auto object-contain mb-2 px-2 mix-blend-multiply"
+        />
         <div className="flex flex-col gap-0.5 leading-none text-center mt-1">
           <span className="text-xs font-medium text-muted-foreground">
             {user?.role === 'master' ? 'Gestão Corporativa' : 'Portal do Fornecedor'}

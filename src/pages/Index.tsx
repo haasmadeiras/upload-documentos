@@ -29,7 +29,11 @@ export default function Index() {
       {/* Left Pane - Image & Brand */}
       <div className="hidden lg:flex flex-1 relative bg-white flex-col justify-center items-center p-12 overflow-hidden border-r">
         <div className="relative z-20 flex flex-col items-center gap-8 max-w-lg text-center">
-          <img src={logoUrl} alt="Haas Madeiras" className="w-80 object-contain" />
+          <img
+            src={logoUrl}
+            alt="Haas Madeiras"
+            className="w-80 object-contain mix-blend-multiply"
+          />
 
           <div className="space-y-4">
             <h1 className="text-4xl font-bold text-slate-900 leading-tight tracking-tight">
@@ -52,7 +56,11 @@ export default function Index() {
       <div className="flex-1 flex items-center justify-center p-8 animate-fade-in bg-slate-50/50">
         <div className="w-full max-w-md space-y-8">
           <div className="lg:hidden flex flex-col items-center justify-center gap-4 mb-8">
-            <img src={logoUrl} alt="Haas Madeiras" className="h-20 object-contain" />
+            <img
+              src={logoUrl}
+              alt="Haas Madeiras"
+              className="h-20 object-contain mix-blend-multiply"
+            />
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
               Portal de Documentos
             </h1>
