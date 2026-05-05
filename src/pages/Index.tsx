@@ -36,8 +36,8 @@ export default function Index() {
               Portal de Documentos
             </h1>
             <p className="text-slate-600 text-lg">
-              Ambiente seguro para envio, validação e acompanhamento de requisitos de stakeholders e
-              fornecedores.
+              Ambiente para envio, validação e acompanhamento de documentos e requisitos de
+              fornecedores e stakeholders.
             </p>
           </div>
         </div>
