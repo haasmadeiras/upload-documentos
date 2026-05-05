@@ -25,9 +25,9 @@ export default function Index() {
   }
 
   return (
-    <div className="min-h-screen flex w-full bg-white">
+    <div className="min-h-screen flex w-full max-w-full overflow-x-hidden bg-white">
       {/* Left Pane - Image & Brand */}
-      <div className="hidden lg:flex flex-1 relative bg-white flex-col justify-center items-center p-12 overflow-hidden border-r border-slate-100">
+      <div className="hidden lg:flex flex-1 relative bg-white flex-col justify-center items-center p-12 overflow-hidden border-r border-slate-100 max-w-full">
         <div className="relative z-20 flex flex-col items-center gap-8 max-w-lg text-center">
           <img
             src={logoUrl}
@@ -53,15 +53,15 @@ export default function Index() {
       </div>
 
       {/* Right Pane - Login */}
-      <div className="flex-1 flex items-center justify-center p-8 animate-fade-in bg-white">
-        <div className="w-full max-w-md space-y-8">
-          <div className="lg:hidden flex flex-col items-center justify-center gap-4 mb-8">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-8 animate-fade-in bg-white max-w-full">
+        <div className="w-full max-w-md space-y-8 max-w-full">
+          <div className="lg:hidden flex flex-col items-center justify-center gap-4 mb-8 max-w-full">
             <img
               src={logoUrl}
               alt="Haas Madeiras"
-              className="h-32 object-contain mix-blend-multiply bg-transparent"
+              className="h-32 max-w-full object-contain mix-blend-multiply bg-transparent"
             />
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight text-center">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight text-center px-4">
               Portal de Documentos
             </h1>
           </div>
