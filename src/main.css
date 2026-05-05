@@ -15,35 +15,35 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 218 33% 11%; /* Deep Corporate Navy #1E293B */
-    --primary-foreground: 210 40% 98%;
+    --primary: 358 73% 46%; /* Haas Red #CD2027 */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
+    --secondary: 0 0% 96%;
     --secondary-foreground: 222.2 47.4% 11.2%;
 
-    --muted: 210 40% 96.1%;
+    --muted: 0 0% 96%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 217 91% 60%; /* Professional Blue #3B82F6 */
-    --accent-foreground: 210 40% 98%;
+    --accent: 358 10% 96%; /* Light Red */
+    --accent-foreground: 358 73% 46%;
 
-    --destructive: 347 77% 50%; /* Rose #E11D48 */
+    --destructive: 347 77% 50%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 217 91% 60%;
+    --ring: 358 73% 46%;
 
     --radius: 0.75rem; /* rounded-xl base */
 
-    --sidebar-background: 218 33% 11%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-background: 0 0% 100%; /* White */
+    --sidebar-foreground: 222.2 84% 4.9%;
+    --sidebar-primary: 358 73% 46%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 28% 17%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 215 28% 17%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-accent: 358 10% 96%;
+    --sidebar-accent-foreground: 358 73% 46%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 358 73% 46%;
   }
 
   section[aria-label='Notifications alt+T'] {

@@ -1,13 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import {
-  Building2,
-  LayoutDashboard,
-  Settings,
-  Users,
-  FileText,
-  UploadCloud,
-  LifeBuoy,
-} from 'lucide-react'
+import { LayoutDashboard, Settings, Users, FileText, UploadCloud, LifeBuoy } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -19,6 +11,7 @@ import {
 } from '@/components/ui/sidebar'
 import useAppStore from '@/stores/use-app-store'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import logoUrl from '@/assets/image-bb79d.png'
 
 export function AppSidebar() {
   const location = useLocation()
@@ -40,14 +33,16 @@ export function AppSidebar() {
 
   return (
     <Sidebar variant="sidebar" collapsible="icon">
-      <SidebarHeader className="py-4 px-2">
-        <div className="flex items-center gap-3 px-2">
-          <div className="w-8 h-8 bg-accent rounded-md flex items-center justify-center shrink-0">
-            <Building2 className="w-5 h-5 text-white" />
+      <SidebarHeader className="py-4 px-4">
+        <div className="flex items-center justify-center px-2 py-2">
+          <img
+            src={logoUrl}
+            alt="Haas Madeiras"
+            className="h-10 object-contain group-data-[collapsible=icon]:hidden"
+          />
+          <div className="hidden group-data-[collapsible=icon]:flex w-8 h-8 bg-primary rounded-md items-center justify-center shrink-0">
+            <span className="text-white font-bold text-xs">H</span>
           </div>
-          <span className="font-bold text-lg tracking-tight truncate group-data-[collapsible=icon]:hidden">
-            DocPortal
-          </span>
         </div>
       </SidebarHeader>
 

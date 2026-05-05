@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useApp } from '@/contexts/AppContext'
+import logoUrl from '@/assets/image-bb79d.png'
 
 export function AppSidebar() {
   const { user, logout } = useApp()
@@ -35,14 +36,11 @@ export function AppSidebar() {
 
   return (
     <Sidebar variant="inset" className="border-r shadow-sm">
-      <SidebarHeader className="p-4 flex flex-row items-center gap-2">
-        <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <FolderLock className="size-4" />
-        </div>
-        <div className="flex flex-col gap-0.5 leading-none">
-          <span className="font-semibold tracking-tight">DocPortal</span>
-          <span className="text-xs text-muted-foreground line-clamp-1">
-            {user?.role === 'master' ? 'Gestão Corporativa' : 'Painel do Parceiro'}
+      <SidebarHeader className="p-4 flex flex-col justify-center">
+        <img src={logoUrl} alt="Haas Madeiras" className="h-12 w-auto object-contain mb-2 px-2" />
+        <div className="flex flex-col gap-0.5 leading-none text-center mt-1">
+          <span className="text-xs font-medium text-muted-foreground">
+            {user?.role === 'master' ? 'Gestão Corporativa' : 'Portal do Fornecedor'}
           </span>
         </div>
       </SidebarHeader>
