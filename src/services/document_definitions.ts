@@ -9,6 +9,7 @@ export interface DocumentDefinition {
   validity_days: number
   allowed_formats: string
   target_person_type?: 'PF' | 'PJ' | 'Both'
+  target_role?: 'all' | 'motorista' | 'operador' | 'outros'
   created: string
   updated: string
   expand?: {

@@ -25,12 +25,14 @@ export function AppSidebar() {
     { title: 'Dashboard', url: '/admin', icon: LayoutDashboard },
     { title: 'Configurar Regras', url: '/admin/config', icon: Settings },
     { title: 'Stakeholders', url: '/admin/stakeholders', icon: Users },
+    { title: 'Funcionários', url: '/admin/employees', icon: Users },
     { title: 'Documentos', url: '/admin/documents', icon: FolderLock },
   ]
 
   const stakeholderItems = [
     { title: 'Meu Painel', url: '/portal', icon: LayoutDashboard },
     { title: 'Central de Upload', url: '/portal/upload', icon: Files },
+    { title: 'Funcionários', url: '/portal/employees', icon: Users },
     { title: 'Suporte', url: '/portal/support', icon: LifeBuoy },
   ]
 

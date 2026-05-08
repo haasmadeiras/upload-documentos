@@ -1,8 +1,9 @@
 import pb from '@/lib/pocketbase/client'
 
-export const getDocuments = async () => {
+export const getDocuments = async (filter?: string) => {
   return await pb.collection('documents').getFullList({
     sort: '-created',
+    filter,
   })
 }
 

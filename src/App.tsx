@@ -10,8 +10,11 @@ import Register from './pages/Register'
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminConfig from './pages/admin/Config'
 import AdminStakeholders from './pages/admin/Stakeholders'
+import AdminEmployees from './pages/admin/Employees'
 import PortalDashboard from './pages/portal/Dashboard'
 import PortalUpload from './pages/portal/Upload'
+import PortalEmployees from './pages/portal/Employees'
+import PortalEmployeeDetails from './pages/portal/EmployeeDetails'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -30,6 +33,8 @@ const App = () => (
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/config" element={<AdminConfig />} />
               <Route path="/admin/stakeholders" element={<AdminStakeholders />} />
+              <Route path="/admin/employees" element={<AdminEmployees />} />
+              <Route path="/admin/employees/:id" element={<PortalEmployeeDetails />} />
 
               {/* Dashboard Routes */}
               <Route path="/dashboard" element={<PortalDashboard />} />
@@ -37,6 +42,8 @@ const App = () => (
               {/* Portal Routes */}
               <Route path="/portal" element={<PortalDashboard />} />
               <Route path="/portal/upload/:id" element={<PortalUpload />} />
+              <Route path="/portal/employees" element={<PortalEmployees />} />
+              <Route path="/portal/employees/:id" element={<PortalEmployeeDetails />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

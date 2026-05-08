@@ -21,11 +21,13 @@ export function AppSidebar() {
     { title: 'Dashboard', icon: LayoutDashboard, path: '/admin' },
     { title: 'Regras de Documentos', icon: Settings, path: '/admin/config' },
     { title: 'Stakeholders', icon: Users, path: '/admin/stakeholders' },
+    { title: 'Funcionários', icon: Users, path: '/admin/employees' },
   ]
 
   const portalMenu = [
     { title: 'Meus Documentos', icon: FileText, path: '/portal' },
     { title: 'Central de Upload', icon: UploadCloud, path: '/portal' },
+    { title: 'Funcionários', icon: Users, path: '/portal/employees' },
     { title: 'Suporte', icon: LifeBuoy, path: '/portal' },
   ]
 
