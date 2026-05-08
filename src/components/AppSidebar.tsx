@@ -34,10 +34,11 @@ export function AppSidebar() {
       title: 'Meus Documentos',
       icon: FileText,
       subItems: [
-        { title: 'Funcionários', path: '/portal/employees' },
-        { title: 'Fornecedor', path: '/portal/fornecedores' },
-        { title: 'Floresta', path: '/portal/floresta' },
-        { title: 'Matrícula', path: '/portal/matricula' },
+        { title: 'FORNECEDOR', path: '/portal/fornecedor' },
+        { title: 'FUNCIONÁRIOS', path: '/portal/employees' },
+        { title: 'VEÍCULOS', path: '/portal/veiculos' },
+        { title: 'CONTRATADOS', path: '/portal/contratados' },
+        { title: 'FLORESTAS', path: '/portal/florestas' },
       ],
     },
   ]
