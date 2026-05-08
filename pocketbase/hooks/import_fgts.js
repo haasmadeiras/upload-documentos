@@ -1,3 +1,4 @@
+// @deps pdf-parse@1.1.1, buffer@6.0.3
 routerAdd(
   'POST',
   '/backend/v1/employees/import-fgts',
@@ -8,14 +9,32 @@ routerAdd(
     }
 
     const body = e.requestInfo().body
-    if (!body || !body.textData) {
+    if (!body || !body.fileData || !body.fileName) {
       throw new BadRequestError('Conteúdo do arquivo não enviado ou formato inválido')
     }
 
-    const text = body.textData
+    if (!body.fileName.toLowerCase().endsWith('.pdf')) {
+      throw new BadRequestError(
+        'Formato de arquivo inválido. Por favor, envie apenas arquivos PDF.',
+      )
+    }
+
+    let text = ''
+    try {
+      const { Buffer } = require('buffer')
+      const pdf = require('pdf-parse')
+      const fileBuffer = Buffer.from(body.fileData, 'base64')
+      const data = await pdf(fileBuffer)
+      text = data.text
+    } catch (err) {
+      $app.logger().error('PDF parse failed', 'error', err.message)
+      throw new BadRequestError(
+        'Falha ao processar o arquivo PDF. Certifique-se de que não está corrompido ou protegido por senha.',
+      )
+    }
 
     if (!text || text.trim().length === 0) {
-      throw new BadRequestError('Nenhum texto pôde ser extraído do documento.')
+      throw new BadRequestError('Nenhum texto pôde ser extraído do documento PDF.')
     }
 
     let employees = []
@@ -43,7 +62,7 @@ routerAdd(
               {
                 role: 'system',
                 content:
-                  'Você é um assistente especializado em extrair dados de guias FGTS (SEFIP/GRF/eSocial). Seu objetivo é localizar e extrair APENAS a lista de funcionários/trabalhadores com seus respectivos CPFs. Retorne um objeto JSON estrito com a chave "employees", contendo um array de objetos, onde cada objeto tem "name" (string, nome completo do trabalhador) e "tax_id" (string, CPF formatado como XXX.XXX.XXX-XX). Ignore dados da empresa ou totalizadores.',
+                  'Você é um assistente especializado em extrair dados de guias FGTS (SEFIP/GRF/eSocial). Seu objetivo é localizar e extrair APENAS a lista de funcionários/trabalhadores com seus respectivos CPFs. Retorne um objeto JSON estrito com a chave "employees", contendo um array de objetos, onde cada objeto tem "name" (string, nome completo do trabalhador) e "tax_id" (string, CPF formatado como XXX.XXX.XXX-XX). Ignore dados da empresa ou totalizadores. IMPORTANTE: Extraia apenas os dados presentes no texto, não gere ou invente nomes.',
               },
               {
                 role: 'user',
@@ -99,7 +118,7 @@ routerAdd(
 
     if (employees.length === 0) {
       throw new BadRequestError(
-        'Não foi possível identificar funcionários neste documento. Verifique se a guia contém CPFs válidos.',
+        'Não foi possível identificar funcionários neste documento. Verifique se a guia contém CPFs válidos e legíveis.',
       )
     }
 

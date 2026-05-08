@@ -116,8 +116,8 @@ export default function PortalEmployees() {
     const file = e.target.files?.[0]
     if (!file || !user) return
 
-    if (file.name.toLowerCase().endsWith('.pdf')) {
-      toast.error('Arquivos PDF não são suportados. Por favor, converta para .txt ou .xml.')
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('Formato de arquivo inválido. Por favor, envie apenas arquivos PDF.')
       e.target.value = ''
       return
     }
@@ -127,13 +127,16 @@ export default function PortalEmployees() {
 
     reader.onload = async (event) => {
       try {
-        const textData = event.target?.result as string
-        if (typeof textData !== 'string') {
-          throw new Error('Falha ao ler o arquivo')
+        const result = event.target?.result as string
+        const base64Data = result?.includes(',') ? result.split(',')[1] : result
+
+        if (!base64Data) {
+          throw new Error('Falha ao processar o arquivo')
         }
+
         const res = await pb.send('/backend/v1/employees/import-fgts', {
           method: 'POST',
-          body: JSON.stringify({ textData, fileName: file.name }),
+          body: JSON.stringify({ fileData: base64Data, fileName: file.name }),
           headers: { 'Content-Type': 'application/json' },
         })
 
@@ -158,7 +161,7 @@ export default function PortalEmployees() {
       e.target.value = ''
     }
 
-    reader.readAsText(file)
+    reader.readAsDataURL(file)
   }
 
   return (
@@ -183,11 +186,11 @@ export default function PortalEmployees() {
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="grid w-full max-w-sm items-center gap-1.5">
-                  <Label htmlFor="fgts-file">Arquivo (.txt, .xml, .csv)</Label>
+                  <Label htmlFor="fgts-file">Arquivo FGTS (.pdf)</Label>
                   <Input
                     id="fgts-file"
                     type="file"
-                    accept=".txt,.xml,.csv"
+                    accept=".pdf"
                     onChange={handleImport}
                     disabled={importing}
                   />
