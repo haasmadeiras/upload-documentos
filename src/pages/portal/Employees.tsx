@@ -39,9 +39,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import * as pdfjsLib from 'pdfjs-dist'
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
+import PdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker'
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
+try {
+  pdfjsLib.GlobalWorkerOptions.workerPort = new PdfWorker()
+} catch (e) {
+  console.error('Falha ao inicializar o worker do PDF', e)
+}
 
 export default function PortalEmployees() {
   const { user } = useAuth()
@@ -120,7 +124,7 @@ export default function PortalEmployees() {
     const file = e.target.files?.[0]
     if (!file || !user) return
 
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
       toast.error('Formato de arquivo inválido. Por favor, envie apenas arquivos PDF.')
       e.target.value = ''
       return
@@ -130,7 +134,15 @@ export default function PortalEmployees() {
 
     try {
       const arrayBuffer = await file.arrayBuffer()
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+
+      let pdf
+      try {
+        pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+      } catch (pdfErr) {
+        toast.error('Falha ao abrir o PDF. O arquivo pode estar corrompido ou protegido.')
+        return
+      }
+
       let fullText = ''
 
       for (let i = 1; i <= pdf.numPages; i++) {
@@ -143,7 +155,8 @@ export default function PortalEmployees() {
       }
 
       if (!fullText.trim()) {
-        throw new Error('Nenhum texto pôde ser extraído do documento PDF.')
+        toast.error('Nenhum texto pôde ser extraído do documento PDF.')
+        return
       }
 
       const res = await pb.send('/backend/v1/employees/import-fgts', {
@@ -158,8 +171,9 @@ export default function PortalEmployees() {
         toast.success('Arquivo processado. Os funcionários encontrados já estavam cadastrados.')
       }
       setIsImportOpen(false)
+      load()
     } catch (err: any) {
-      const msg = err?.response?.message || err?.message || 'Erro ao importar.'
+      const msg = err?.response?.message || err?.message || 'Erro ao importar. Tente novamente.'
       toast.error(msg)
     } finally {
       setImporting(false)
@@ -193,7 +207,7 @@ export default function PortalEmployees() {
                   <Input
                     id="fgts-file"
                     type="file"
-                    accept=".pdf"
+                    accept="application/pdf,.pdf"
                     onChange={handleImport}
                     disabled={importing}
                   />
