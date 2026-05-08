@@ -9,6 +9,7 @@ import { getDocumentCategories, DocumentCategory } from '@/services/document_cat
 import { getDocumentDefinitions, DocumentDefinition } from '@/services/document_definitions'
 import { getDocuments } from '@/services/documents'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function PortalDashboard() {
   const { user } = useAuth()
@@ -18,26 +19,41 @@ export default function PortalDashboard() {
   const [definitions, setDefinitions] = useState<DocumentDefinition[]>([])
   const [userDocs, setUserDocs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadData = async () => {
+    if (!user?.id) return
+    try {
+      setError(null)
+      const [cats, defs, docs] = await Promise.all([
+        getDocumentCategories(),
+        getDocumentDefinitions(),
+        getDocuments(`user = "${user?.id}"`),
+      ])
+      setCategories(cats)
+      setDefinitions(defs)
+      setUserDocs(docs)
+    } catch (err) {
+      console.error('Error loading dashboard data:', err)
+      setError('Não foi possível carregar os dados. Verifique sua conexão e tente novamente.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [cats, defs, docs] = await Promise.all([
-          getDocumentCategories(),
-          getDocumentDefinitions(),
-          getDocuments(`user = "${user?.id}"`),
-        ])
-        setCategories(cats)
-        setDefinitions(defs)
-        setUserDocs(docs)
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    if (user?.id) load()
+    loadData()
   }, [user])
+
+  useRealtime(
+    'documents',
+    (e) => {
+      if (e.record.user === user?.id) {
+        loadData()
+      }
+    },
+    !!user?.id,
+  )
 
   // Determine current category based on route
   const getActiveCategoryName = () => {
@@ -60,6 +76,24 @@ export default function PortalDashboard() {
       <div className="p-8 space-y-4 max-w-4xl mx-auto">
         <Skeleton className="h-12 w-1/3" />
         <Skeleton className="h-64 w-full" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-8 max-w-4xl mx-auto text-center">
+        <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+        <h2 className="text-xl font-bold mb-2">Erro de Conexão</h2>
+        <p className="text-muted-foreground mb-4">{error}</p>
+        <Button
+          onClick={() => {
+            setLoading(true)
+            loadData()
+          }}
+        >
+          Tentar Novamente
+        </Button>
       </div>
     )
   }
