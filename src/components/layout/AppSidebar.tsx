@@ -8,6 +8,9 @@ import {
   LogOut,
   ChevronRight,
   FileText,
+  Truck,
+  Briefcase,
+  TreePine,
 } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import {
@@ -37,10 +40,12 @@ export function AppSidebar() {
 
   const masterItems = [
     { title: 'Dashboard', url: '/admin', icon: LayoutDashboard },
-    { title: 'Configurar Regras', url: '/admin/config', icon: Settings },
-    { title: 'Stakeholders', url: '/admin/stakeholders', icon: Users },
+    { title: 'Regras de Documentos', url: '/admin/config', icon: Settings },
+    { title: 'Fornecedores', url: '/admin/suppliers', icon: Users },
     { title: 'Funcionários', url: '/admin/employees', icon: Users },
-    { title: 'Documentos', url: '/admin/documents', icon: FolderLock },
+    { title: 'Veículos', url: '/admin/vehicles', icon: Truck },
+    { title: 'Contratados', url: '/admin/contracts', icon: Briefcase },
+    { title: 'Florestas', url: '/admin/forests', icon: TreePine },
   ]
 
   const stakeholderItems = [

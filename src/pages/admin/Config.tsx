@@ -44,12 +44,20 @@ export default function AdminConfig() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingDef, setEditingDef] = useState<DocumentDefinition | null>(null)
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string
+    is_mandatory: boolean
+    validity_days: number
+    allowed_formats: string
+    target_person_type: 'Both' | 'PF' | 'PJ'
+    target_role: 'all' | 'motorista' | 'operador' | 'outros'
+  }>({
     name: '',
     is_mandatory: true,
     validity_days: 0,
     allowed_formats: 'pdf, jpg, png',
     target_person_type: 'Both',
+    target_role: 'all',
   })
 
   const loadData = async () => {
@@ -92,7 +100,8 @@ export default function AdminConfig() {
         is_mandatory: def.is_mandatory,
         validity_days: def.validity_days || 0,
         allowed_formats: def.allowed_formats || '',
-        target_person_type: def.target_person_type || 'Both',
+        target_person_type: (def.target_person_type as any) || 'Both',
+        target_role: def.target_role || 'all',
       })
     } else {
       setEditingDef(null)
@@ -102,6 +111,7 @@ export default function AdminConfig() {
         validity_days: 0,
         allowed_formats: 'pdf, jpg, png',
         target_person_type: 'Both',
+        target_role: 'all',
       })
     }
     setIsDialogOpen(true)
@@ -216,6 +226,17 @@ export default function AdminConfig() {
                                     : def.target_person_type}
                                 </strong>
                               </span>
+                              {cat.name.toLowerCase().includes('funcionário') && (
+                                <>
+                                  <span className="hidden sm:inline">•</span>
+                                  <span className="flex items-center gap-1">
+                                    Função:{' '}
+                                    <strong className="text-slate-700 capitalize">
+                                      {def.target_role === 'all' ? 'Todas' : def.target_role}
+                                    </strong>
+                                  </span>
+                                </>
+                              )}
                               <span className="hidden sm:inline">•</span>
                               <span className="flex items-center gap-1">
                                 Validade:{' '}
@@ -308,7 +329,9 @@ export default function AdminConfig() {
               <Label>Público Alvo (PF/PJ)</Label>
               <Select
                 value={formData.target_person_type}
-                onValueChange={(val) => setFormData({ ...formData, target_person_type: val })}
+                onValueChange={(val) =>
+                  setFormData({ ...formData, target_person_type: val as any })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o público" />
@@ -320,6 +343,29 @@ export default function AdminConfig() {
                 </SelectContent>
               </Select>
             </div>
+
+            {categories
+              .find((c) => c.id === selectedCategory)
+              ?.name.toLowerCase()
+              .includes('funcionário') && (
+              <div className="space-y-2">
+                <Label>Função Alvo</Label>
+                <Select
+                  value={formData.target_role}
+                  onValueChange={(val) => setFormData({ ...formData, target_role: val as any })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a função" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as funções</SelectItem>
+                    <SelectItem value="motorista">Motorista</SelectItem>
+                    <SelectItem value="operador">Operador</SelectItem>
+                    <SelectItem value="outros">Outros</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="flex items-center justify-between border rounded-lg p-3 mt-2">
               <div className="space-y-0.5">

@@ -1,5 +1,14 @@
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Settings, Users, FileText, ChevronRight } from 'lucide-react'
+import {
+  LayoutDashboard,
+  Settings,
+  Users,
+  FileText,
+  ChevronRight,
+  Truck,
+  Briefcase,
+  TreePine,
+} from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -24,8 +33,11 @@ export function AppSidebar() {
   const adminMenu = [
     { title: 'Dashboard', icon: LayoutDashboard, path: '/admin' },
     { title: 'Regras de Documentos', icon: Settings, path: '/admin/config' },
-    { title: 'Stakeholders', icon: Users, path: '/admin/stakeholders' },
+    { title: 'Fornecedores', icon: Users, path: '/admin/suppliers' },
     { title: 'Funcionários', icon: Users, path: '/admin/employees' },
+    { title: 'Veículos', icon: Truck, path: '/admin/vehicles' },
+    { title: 'Contratados', icon: Briefcase, path: '/admin/contracts' },
+    { title: 'Florestas', icon: TreePine, path: '/admin/forests' },
   ]
 
   const portalMenu = [

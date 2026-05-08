@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowRight, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -10,18 +9,53 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { getEmployees, deleteEmployee, Employee } from '@/services/employees'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  getEmployees,
+  createEmployee,
+  updateEmployee,
+  deleteEmployee,
+  Employee,
+} from '@/services/employees'
+import { getUsers, User } from '@/services/users'
 import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 
 export default function AdminEmployees() {
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  const [formData, setFormData] = useState({
+    name: '',
+    tax_id: '',
+    role: 'motorista',
+    user: '',
+  })
 
   const load = async () => {
     try {
       const data = await getEmployees()
       setEmployees(data)
+      const usersData = await getUsers('isAdmin = false')
+      setUsers(usersData)
     } catch (e) {
       toast.error('Erro ao carregar funcionários')
     } finally {
@@ -32,6 +66,38 @@ export default function AdminEmployees() {
   useEffect(() => {
     load()
   }, [])
+
+  const handleOpenDialog = (emp?: Employee) => {
+    if (emp) {
+      setEditingId(emp.id)
+      setFormData({
+        name: emp.name,
+        tax_id: emp.tax_id,
+        role: emp.role,
+        user: emp.user,
+      })
+    } else {
+      setEditingId(null)
+      setFormData({ name: '', tax_id: '', role: 'motorista', user: '' })
+    }
+    setIsDialogOpen(true)
+  }
+
+  const handleSave = async () => {
+    try {
+      if (editingId) {
+        await updateEmployee(editingId, formData as any)
+        toast.success('Atualizado com sucesso')
+      } else {
+        await createEmployee(formData as any)
+        toast.success('Criado com sucesso')
+      }
+      setIsDialogOpen(false)
+      load()
+    } catch (err) {
+      toast.error('Erro ao salvar')
+    }
+  }
 
   const handleDelete = async (id: string) => {
     if (!confirm('Deseja excluir este funcionário?')) return
@@ -53,6 +119,9 @@ export default function AdminEmployees() {
             Visão geral de todos os funcionários de todos os fornecedores.
           </p>
         </div>
+        <Button onClick={() => handleOpenDialog()}>
+          <Plus className="w-4 h-4 mr-2" /> Novo Funcionário
+        </Button>
       </div>
 
       <Card>
@@ -85,6 +154,9 @@ export default function AdminEmployees() {
                   <TableCell className="capitalize">{emp.role}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
+                      <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(emp)}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -92,11 +164,6 @@ export default function AdminEmployees() {
                         className="text-destructive hover:text-destructive hover:bg-destructive/10"
                       >
                         <Trash2 className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link to={`/admin/employees/${emp.id}`}>
-                          Ver Docs <ArrowRight className="w-4 h-4 ml-1" />
-                        </Link>
                       </Button>
                     </div>
                   </TableCell>
@@ -106,6 +173,72 @@ export default function AdminEmployees() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingId ? 'Editar' : 'Novo'} Funcionário</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Fornecedor</Label>
+              <Select
+                value={formData.user}
+                onValueChange={(val) => setFormData({ ...formData, user: val })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o fornecedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name || u.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Nome</Label>
+              <Input
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>CPF</Label>
+              <Input
+                value={formData.tax_id}
+                onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Função</Label>
+              <Select
+                value={formData.role}
+                onValueChange={(val) => setFormData({ ...formData, role: val })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a função" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="motorista">Motorista</SelectItem>
+                  <SelectItem value="operador">Operador</SelectItem>
+                  <SelectItem value="outros">Outros</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={handleSave}
+              disabled={!formData.name || !formData.user || !formData.role}
+            >
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
