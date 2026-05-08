@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Upload, ArrowRight, Trash2, Pencil } from 'lucide-react'
+import { Plus, Upload, ArrowRight, Trash2, Pencil, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -35,7 +35,7 @@ import {
   Employee,
 } from '@/services/employees'
 import { toast } from 'sonner'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 
@@ -132,10 +132,13 @@ export default function PortalEmployees() {
       }
       setIsImportOpen(false)
     } catch (err: any) {
-      const msg = err?.response?.message || err.message || 'Erro ao importar.'
+      // Access err.response.message directly to show specific validation error
+      const msg = err?.response?.message || err?.message || 'Erro ao importar.'
       toast.error(msg)
     } finally {
       setImporting(false)
+      // reset file input
+      e.target.value = ''
     }
   }
 
@@ -152,7 +155,7 @@ export default function PortalEmployees() {
           <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
-                <Upload className="w-4 h-4 mr-2" /> Importar FGTS
+                <Upload className="w-4 h-4 mr-2" /> Importar Guia FGTS
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -234,6 +237,18 @@ export default function PortalEmployees() {
             </DialogContent>
           </Dialog>
         </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-sm font-medium">Total de Funcionários</CardTitle>
+            <Users className="w-4 h-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? '-' : employees.length}</div>
+          </CardContent>
+        </Card>
       </div>
 
       <Dialog open={!!editingEmp} onOpenChange={(v) => !v && setEditingEmp(null)}>

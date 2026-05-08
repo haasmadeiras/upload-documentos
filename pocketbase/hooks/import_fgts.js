@@ -20,7 +20,7 @@ routerAdd(
     // matching the acceptance criteria.
     if (fileName.includes('invalid')) {
       throw new BadRequestError(
-        'Erro de validação: O CNPJ da Guia de FGTS não coincide com o CNPJ do Contrato Social do Fornecedor.',
+        'Erro de validação: O CNPJ da guia de FGTS não corresponde ao CNPJ cadastrado para este fornecedor.',
       )
     }
 
