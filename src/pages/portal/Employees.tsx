@@ -116,15 +116,24 @@ export default function PortalEmployees() {
     const file = e.target.files?.[0]
     if (!file || !user) return
 
+    if (file.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('Arquivos PDF não são suportados. Por favor, converta para .txt ou .xml.')
+      e.target.value = ''
+      return
+    }
+
     setImporting(true)
     const reader = new FileReader()
 
     reader.onload = async (event) => {
       try {
-        const base64 = (event.target?.result as string).split(',')[1]
+        const textData = event.target?.result as string
+        if (typeof textData !== 'string') {
+          throw new Error('Falha ao ler o arquivo')
+        }
         const res = await pb.send('/backend/v1/employees/import-fgts', {
           method: 'POST',
-          body: JSON.stringify({ fileData: base64, fileName: file.name }),
+          body: JSON.stringify({ textData, fileName: file.name }),
           headers: { 'Content-Type': 'application/json' },
         })
 
@@ -149,7 +158,7 @@ export default function PortalEmployees() {
       e.target.value = ''
     }
 
-    reader.readAsDataURL(file)
+    reader.readAsText(file)
   }
 
   return (
@@ -174,11 +183,11 @@ export default function PortalEmployees() {
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="grid w-full max-w-sm items-center gap-1.5">
-                  <Label htmlFor="fgts-file">Arquivo (.pdf, .xml)</Label>
+                  <Label htmlFor="fgts-file">Arquivo (.txt, .xml, .csv)</Label>
                   <Input
                     id="fgts-file"
                     type="file"
-                    accept=".pdf,.xml"
+                    accept=".txt,.xml,.csv"
                     onChange={handleImport}
                     disabled={importing}
                   />

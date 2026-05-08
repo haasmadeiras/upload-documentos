@@ -1,4 +1,3 @@
-// @deps pdf-parse@1.1.1
 routerAdd(
   'POST',
   '/backend/v1/employees/import-fgts',
@@ -9,31 +8,11 @@ routerAdd(
     }
 
     const body = e.requestInfo().body
-    if (!body || !body.fileData) {
-      throw new BadRequestError('Arquivo não enviado ou formato inválido')
+    if (!body || !body.textData) {
+      throw new BadRequestError('Conteúdo do arquivo não enviado ou formato inválido')
     }
 
-    const base64Data = body.fileData
-    const fileName = (body.fileName || '').toLowerCase()
-
-    const Buffer = require('buffer').Buffer
-    const buffer = Buffer.from(base64Data, 'base64')
-
-    let text = ''
-
-    try {
-      if (fileName.endsWith('.pdf')) {
-        const pdfParse = require('pdf-parse')
-        const pdfData = await pdfParse(buffer)
-        text = pdfData.text
-      } else {
-        text = buffer.toString('utf-8')
-      }
-    } catch (err) {
-      throw new BadRequestError(
-        'Erro ao extrair o texto do documento. Certifique-se de que é um arquivo legível.',
-      )
-    }
+    const text = body.textData
 
     if (!text || text.trim().length === 0) {
       throw new BadRequestError('Nenhum texto pôde ser extraído do documento.')
