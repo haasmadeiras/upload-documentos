@@ -1,6 +1,17 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Settings, FolderLock, Users, LogOut, Files, LifeBuoy } from 'lucide-react'
+import {
+  LayoutDashboard,
+  Settings,
+  FolderLock,
+  Users,
+  LogOut,
+  Files,
+  LifeBuoy,
+  ChevronRight,
+  FileText,
+} from 'lucide-react'
+import { useLocation } from 'react-router-dom'
 import {
   Sidebar,
   SidebarContent,
@@ -11,13 +22,18 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
 } from '@/components/ui/sidebar'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/hooks/use-auth'
 import { useApp } from '@/contexts/AppContext'
 import logoUrl from '@/assets/image-bb79d.png'
 
 export function AppSidebar() {
+  const location = useLocation()
   const { user: appUser, logout } = useApp()
   const { user, signOut } = useAuth()
 
@@ -31,8 +47,18 @@ export function AppSidebar() {
 
   const stakeholderItems = [
     { title: 'Meu Painel', url: '/portal', icon: LayoutDashboard },
+    {
+      title: 'Meus Documentos',
+      icon: FileText,
+      subItems: [
+        { title: 'Funcionários', url: '/portal/employees' },
+        { title: 'Fornecedor', url: '/portal/fornecedores' },
+        { title: 'Floresta', url: '/portal/floresta' },
+        { title: 'Veículos', url: '/portal/veiculos' },
+        { title: 'Contratados', url: '/portal/contratados' },
+      ],
+    },
     { title: 'Central de Upload', url: '/portal/upload', icon: Files },
-    { title: 'Funcionários', url: '/portal/employees', icon: Users },
     { title: 'Suporte', url: '/portal/support', icon: LifeBuoy },
   ]
 
@@ -59,20 +85,56 @@ export function AppSidebar() {
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild tooltip={item.title}>
-                    <NavLink
-                      to={item.url}
-                      end={item.url === '/admin' || item.url === '/portal'}
-                      className={({ isActive }) =>
-                        isActive
-                          ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-                          : ''
-                      }
+                  {'subItems' in item && item.subItems ? (
+                    <Collapsible
+                      defaultOpen={item.subItems.some((sub) =>
+                        location.pathname.startsWith(sub.url),
+                      )}
+                      className="group/collapsible"
                     >
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton tooltip={item.title}>
+                          <item.icon />
+                          <span>{item.title}</span>
+                          <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {item.subItems.map((subItem) => (
+                            <SidebarMenuSubItem key={subItem.title}>
+                              <SidebarMenuSubButton
+                                asChild
+                                isActive={
+                                  location.pathname === subItem.url ||
+                                  location.pathname.startsWith(subItem.url + '/')
+                                }
+                              >
+                                <NavLink to={subItem.url}>
+                                  <span>{subItem.title}</span>
+                                </NavLink>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  ) : (
+                    <SidebarMenuButton asChild tooltip={item.title}>
+                      <NavLink
+                        to={item.url!}
+                        end={item.url === '/admin' || item.url === '/portal'}
+                        className={({ isActive }) =>
+                          isActive
+                            ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+                            : ''
+                        }
+                      >
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  )}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

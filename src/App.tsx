@@ -44,6 +44,10 @@ const App = () => (
               <Route path="/portal/upload/:id" element={<PortalUpload />} />
               <Route path="/portal/employees" element={<PortalEmployees />} />
               <Route path="/portal/employees/:id" element={<PortalEmployeeDetails />} />
+              <Route path="/portal/fornecedores" element={<PortalDashboard />} />
+              <Route path="/portal/floresta" element={<PortalDashboard />} />
+              <Route path="/portal/veiculos" element={<PortalDashboard />} />
+              <Route path="/portal/contratados" element={<PortalDashboard />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

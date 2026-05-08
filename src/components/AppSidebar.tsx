@@ -1,5 +1,13 @@
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Settings, Users, FileText, UploadCloud, LifeBuoy } from 'lucide-react'
+import {
+  LayoutDashboard,
+  Settings,
+  Users,
+  FileText,
+  UploadCloud,
+  LifeBuoy,
+  ChevronRight,
+} from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -8,7 +16,11 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
 } from '@/components/ui/sidebar'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import useAppStore from '@/stores/use-app-store'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import logoUrl from '@/assets/image-bb79d.png'
@@ -25,10 +37,20 @@ export function AppSidebar() {
   ]
 
   const portalMenu = [
-    { title: 'Meus Documentos', icon: FileText, path: '/portal' },
-    { title: 'Central de Upload', icon: UploadCloud, path: '/portal' },
-    { title: 'Funcionários', icon: Users, path: '/portal/employees' },
-    { title: 'Suporte', icon: LifeBuoy, path: '/portal' },
+    { title: 'Meu Painel', icon: LayoutDashboard, path: '/portal' },
+    {
+      title: 'Meus Documentos',
+      icon: FileText,
+      subItems: [
+        { title: 'Funcionários', path: '/portal/employees' },
+        { title: 'Fornecedor', path: '/portal/fornecedores' },
+        { title: 'Floresta', path: '/portal/floresta' },
+        { title: 'Veículos', path: '/portal/veiculos' },
+        { title: 'Contratados', path: '/portal/contratados' },
+      ],
+    },
+    { title: 'Central de Upload', icon: UploadCloud, path: '/portal/upload' },
+    { title: 'Suporte', icon: LifeBuoy, path: '/portal/support' },
   ]
 
   const menu = user?.role === 'admin' ? adminMenu : portalMenu
@@ -51,17 +73,51 @@ export function AppSidebar() {
       <SidebarContent className="mt-4">
         <SidebarMenu>
           {menu.map((item) => (
-            <SidebarMenuItem key={item.path + item.title}>
-              <SidebarMenuButton
-                asChild
-                isActive={location.pathname === item.path}
-                tooltip={item.title}
-              >
-                <Link to={item.path} className="gap-3">
-                  <item.icon className="w-5 h-5" />
-                  <span className="font-medium">{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
+            <SidebarMenuItem key={item.title}>
+              {'subItems' in item && item.subItems ? (
+                <Collapsible
+                  defaultOpen={item.subItems.some((sub) => location.pathname.startsWith(sub.path))}
+                  className="group/collapsible"
+                >
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton tooltip={item.title}>
+                      <item.icon className="w-5 h-5" />
+                      <span className="font-medium">{item.title}</span>
+                      <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {item.subItems.map((subItem) => (
+                        <SidebarMenuSubItem key={subItem.title}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={
+                              location.pathname === subItem.path ||
+                              location.pathname.startsWith(subItem.path + '/')
+                            }
+                          >
+                            <Link to={subItem.path}>
+                              <span>{subItem.title}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </Collapsible>
+              ) : (
+                <SidebarMenuButton
+                  asChild
+                  isActive={location.pathname === item.path}
+                  tooltip={item.title}
+                >
+                  <Link to={item.path!} className="gap-3">
+                    <item.icon className="w-5 h-5" />
+                    <span className="font-medium">{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              )}
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
