@@ -1,13 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import {
-  LayoutDashboard,
-  Settings,
-  Users,
-  FileText,
-  UploadCloud,
-  LifeBuoy,
-  ChevronRight,
-} from 'lucide-react'
+import { LayoutDashboard, Settings, Users, FileText, ChevronRight } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -45,12 +37,9 @@ export function AppSidebar() {
         { title: 'Funcionários', path: '/portal/employees' },
         { title: 'Fornecedor', path: '/portal/fornecedores' },
         { title: 'Floresta', path: '/portal/floresta' },
-        { title: 'Veículos', path: '/portal/veiculos' },
-        { title: 'Contratados', path: '/portal/contratados' },
+        { title: 'Matrícula', path: '/portal/matricula' },
       ],
     },
-    { title: 'Central de Upload', icon: UploadCloud, path: '/portal/upload' },
-    { title: 'Suporte', icon: LifeBuoy, path: '/portal/support' },
   ]
 
   const menu = user?.role === 'admin' ? adminMenu : portalMenu

@@ -6,8 +6,6 @@ import {
   FolderLock,
   Users,
   LogOut,
-  Files,
-  LifeBuoy,
   ChevronRight,
   FileText,
 } from 'lucide-react'
@@ -54,12 +52,9 @@ export function AppSidebar() {
         { title: 'Funcionários', url: '/portal/employees' },
         { title: 'Fornecedor', url: '/portal/fornecedores' },
         { title: 'Floresta', url: '/portal/floresta' },
-        { title: 'Veículos', url: '/portal/veiculos' },
-        { title: 'Contratados', url: '/portal/contratados' },
+        { title: 'Matrícula', url: '/portal/matricula' },
       ],
     },
-    { title: 'Central de Upload', url: '/portal/upload', icon: Files },
-    { title: 'Suporte', url: '/portal/support', icon: LifeBuoy },
   ]
 
   const isMaster = user?.isAdmin === true || appUser?.role === 'master'
