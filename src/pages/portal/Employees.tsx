@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Upload, ArrowRight, Trash2 } from 'lucide-react'
+import { Plus, Upload, ArrowRight, Trash2, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -27,9 +27,17 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useAuth } from '@/hooks/use-auth'
-import { getEmployees, createEmployee, deleteEmployee, Employee } from '@/services/employees'
+import {
+  getEmployees,
+  createEmployee,
+  updateEmployee,
+  deleteEmployee,
+  Employee,
+} from '@/services/employees'
 import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
+import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function PortalEmployees() {
   const { user } = useAuth()
@@ -40,11 +48,12 @@ export default function PortalEmployees() {
   const [importing, setImporting] = useState(false)
 
   const [formData, setFormData] = useState({ name: '', tax_id: '', role: 'outros' })
+  const [editingEmp, setEditingEmp] = useState<Employee | null>(null)
 
   const load = async () => {
     if (!user) return
     try {
-      const data = await getEmployees()
+      const data = await getEmployees(`user = "${user.id}"`)
       setEmployees(data)
     } catch (e) {
       toast.error('Erro ao carregar funcionários')
@@ -57,6 +66,10 @@ export default function PortalEmployees() {
     load()
   }, [user])
 
+  useRealtime('employees', () => {
+    load()
+  })
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user) return
@@ -68,6 +81,23 @@ export default function PortalEmployees() {
       load()
     } catch (err) {
       toast.error('Erro ao adicionar funcionário.')
+    }
+  }
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingEmp) return
+    try {
+      await updateEmployee(editingEmp.id, {
+        name: editingEmp.name,
+        tax_id: editingEmp.tax_id,
+        role: editingEmp.role,
+      })
+      toast.success('Funcionário atualizado com sucesso!')
+      setEditingEmp(null)
+      load()
+    } catch (err) {
+      toast.error('Erro ao atualizar funcionário.')
     }
   }
 
@@ -87,29 +117,26 @@ export default function PortalEmployees() {
     if (!file || !user) return
 
     setImporting(true)
-    setTimeout(async () => {
-      try {
-        await createEmployee({
-          name: 'João Silva (Importado)',
-          tax_id: '111.222.333-44',
-          role: 'outros',
-          user: user.id,
-        })
-        await createEmployee({
-          name: 'Maria Souza (Importado)',
-          tax_id: '555.666.777-88',
-          role: 'outros',
-          user: user.id,
-        })
-        toast.success('Arquivo processado! 2 funcionários importados.')
-        setIsImportOpen(false)
-        load()
-      } catch (err) {
-        toast.error('Erro ao importar.')
-      } finally {
-        setImporting(false)
+    try {
+      const uploadData = new FormData()
+      uploadData.append('file', file)
+      const res = await pb.send('/backend/v1/employees/import-fgts', {
+        method: 'POST',
+        body: uploadData,
+      })
+
+      if (res.count > 0) {
+        toast.success(`Arquivo processado! ${res.count} funcionários importados.`)
+      } else {
+        toast.success('Arquivo processado, mas nenhum funcionário novo foi encontrado.')
       }
-    }, 1500)
+      setIsImportOpen(false)
+    } catch (err: any) {
+      const msg = err?.response?.message || err.message || 'Erro ao importar.'
+      toast.error(msg)
+    } finally {
+      setImporting(false)
+    }
   }
 
   return (
@@ -134,12 +161,22 @@ export default function PortalEmployees() {
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="grid w-full max-w-sm items-center gap-1.5">
-                  <Label htmlFor="fgts-file">Arquivo (.txt, .csv, .pdf)</Label>
-                  <Input id="fgts-file" type="file" onChange={handleImport} disabled={importing} />
+                  <Label htmlFor="fgts-file">Arquivo (.pdf, .xml)</Label>
+                  <Input
+                    id="fgts-file"
+                    type="file"
+                    accept=".pdf,.xml"
+                    onChange={handleImport}
+                    disabled={importing}
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Dica: Envie um arquivo com a palavra "invalid" no nome para simular erro de
+                    CNPJ.
+                  </p>
                 </div>
                 {importing && (
                   <p className="text-sm text-muted-foreground animate-pulse">
-                    Processando arquivo, extraindo dados...
+                    Processando arquivo, extraindo e validando dados...
                   </p>
                 )}
               </div>
@@ -199,6 +236,53 @@ export default function PortalEmployees() {
         </div>
       </div>
 
+      <Dialog open={!!editingEmp} onOpenChange={(v) => !v && setEditingEmp(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Funcionário</DialogTitle>
+          </DialogHeader>
+          {editingEmp && (
+            <form onSubmit={handleEdit} className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Nome Completo</Label>
+                <Input
+                  required
+                  value={editingEmp.name}
+                  onChange={(e) => setEditingEmp({ ...editingEmp, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>CPF</Label>
+                <Input
+                  required
+                  value={editingEmp.tax_id}
+                  onChange={(e) => setEditingEmp({ ...editingEmp, tax_id: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Função</Label>
+                <Select
+                  value={editingEmp.role}
+                  onValueChange={(v: any) => setEditingEmp({ ...editingEmp, role: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="outros">Outros (Padrão)</SelectItem>
+                    <SelectItem value="motorista">Motorista</SelectItem>
+                    <SelectItem value="operador">Operador de Máquinas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button type="submit" className="w-full">
+                Salvar
+              </Button>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -225,6 +309,14 @@ export default function PortalEmployees() {
                   <TableCell className="capitalize">{emp.role}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEditingEmp(emp)}
+                        className="text-muted-foreground hover:text-primary"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"

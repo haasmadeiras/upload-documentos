@@ -17,6 +17,7 @@ import AdminForests from './pages/admin/Forests'
 import PortalDashboard from './pages/portal/Dashboard'
 import PortalUpload from './pages/portal/Upload'
 import PortalEmployeeDetails from './pages/portal/EmployeeDetails'
+import PortalEmployees from './pages/portal/Employees'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -30,7 +31,6 @@ const App = () => (
             <Route element={<Layout />}>
               <Route path="/" element={<Index />} />
               <Route path="/register" element={<Register />} />
-
               {/* Admin Routes */}
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/config" element={<AdminConfig />} />
@@ -40,15 +40,13 @@ const App = () => (
               <Route path="/admin/contracts" element={<AdminContracts />} />
               <Route path="/admin/forests" element={<AdminForests />} />
               <Route path="/admin/employees/:id" element={<PortalEmployeeDetails />} />
-
               {/* Dashboard Routes */}
               <Route path="/dashboard" element={<PortalDashboard />} />
-
               {/* Portal Routes */}
               <Route path="/portal" element={<PortalDashboard />} />
               <Route path="/portal/upload/:id" element={<PortalUpload />} />
-              <Route path="/portal/employees" element={<PortalDashboard />} />
-              <Route path="/portal/employees/:id" element={<PortalEmployeeDetails />} />
+              <Route path="/portal/employees" element={<PortalEmployees />} />
+              <Route path="/portal/employees/:id" element={<PortalEmployeeDetails />} />{' '}
               <Route path="/portal/fornecedor" element={<PortalDashboard />} />
               <Route path="/portal/veiculos" element={<PortalDashboard />} />
               <Route path="/portal/contratados" element={<PortalDashboard />} />
