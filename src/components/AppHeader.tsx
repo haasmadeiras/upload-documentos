@@ -1,11 +1,14 @@
-import { Bell, Menu } from 'lucide-react'
+import { Bell, LogOut, Menu } from 'lucide-react'
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '@/hooks/use-auth'
 
 export function AppHeader() {
   const { isMobile } = useSidebar()
   const location = useLocation()
+  const navigate = useNavigate()
+  const { signOut, user } = useAuth()
 
   const getTitle = () => {
     if (location.pathname.includes('/config')) return 'Configuração de Documentos'
@@ -30,6 +33,21 @@ export function AppHeader() {
           <Bell className="w-5 h-5" />
           <span className="absolute top-2 right-2 w-2 h-2 bg-rose-600 rounded-full border border-background"></span>
         </Button>
+
+        {user && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              signOut()
+              navigate('/')
+            }}
+          >
+            <LogOut className="w-4 h-4 md:mr-2" />
+            <span className="hidden md:inline">Sair</span>
+          </Button>
+        )}
       </div>
     </header>
   )

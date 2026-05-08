@@ -20,7 +20,7 @@ export default function Index() {
   const [password, setPassword] = useState('123456')
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleLogin = async (role: 'admin' | 'stakeholder') => {
+  const handleLogin = async () => {
     setIsLoading(true)
 
     const { error } = await signIn(email, password)
@@ -36,12 +36,12 @@ export default function Index() {
       return
     }
 
-    setAppRole(role)
+    setAppRole('stakeholder')
     toast({
       title: 'Login realizado com sucesso',
       description: `Bem-vindo ao Portal de Documentação.`,
     })
-    navigate(role === 'admin' ? '/admin' : '/portal')
+    navigate('/dashboard')
   }
 
   return (
@@ -125,18 +125,10 @@ export default function Index() {
                 <Button
                   className="w-full h-12 text-base shadow-sm"
                   disabled={isLoading}
-                  onClick={() => handleLogin('admin')}
+                  onClick={handleLogin}
                 >
-                  {isLoading ? 'Conectando...' : 'Acesso Colaborador'}{' '}
+                  {isLoading ? 'Conectando...' : 'Acessar Dashboard'}{' '}
                   <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full h-12 text-base border-2"
-                  disabled={isLoading}
-                  onClick={() => handleLogin('stakeholder')}
-                >
-                  Acesso Fornecedor / Stakeholder
                 </Button>
               </div>
 

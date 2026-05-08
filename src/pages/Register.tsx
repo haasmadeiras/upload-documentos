@@ -61,7 +61,7 @@ export default function Register() {
       title: 'Conta criada com sucesso!',
       description: 'Você já pode acessar o portal.',
     })
-    navigate('/')
+    navigate('/dashboard')
   }
 
   return (

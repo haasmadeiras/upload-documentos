@@ -31,6 +31,9 @@ const App = () => (
               <Route path="/admin/config" element={<AdminConfig />} />
               <Route path="/admin/stakeholders" element={<AdminStakeholders />} />
 
+              {/* Dashboard Routes */}
+              <Route path="/dashboard" element={<PortalDashboard />} />
+
               {/* Portal Routes */}
               <Route path="/portal" element={<PortalDashboard />} />
               <Route path="/portal/upload/:id" element={<PortalUpload />} />
