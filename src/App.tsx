@@ -13,7 +13,6 @@ import AdminStakeholders from './pages/admin/Stakeholders'
 import AdminEmployees from './pages/admin/Employees'
 import PortalDashboard from './pages/portal/Dashboard'
 import PortalUpload from './pages/portal/Upload'
-import PortalEmployees from './pages/portal/Employees'
 import PortalEmployeeDetails from './pages/portal/EmployeeDetails'
 import NotFound from './pages/NotFound'
 
@@ -42,7 +41,7 @@ const App = () => (
               {/* Portal Routes */}
               <Route path="/portal" element={<PortalDashboard />} />
               <Route path="/portal/upload/:id" element={<PortalUpload />} />
-              <Route path="/portal/employees" element={<PortalEmployees />} />
+              <Route path="/portal/employees" element={<PortalDashboard />} />
               <Route path="/portal/employees/:id" element={<PortalEmployeeDetails />} />
               <Route path="/portal/fornecedor" element={<PortalDashboard />} />
               <Route path="/portal/veiculos" element={<PortalDashboard />} />

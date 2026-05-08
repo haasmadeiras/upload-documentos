@@ -28,41 +28,65 @@ import {
 } from '@/components/ui/accordion'
 import { FileUploader } from '@/components/FileUploader'
 import { useAuth } from '@/hooks/use-auth'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { useRealtime } from '@/hooks/use-realtime'
 import { getDocuments, createDocument } from '@/services/documents'
 import { getDocumentCategories, DocumentCategory } from '@/services/document_categories'
 import { getDocumentDefinitions, DocumentDefinition } from '@/services/document_definitions'
+import { getEmployees } from '@/services/employees'
 import { useToast } from '@/hooks/use-toast'
 import { format } from 'date-fns'
 import { CircularProgress } from '@/components/ui/circular-progress'
+import { cn } from '@/lib/utils'
+
+const getCategoryNameFromPath = (pathname: string) => {
+  if (pathname.includes('/fornecedor')) return 'Fornecedor'
+  if (pathname.includes('/veiculos')) return 'Veículos'
+  if (pathname.includes('/contratados')) return 'Contratados'
+  if (pathname.includes('/florestas')) return 'Florestas'
+  if (pathname.includes('/employees')) return 'Funcionários'
+  return 'Fornecedor'
+}
+
+const normalize = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
 
 export default function PortalDashboard() {
   const { user, loading } = useAuth()
   const { toast } = useToast()
+  const location = useLocation()
 
   const [categories, setCategories] = useState<DocumentCategory[]>([])
   const [definitions, setDefinitions] = useState<DocumentDefinition[]>([])
   const [documents, setDocuments] = useState<any[]>([])
+  const [employees, setEmployees] = useState<any[]>([])
   const [isDataLoaded, setIsDataLoaded] = useState(false)
 
   const [selectedDef, setSelectedDef] = useState<DocumentDefinition | null>(null)
+  const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [newFile, setNewFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
+  const activeCategoryName = getCategoryNameFromPath(location.pathname)
+
   const loadData = async () => {
     if (!user) return
     try {
-      const [cats, defs, docs] = await Promise.all([
+      const [cats, defs, docs, emps] = await Promise.all([
         getDocumentCategories(),
         getDocumentDefinitions(),
         getDocuments(),
+        getEmployees(),
       ])
       setCategories(cats)
       setDefinitions(defs)
       setDocuments(docs)
+      setEmployees(emps)
     } catch (e) {
       console.error('Failed to fetch data', e)
     } finally {
@@ -84,17 +108,45 @@ export default function PortalDashboard() {
 
   if (loading) return null
   if (!user) return <Navigate to="/" replace />
+  if (location.pathname === '/portal' || location.pathname === '/portal/') {
+    return <Navigate to="/portal/fornecedor" replace />
+  }
 
-  const relevantDefs = definitions.filter((d) => {
-    const target = d.target_person_type || 'Both'
-    if (target === 'Both') return true
-    return target === (user?.person_type || 'PF')
-  })
+  const activeCategory = categories.find((c) => normalize(c.name) === normalize(activeCategoryName))
 
-  const totalDefs = relevantDefs.length
-  const approvedDefs = relevantDefs.filter(
-    (d) => documents.find((doc) => doc.definition === d.id)?.status === 'Approved',
-  ).length
+  const catDefs = activeCategory
+    ? definitions.filter((d) => {
+        if (d.category !== activeCategory.id) return false
+        const target = d.target_person_type || 'Both'
+        const uType = user?.person_type || 'PF'
+        if (target === 'Both') return true
+        return target === uType
+      })
+    : []
+
+  let totalDefs = 0
+  let approvedDefs = 0
+
+  if (activeCategoryName === 'Funcionários') {
+    employees.forEach((emp) => {
+      const empDefs = catDefs.filter(
+        (d) => !d.target_role || d.target_role === 'all' || d.target_role === emp.role,
+      )
+      totalDefs += empDefs.length
+      empDefs.forEach((d) => {
+        const doc = documents.find((doc) => doc.definition === d.id && doc.employee === emp.id)
+        if (doc?.status === 'Approved') approvedDefs++
+      })
+    })
+  } else {
+    totalDefs = catDefs.length
+    approvedDefs = catDefs.filter(
+      (d) =>
+        documents.find((doc) => doc.definition === d.id && (!doc.employee || doc.employee === ''))
+          ?.status === 'Approved',
+    ).length
+  }
+
   const progress = totalDefs > 0 ? (approvedDefs / totalDefs) * 100 : 0
 
   const getStatusInfo = (status: string) => {
@@ -127,8 +179,9 @@ export default function PortalDashboard() {
     }
   }
 
-  const openUploadModal = (def: DocumentDefinition) => {
+  const openUploadModal = (def: DocumentDefinition, employee?: any) => {
     setSelectedDef(def)
+    setSelectedEmployee(employee || null)
     setNewFile(null)
     setErrorMsg(null)
     setIsCreateOpen(true)
@@ -151,11 +204,15 @@ export default function PortalDashboard() {
       formData.append('status', 'Pending')
       formData.append('user', user.id)
       formData.append('definition', selectedDef.id)
+      if (selectedEmployee) {
+        formData.append('employee', selectedEmployee.id)
+      }
 
       await createDocument(formData)
       toast({ title: 'Documento enviado com sucesso!' })
       setIsCreateOpen(false)
       setSelectedDef(null)
+      setSelectedEmployee(null)
       setNewFile(null)
     } catch (err: any) {
       setErrorMsg(err.message || 'Erro ao enviar documento')
@@ -163,6 +220,68 @@ export default function PortalDashboard() {
     } finally {
       setIsUploading(false)
     }
+  }
+
+  const renderDefRow = (def: DocumentDefinition, doc: any, employee?: any) => {
+    const status = doc ? doc.status : 'Missing'
+    const info = getStatusInfo(status)
+    const dateStr = doc?.created ? format(new Date(doc.created), 'dd/MM/yyyy') : '-'
+
+    return (
+      <div
+        key={def.id}
+        className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 border rounded-md bg-background hover:bg-muted/10 transition-colors"
+      >
+        <div className="space-y-1.5 flex-1">
+          <div className="flex items-center gap-2">
+            <h4 className="font-medium text-base text-foreground">{def.name}</h4>
+            {def.is_mandatory && (
+              <Badge
+                variant="destructive"
+                className="text-[10px] h-5 px-1.5 bg-rose-500/10 text-rose-600 border-none hover:bg-rose-500/20"
+              >
+                Obrigatório
+              </Badge>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            {def.validity_days ? (
+              <span className="flex items-center gap-1">
+                <Calendar className="w-3 h-3" /> Validade: {def.validity_days} dias
+              </span>
+            ) : (
+              <span className="flex items-center gap-1">
+                <Calendar className="w-3 h-3" /> Validade: Indeterminada
+              </span>
+            )}
+            {doc && (
+              <span className="flex items-center gap-1">
+                <Clock className="w-3 h-3" /> Enviado em: {dateStr}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 shrink-0">
+          <Badge variant="outline" className={cn('px-2.5 py-1 gap-1.5 font-medium', info.color)}>
+            <info.icon className="w-3.5 h-3.5" />
+            {info.label}
+          </Badge>
+
+          {(status === 'Missing' || status === 'Rejected') && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={() => openUploadModal(def, employee)}
+            >
+              <UploadCloud className="w-4 h-4 md:mr-1.5" />
+              <span className="hidden md:inline">Anexar</span>
+            </Button>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -173,7 +292,9 @@ export default function PortalDashboard() {
           {/* @ts-expect-error CircularProgress props compatibility */}
           <CircularProgress value={progress} size={160} strokeWidth={14} className="mb-6" />
           <p className="text-sm text-muted-foreground px-4">
-            Envie todos os documentos obrigatórios para concluir a homologação.
+            {activeCategoryName === 'Funcionários'
+              ? 'Envie todos os documentos obrigatórios dos seus funcionários.'
+              : 'Envie todos os documentos obrigatórios para concluir a homologação.'}
           </p>
         </Card>
 
@@ -182,7 +303,7 @@ export default function PortalDashboard() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-blue-500" />
-                Meus Documentos
+                Requisitos: {activeCategoryName}
               </CardTitle>
               <CardDescription className="mt-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
                 <span>
@@ -198,130 +319,84 @@ export default function PortalDashboard() {
               </CardDescription>
             </div>
           </CardHeader>
+
           <CardContent className="p-6 pt-0">
             {!isDataLoaded ? (
               <div className="text-center py-8 text-muted-foreground">Carregando requisitos...</div>
-            ) : categories.length === 0 ? (
+            ) : !activeCategory ? (
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground bg-muted/20 rounded-md border border-dashed">
                 <AlertTriangle className="w-8 h-8 mb-2 opacity-50" />
-                <p className="text-sm">Nenhuma categoria de documento configurada.</p>
+                <p className="text-sm">Nenhum documento exigido para esta categoria.</p>
+              </div>
+            ) : activeCategoryName === 'Funcionários' ? (
+              employees.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground bg-muted/20 rounded-md border border-dashed">
+                  <AlertTriangle className="w-8 h-8 mb-2 opacity-50" />
+                  <p className="text-sm">Nenhum funcionário cadastrado.</p>
+                </div>
+              ) : (
+                <Accordion
+                  type="multiple"
+                  className="w-full space-y-4"
+                  defaultValue={employees.map((e) => e.id)}
+                >
+                  {employees.map((employee) => {
+                    const empDefs = catDefs.filter(
+                      (d) =>
+                        !d.target_role ||
+                        d.target_role === 'all' ||
+                        d.target_role === employee.role,
+                    )
+
+                    return (
+                      <AccordionItem
+                        value={employee.id}
+                        key={employee.id}
+                        className="border rounded-lg bg-card shadow-sm px-4"
+                      >
+                        <AccordionTrigger className="hover:no-underline py-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg font-semibold">{employee.name}</span>
+                            <Badge variant="secondary" className="ml-2 uppercase text-[10px]">
+                              {employee.role}
+                            </Badge>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-0 pb-4">
+                          {empDefs.length === 0 ? (
+                            <div className="text-sm text-muted-foreground py-4 text-center">
+                              Nenhum documento exigido para este cargo.
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {empDefs.map((def) => {
+                                const doc = documents.find(
+                                  (d) => d.definition === def.id && d.employee === employee.id,
+                                )
+                                return renderDefRow(def, doc, employee)
+                              })}
+                            </div>
+                          )}
+                        </AccordionContent>
+                      </AccordionItem>
+                    )
+                  })}
+                </Accordion>
+              )
+            ) : catDefs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground bg-muted/20 rounded-md border border-dashed">
+                <AlertTriangle className="w-8 h-8 mb-2 opacity-50" />
+                <p className="text-sm">Nenhum documento exigido para esta categoria.</p>
               </div>
             ) : (
-              <Accordion
-                type="multiple"
-                className="w-full space-y-4"
-                defaultValue={categories.map((c) => c.id)}
-              >
-                {categories.map((category) => {
-                  const catDefs = definitions.filter((d) => {
-                    if (d.category !== category.id) return false
-                    const target = d.target_person_type || 'Both'
-                    const uType = user?.person_type || 'PF'
-                    if (target === 'Both') return true
-                    return target === uType
-                  })
-
-                  return (
-                    <AccordionItem
-                      value={category.id}
-                      key={category.id}
-                      className="border rounded-lg bg-card shadow-sm px-4"
-                    >
-                      <AccordionTrigger className="hover:no-underline py-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg font-semibold">{category.name}</span>
-                          <Badge variant="secondary" className="ml-2">
-                            {catDefs.length} {catDefs.length === 1 ? 'requisito' : 'requisitos'}
-                          </Badge>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="pt-0 pb-4">
-                        {catDefs.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground bg-muted/20 rounded-md border border-dashed">
-                            <AlertTriangle className="w-8 h-8 mb-2 opacity-50" />
-                            <p className="text-sm">
-                              Nenhum requisito definido para esta categoria.
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            {catDefs.map((def) => {
-                              const doc = documents.find((d) => d.definition === def.id)
-                              const status = doc ? doc.status : 'Missing'
-                              const info = getStatusInfo(status)
-                              const dateStr = doc?.created
-                                ? format(new Date(doc.created), 'dd/MM/yyyy')
-                                : '-'
-
-                              return (
-                                <div
-                                  key={def.id}
-                                  className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 border rounded-md bg-background hover:bg-muted/10 transition-colors"
-                                >
-                                  <div className="space-y-1.5 flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <h4 className="font-medium text-base text-foreground">
-                                        {def.name}
-                                      </h4>
-                                      {def.is_mandatory && (
-                                        <Badge
-                                          variant="destructive"
-                                          className="text-[10px] h-5 px-1.5 bg-rose-500/10 text-rose-600 border-none hover:bg-rose-500/20"
-                                        >
-                                          Obrigatório
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                                      {def.validity_days ? (
-                                        <span className="flex items-center gap-1">
-                                          <Calendar className="w-3 h-3" /> Validade:{' '}
-                                          {def.validity_days} dias
-                                        </span>
-                                      ) : (
-                                        <span className="flex items-center gap-1">
-                                          <Calendar className="w-3 h-3" /> Validade: Indeterminada
-                                        </span>
-                                      )}
-                                      {doc && (
-                                        <span className="flex items-center gap-1">
-                                          <Clock className="w-3 h-3" /> Enviado em: {dateStr}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center gap-3 shrink-0">
-                                    <Badge
-                                      variant="outline"
-                                      className={`px-2.5 py-1 gap-1.5 font-medium ${info.color}`}
-                                    >
-                                      <info.icon className="w-3.5 h-3.5" />
-                                      {info.label}
-                                    </Badge>
-
-                                    {(status === 'Missing' || status === 'Rejected') && (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-8"
-                                        onClick={() => openUploadModal(def)}
-                                      >
-                                        <UploadCloud className="w-4 h-4 md:mr-1.5" />
-                                        <span className="hidden md:inline">Anexar</span>
-                                      </Button>
-                                    )}
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </AccordionContent>
-                    </AccordionItem>
+              <div className="space-y-3">
+                {catDefs.map((def) => {
+                  const doc = documents.find(
+                    (d) => d.definition === def.id && (!d.employee || d.employee === ''),
                   )
+                  return renderDefRow(def, doc)
                 })}
-              </Accordion>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -333,6 +408,7 @@ export default function PortalDashboard() {
           setIsCreateOpen(open)
           if (!open) {
             setSelectedDef(null)
+            setSelectedEmployee(null)
             setNewFile(null)
             setErrorMsg(null)
           }
@@ -343,6 +419,12 @@ export default function PortalDashboard() {
             <DialogTitle>Anexar Documento</DialogTitle>
             <DialogDescription>
               Requisito: <strong className="text-foreground">{selectedDef?.name}</strong>
+              {selectedEmployee && (
+                <>
+                  <br />
+                  Funcionário: <strong className="text-foreground">{selectedEmployee.name}</strong>
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
