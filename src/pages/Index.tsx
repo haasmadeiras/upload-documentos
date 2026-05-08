@@ -1,14 +1,16 @@
 import { useState } from 'react'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import useAppStore from '@/stores/use-app-store'
 import { useToast } from '@/hooks/use-toast'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
 import logoUrl from '@/assets/image-bb79d.png'
+import pb from '@/lib/pocketbase/client'
 
 export default function Index() {
   const { login: setAppRole } = useAppStore()
@@ -19,29 +21,59 @@ export default function Index() {
   const [email, setEmail] = useState('demo@empresa.com')
   const [password, setPassword] = useState('123456')
   const [isLoading, setIsLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const handleLogin = async () => {
-    setIsLoading(true)
-
-    const { error } = await signIn(email, password)
-
-    setIsLoading(false)
-
-    if (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao fazer login',
-        description: 'Verifique suas credenciais e tente novamente.',
-      })
+    if (!email || !password) {
+      setErrorMessage('Por favor, preencha todos os campos.')
       return
     }
 
-    setAppRole('stakeholder')
-    toast({
-      title: 'Login realizado com sucesso',
-      description: `Bem-vindo ao Portal de Documentação.`,
-    })
-    navigate('/dashboard')
+    setIsLoading(true)
+    setErrorMessage(null)
+
+    try {
+      const checkRes = await pb.send('/backend/v1/auth/check-email', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!checkRes.exists) {
+        setErrorMessage('O e-mail informado não possui cadastro na plataforma.')
+        setIsLoading(false)
+        return
+      }
+
+      const { error } = await signIn(email, password)
+
+      if (error) {
+        setErrorMessage('Senha incorreta.')
+        setIsLoading(false)
+        return
+      }
+
+      setAppRole('stakeholder')
+      toast({
+        title: 'Login realizado com sucesso',
+        description: `Bem-vindo ao Portal de Documentação.`,
+      })
+      navigate('/dashboard')
+    } catch (err) {
+      setErrorMessage('Ocorreu um erro ao tentar fazer login. Tente novamente.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value)
+    if (errorMessage) setErrorMessage(null)
+  }
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value)
+    if (errorMessage) setErrorMessage(null)
   }
 
   return (
@@ -94,6 +126,21 @@ export default function Index() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {errorMessage && (
+                <Alert variant="destructive" className="animate-fade-in-down">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Falha no login</AlertTitle>
+                  <AlertDescription className="mt-1 flex flex-col gap-2">
+                    <span>{errorMessage}</span>
+                    {errorMessage === 'O e-mail informado não possui cadastro na plataforma.' && (
+                      <Link to="/register" className="font-semibold underline underline-offset-2">
+                        Ir para o cadastro
+                      </Link>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">E-mail corporativo</Label>
@@ -102,7 +149,8 @@ export default function Index() {
                     type="email"
                     placeholder="nome@empresa.com"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={handleEmailChange}
+                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                   />
                 </div>
                 <div className="space-y-2">
@@ -116,7 +164,8 @@ export default function Index() {
                     id="password"
                     type="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={handlePasswordChange}
+                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                   />
                 </div>
               </div>
