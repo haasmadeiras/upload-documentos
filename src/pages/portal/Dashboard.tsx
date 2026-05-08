@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { CircularProgress } from '@/components/ui/circular-progress'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Plus, FileText, CheckCircle2, AlertCircle, Info, Calendar } from 'lucide-react'
+import {
+  UploadCloud,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  XCircle,
+  FileText,
+  Calendar,
+  AlertTriangle,
+} from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -13,22 +20,34 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import { FileUploader } from '@/components/FileUploader'
 import { useAuth } from '@/hooks/use-auth'
 import { Navigate } from 'react-router-dom'
 import { useRealtime } from '@/hooks/use-realtime'
 import { getDocuments, createDocument } from '@/services/documents'
+import { getDocumentCategories, DocumentCategory } from '@/services/document_categories'
+import { getDocumentDefinitions, DocumentDefinition } from '@/services/document_definitions'
 import { useToast } from '@/hooks/use-toast'
 import { format } from 'date-fns'
+import { CircularProgress } from '@/components/ui/circular-progress'
 
 export default function PortalDashboard() {
   const { user, loading } = useAuth()
   const { toast } = useToast()
 
+  const [categories, setCategories] = useState<DocumentCategory[]>([])
+  const [definitions, setDefinitions] = useState<DocumentDefinition[]>([])
   const [documents, setDocuments] = useState<any[]>([])
+  const [isDataLoaded, setIsDataLoaded] = useState(false)
 
+  const [selectedDef, setSelectedDef] = useState<DocumentDefinition | null>(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [newTitle, setNewTitle] = useState('')
   const [newFile, setNewFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -36,10 +55,18 @@ export default function PortalDashboard() {
   const loadData = async () => {
     if (!user) return
     try {
-      const docs = await getDocuments()
+      const [cats, defs, docs] = await Promise.all([
+        getDocumentCategories(),
+        getDocumentDefinitions(),
+        getDocuments(),
+      ])
+      setCategories(cats)
+      setDefinitions(defs)
       setDocuments(docs)
     } catch (e) {
-      console.error('Failed to fetch documents', e)
+      console.error('Failed to fetch data', e)
+    } finally {
+      setIsDataLoaded(true)
     }
   }
 
@@ -58,8 +85,11 @@ export default function PortalDashboard() {
   if (loading) return null
   if (!user) return <Navigate to="/" replace />
 
-  const approvedDocs = documents.filter((doc) => doc.status === 'Approved').length
-  const progress = documents.length > 0 ? (approvedDocs / documents.length) * 100 : 0
+  const totalDefs = definitions.length
+  const approvedDefs = definitions.filter(
+    (d) => documents.find((doc) => doc.definition === d.id)?.status === 'Approved',
+  ).length
+  const progress = totalDefs > 0 ? (approvedDefs / totalDefs) * 100 : 0
 
   const getStatusInfo = (status: string) => {
     switch (status) {
@@ -72,25 +102,34 @@ export default function PortalDashboard() {
       case 'Pending':
         return {
           label: 'Em Análise',
-          color: 'bg-amber-100 text-amber-800 border-amber-200',
-          icon: Info,
+          color: 'bg-blue-100 text-blue-800 border-blue-200',
+          icon: Clock,
         }
       case 'Rejected':
         return {
           label: 'Rejeitado',
           color: 'bg-rose-100 text-rose-800 border-rose-200',
+          icon: XCircle,
+        }
+      case 'Missing':
+      default:
+        return {
+          label: 'Pendente de Envio',
+          color: 'bg-amber-100 text-amber-800 border-amber-200',
           icon: AlertCircle,
         }
-      default:
-        return { label: 'Pendente', color: 'bg-slate-100 text-slate-700', icon: AlertCircle }
     }
   }
 
+  const openUploadModal = (def: DocumentDefinition) => {
+    setSelectedDef(def)
+    setNewFile(null)
+    setErrorMsg(null)
+    setIsCreateOpen(true)
+  }
+
   const handleCreateDocument = async () => {
-    if (!newTitle.trim()) {
-      setErrorMsg('Por favor, informe o título do documento.')
-      return
-    }
+    if (!selectedDef) return
     if (!newFile) {
       setErrorMsg('Por favor, selecione o arquivo.')
       return
@@ -101,15 +140,16 @@ export default function PortalDashboard() {
 
     try {
       const formData = new FormData()
-      formData.append('title', newTitle)
+      formData.append('title', selectedDef.name)
       formData.append('file', newFile)
       formData.append('status', 'Pending')
       formData.append('user', user.id)
+      formData.append('definition', selectedDef.id)
 
       await createDocument(formData)
       toast({ title: 'Documento enviado com sucesso!' })
       setIsCreateOpen(false)
-      setNewTitle('')
+      setSelectedDef(null)
       setNewFile(null)
     } catch (err: any) {
       setErrorMsg(err.message || 'Erro ao enviar documento')
@@ -124,7 +164,7 @@ export default function PortalDashboard() {
       <div className="flex flex-col md:flex-row gap-6">
         <Card className="md:w-1/3 shrink-0 flex flex-col items-center text-center justify-center p-6 border-blue-100 bg-blue-50/30">
           <CardTitle className="mb-6 text-xl">Status do Cadastro</CardTitle>
-          {/* @ts-expect-error */}
+          {/* @ts-expect-error CircularProgress props compatibility */}
           <CircularProgress value={progress} size={160} strokeWidth={14} className="mb-6" />
           <p className="text-sm text-muted-foreground px-4">
             Envie todos os documentos obrigatórios para concluir a homologação.
@@ -142,52 +182,126 @@ export default function PortalDashboard() {
                 Fornecedor: <strong className="text-foreground">{user?.name || user?.email}</strong>
               </CardDescription>
             </div>
-            <Button onClick={() => setIsCreateOpen(true)} size="sm" className="shrink-0">
-              <Plus className="w-4 h-4 mr-2" /> Upload Documento
-            </Button>
           </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y border-t">
-              {documents.length === 0 ? (
-                <div className="p-6 text-center text-muted-foreground">
-                  Nenhum documento encontrado.
-                </div>
-              ) : (
-                documents.map((doc) => {
-                  const info = getStatusInfo(doc.status)
-                  const dateStr = doc.created ? format(new Date(doc.created), 'dd/MM/yyyy') : ''
+          <CardContent className="p-6 pt-0">
+            {!isDataLoaded ? (
+              <div className="text-center py-8 text-muted-foreground">Carregando requisitos...</div>
+            ) : categories.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground bg-muted/20 rounded-md border border-dashed">
+                <AlertTriangle className="w-8 h-8 mb-2 opacity-50" />
+                <p className="text-sm">Nenhuma categoria de documento configurada.</p>
+              </div>
+            ) : (
+              <Accordion
+                type="multiple"
+                className="w-full space-y-4"
+                defaultValue={categories.map((c) => c.id)}
+              >
+                {categories.map((category) => {
+                  const catDefs = definitions.filter((d) => d.category === category.id)
 
                   return (
-                    <div
-                      key={doc.id}
-                      className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors"
+                    <AccordionItem
+                      value={category.id}
+                      key={category.id}
+                      className="border rounded-lg bg-card shadow-sm px-4"
                     >
-                      <div className="space-y-2 flex-1">
-                        <div className="flex items-center gap-3">
-                          <info.icon className={`w-5 h-5 shrink-0 ${info.color.split(' ')[1]}`} />
-                          <h4 className="font-semibold text-base">{doc.title}</h4>
+                      <AccordionTrigger className="hover:no-underline py-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-semibold">{category.name}</span>
+                          <Badge variant="secondary" className="ml-2">
+                            {catDefs.length} {catDefs.length === 1 ? 'requisito' : 'requisitos'}
+                          </Badge>
                         </div>
-                        {dateStr && (
-                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground ml-8">
-                            <Calendar className="w-3.5 h-3.5" />
-                            <span>Enviado em {dateStr}</span>
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-0 pb-4">
+                        {catDefs.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground bg-muted/20 rounded-md border border-dashed">
+                            <AlertTriangle className="w-8 h-8 mb-2 opacity-50" />
+                            <p className="text-sm">
+                              Nenhum requisito definido para esta categoria.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {catDefs.map((def) => {
+                              const doc = documents.find((d) => d.definition === def.id)
+                              const status = doc ? doc.status : 'Missing'
+                              const info = getStatusInfo(status)
+                              const dateStr = doc?.created
+                                ? format(new Date(doc.created), 'dd/MM/yyyy')
+                                : '-'
+
+                              return (
+                                <div
+                                  key={def.id}
+                                  className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 border rounded-md bg-background hover:bg-muted/10 transition-colors"
+                                >
+                                  <div className="space-y-1.5 flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <h4 className="font-medium text-base text-foreground">
+                                        {def.name}
+                                      </h4>
+                                      {def.is_mandatory && (
+                                        <Badge
+                                          variant="destructive"
+                                          className="text-[10px] h-5 px-1.5 bg-rose-500/10 text-rose-600 border-none hover:bg-rose-500/20"
+                                        >
+                                          Obrigatório
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                      {def.validity_days ? (
+                                        <span className="flex items-center gap-1">
+                                          <Calendar className="w-3 h-3" /> Validade:{' '}
+                                          {def.validity_days} dias
+                                        </span>
+                                      ) : (
+                                        <span className="flex items-center gap-1">
+                                          <Calendar className="w-3 h-3" /> Validade: Indeterminada
+                                        </span>
+                                      )}
+                                      {doc && (
+                                        <span className="flex items-center gap-1">
+                                          <Clock className="w-3 h-3" /> Enviado em: {dateStr}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-3 shrink-0">
+                                    <Badge
+                                      variant="outline"
+                                      className={`px-2.5 py-1 gap-1.5 font-medium ${info.color}`}
+                                    >
+                                      <info.icon className="w-3.5 h-3.5" />
+                                      {info.label}
+                                    </Badge>
+
+                                    {(status === 'Missing' || status === 'Rejected') && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-8"
+                                        onClick={() => openUploadModal(def)}
+                                      >
+                                        <UploadCloud className="w-4 h-4 md:mr-1.5" />
+                                        <span className="hidden md:inline">Anexar</span>
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
                         )}
-                      </div>
-
-                      <div className="flex items-center gap-4 sm:ml-8 mt-2 sm:mt-0 shrink-0">
-                        <Badge
-                          variant="outline"
-                          className={`px-3 py-1 text-sm font-medium ${info.color}`}
-                        >
-                          {info.label}
-                        </Badge>
-                      </div>
-                    </div>
+                      </AccordionContent>
+                    </AccordionItem>
                   )
-                })
-              )}
-            </div>
+                })}
+              </Accordion>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -197,7 +311,7 @@ export default function PortalDashboard() {
         onOpenChange={(open) => {
           setIsCreateOpen(open)
           if (!open) {
-            setNewTitle('')
+            setSelectedDef(null)
             setNewFile(null)
             setErrorMsg(null)
           }
@@ -205,8 +319,10 @@ export default function PortalDashboard() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Novo Documento</DialogTitle>
-            <DialogDescription>Envie um novo documento para análise.</DialogDescription>
+            <DialogTitle>Anexar Documento</DialogTitle>
+            <DialogDescription>
+              Requisito: <strong className="text-foreground">{selectedDef?.name}</strong>
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
             {errorMsg && (
@@ -214,17 +330,6 @@ export default function PortalDashboard() {
                 {errorMsg}
               </div>
             )}
-
-            <div className="space-y-2">
-              <Label htmlFor="title">Título do Documento</Label>
-              <Input
-                id="title"
-                placeholder="Ex: Contrato Social"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                disabled={isUploading}
-              />
-            </div>
 
             <div className="space-y-2">
               <Label>Arquivo</Label>
