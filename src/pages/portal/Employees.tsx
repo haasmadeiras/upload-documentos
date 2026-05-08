@@ -47,6 +47,14 @@ try {
   console.error('Falha ao inicializar o worker do PDF', e)
 }
 
+const formatCpf = (cpf: string) => {
+  const cleaned = cpf.replace(/\D/g, '')
+  if (cleaned.length === 11) {
+    return cleaned.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+  }
+  return cpf
+}
+
 export default function PortalEmployees() {
   const { user } = useAuth()
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -82,7 +90,11 @@ export default function PortalEmployees() {
     e.preventDefault()
     if (!user) return
     try {
-      await createEmployee({ ...formData, user: user.id } as Partial<Employee>)
+      await createEmployee({
+        ...formData,
+        tax_id: formData.tax_id.replace(/\D/g, ''),
+        user: user.id,
+      } as Partial<Employee>)
       toast.success('Funcionário adicionado com sucesso!')
       setIsAddOpen(false)
       setFormData({ name: '', tax_id: '', role: 'outros' })
@@ -98,7 +110,7 @@ export default function PortalEmployees() {
     try {
       await updateEmployee(editingEmp.id, {
         name: editingEmp.name,
-        tax_id: editingEmp.tax_id,
+        tax_id: editingEmp.tax_id.replace(/\D/g, ''),
         role: editingEmp.role,
       })
       toast.success('Funcionário atualizado com sucesso!')
@@ -245,7 +257,16 @@ export default function PortalEmployees() {
                   <Input
                     required
                     value={formData.tax_id}
-                    onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })}
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/\D/g, '')
+                      if (val.length > 11) val = val.slice(0, 11)
+                      if (val.length > 9)
+                        val = val.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4')
+                      else if (val.length > 6)
+                        val = val.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3')
+                      else if (val.length > 3) val = val.replace(/(\d{3})(\d{1,3})/, '$1.$2')
+                      setFormData({ ...formData, tax_id: val })
+                    }}
                     placeholder="000.000.000-00"
                   />
                 </div>
@@ -306,8 +327,17 @@ export default function PortalEmployees() {
                 <Input
                   required
                   value={editingEmp.tax_id}
-                  onChange={(e) => setEditingEmp({ ...editingEmp, tax_id: e.target.value })}
-                />
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/\D/g, '')
+                    if (val.length > 11) val = val.slice(0, 11)
+                    if (val.length > 9)
+                      val = val.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4')
+                    else if (val.length > 6)
+                      val = val.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3')
+                    else if (val.length > 3) val = val.replace(/(\d{3})(\d{1,3})/, '$1.$2')
+                    setEditingEmp({ ...editingEmp, tax_id: val })
+                  }}
+                />{' '}
               </div>
               <div className="space-y-2">
                 <Label>Função</Label>
@@ -355,14 +385,14 @@ export default function PortalEmployees() {
               {employees.map((emp) => (
                 <TableRow key={emp.id}>
                   <TableCell className="font-medium">{emp.name}</TableCell>
-                  <TableCell>{emp.tax_id}</TableCell>
+                  <TableCell>{formatCpf(emp.tax_id)}</TableCell>
                   <TableCell className="capitalize">{emp.role}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => setEditingEmp(emp)}
+                        onClick={() => setEditingEmp({ ...emp, tax_id: formatCpf(emp.tax_id) })}
                         className="text-muted-foreground hover:text-primary"
                       >
                         <Pencil className="w-4 h-4" />

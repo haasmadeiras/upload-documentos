@@ -20,178 +20,74 @@ routerAdd(
 
     let employees = []
 
-    // Utiliza o AI Gateway para extração precisa e robusta dos dados do FGTS
-    const aiUrl = $secrets.get('SKIP_AI_GATEWAY_URL')
-    const aiKey = $secrets.get('SKIP_AI_GATEWAY_API_KEY')
+    // Targeted Row Detection based on standard layout:
+    // [MM/YYYY] [DD/MM/YYYY] [NOME DO TRABALHADOR] [MATRÍCULA (10+ digits)] [CPF]
+    const strictRegex =
+      /\d{2}\/\d{4}\s+\d{2}\/\d{2}\/\d{4}\s+([A-Za-zÀ-ÿ\s\.\'\-]+?)\s+\d{10,}\s+(\d{3}\.\d{3}\.\d{3}\-\d{2})/g
 
-    if (aiUrl && aiKey) {
-      try {
-        let apiUrl = aiUrl
-        if (!apiUrl.endsWith('/v1/chat/completions')) {
-          apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions'
+    let matches = [...text.matchAll(strictRegex)]
+
+    if (matches.length > 0) {
+      for (const match of matches) {
+        let name = match[1].replace(/\s+/g, ' ').trim()
+        const cpf = match[2].replace(/\D/g, '')
+
+        const lowerName = name.toLowerCase()
+        const invalidKeywords = [
+          'empresa',
+          'total',
+          'ltda',
+          's/a',
+          's.a',
+          'cnpj',
+          'competência',
+          'página',
+          'fgts',
+          'guia',
+          'recolhimento',
+          'data',
+          'valor',
+          'banco',
+        ]
+
+        const isGhost = invalidKeywords.some((kw) => lowerName.includes(kw))
+        if (!isGhost && name.includes(' ') && name.length > 5) {
+          employees.push({ name, tax_id: cpf })
         }
-        const aiRes = $http.send({
-          url: apiUrl,
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${aiKey}`,
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-              {
-                role: 'system',
-                content:
-                  'Você é um assistente especializado em extrair dados de guias FGTS (SEFIP/GRF/eSocial). Seu objetivo é localizar e extrair APENAS a lista de funcionários/trabalhadores REAIS com seus respectivos CPFs. Ignore cabeçalhos de relatório, nomes de empresas, totalizadores, datas e textos irrelevantes. Retorne um objeto JSON estrito com a chave "employees", contendo um array de objetos, onde cada objeto tem "name" (string, nome completo do trabalhador) e "tax_id" (string, CPF formatado como XXX.XXX.XXX-XX). IMPORTANTE: Extraia apenas os dados presentes no texto, garantindo que o nome do funcionário esteja completo. Não extraia dados parciais ou nomes de empresas.',
-              },
-              {
-                role: 'user',
-                content: text.substring(0, 80000),
-              },
-            ],
-            response_format: { type: 'json_object' },
-          }),
-          timeout: 60,
-        })
-
-        if (aiRes.statusCode >= 200 && aiRes.statusCode < 300) {
-          const content = aiRes.json.choices[0].message.content
-          const parsed = JSON.parse(content)
-          if (parsed && Array.isArray(parsed.employees)) {
-            for (const emp of parsed.employees) {
-              if (!emp.name || !emp.tax_id || emp.name.trim().length < 5) {
-                $app
-                  .logger()
-                  .error(
-                    'Validation Error: Missing or invalid field in extracted employee row',
-                    'data',
-                    JSON.stringify(emp),
-                  )
-              } else {
-                // Ensure name is properly formatted
-                const cleanName = emp.name.replace(/\s+/g, ' ').trim()
-                const lowerName = cleanName.toLowerCase()
-                const invalidKeywords = [
-                  'empresa',
-                  'total',
-                  'ltda',
-                  's/a',
-                  's.a',
-                  'cnpj',
-                  'competência',
-                  'página',
-                  'fgts',
-                  'guia',
-                  'recolhimento',
-                  'data',
-                ]
-                const isGhost = invalidKeywords.some((kw) => lowerName.includes(kw))
-
-                if (!isGhost) {
-                  employees.push({ name: cleanName, tax_id: emp.tax_id })
-                } else {
-                  $app
-                    .logger()
-                    .error(
-                      'Validation Error: Filtered ghost employee from header',
-                      'data',
-                      JSON.stringify(emp),
-                    )
-                }
-              }
-            }
-          }
-        } else {
-          $app
-            .logger()
-            .error(
-              'AI Gateway response error',
-              'status',
-              aiRes.statusCode,
-              'body',
-              String(aiRes.body),
-            )
-        }
-      } catch (err) {
-        $app.logger().error('AI Gateway request failed', 'error', err.message)
       }
-    }
+    } else {
+      // Fallback: search for CPF and take preceding words
+      const fallbackRegex =
+        /(?:^|\s)([A-ZÀ-Ÿ][A-Za-zÀ-ÿ\s\.\'\-]{4,60}?)\s+(?:\d{10,}\s+)?(\d{3}\.\d{3}\.\d{3}\-\d{2})/g
+      matches = [...text.matchAll(fallbackRegex)]
+      for (const match of matches) {
+        let name = match[1].replace(/\s+/g, ' ').trim()
+        const cpf = match[2].replace(/\D/g, '')
 
-    // Fallback: Regex extraction if AI fails
-    if (employees.length === 0) {
-      const lines = text.split('\n')
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim()
-        const cpfMatch = line.match(/(\d{3}\.\d{3}\.\d{3}\-\d{2})/)
+        // Strip any leading dates that might have been caught
+        name = name.replace(/^\d{2}\/\d{4}\s+\d{2}\/\d{2}\/\d{4}\s+/, '').trim()
 
-        if (cpfMatch) {
-          const cpf = cpfMatch[1]
-          let name = ''
+        const lowerName = name.toLowerCase()
+        const invalidKeywords = [
+          'empresa',
+          'total',
+          'ltda',
+          's/a',
+          's.a',
+          'cnpj',
+          'competência',
+          'página',
+          'fgts',
+          'guia',
+          'recolhimento',
+          'data',
+          'valor',
+          'banco',
+        ]
 
-          let potentialName = line.replace(cpf, '').replace(/[0-9]/g, '').trim()
-
-          if (potentialName.length > 5) {
-            name = potentialName
-          } else if (i > 0) {
-            const prevLine = lines[i - 1].replace(/[0-9]/g, '').trim()
-            if (prevLine.length > 5) {
-              name = prevLine
-            }
-          }
-
-          if (name) {
-            name = name.replace(/\s+/g, ' ').trim()
-            const lowerName = name.toLowerCase()
-            const invalidKeywords = [
-              'empresa',
-              'total',
-              'ltda',
-              's/a',
-              's.a',
-              'cnpj',
-              'competência',
-              'página',
-              'fgts',
-              'guia',
-              'recolhimento',
-              'data',
-              'valor',
-              'banco',
-              'caixa',
-              'econômica',
-              'federal',
-            ]
-
-            const isGhost = invalidKeywords.some((kw) => lowerName.includes(kw))
-            if (!isGhost && name.includes(' ')) {
-              employees.push({ name, tax_id: cpf })
-            } else if (isGhost) {
-              $app
-                .logger()
-                .error(
-                  'Validation Error: Filtered ghost employee from regex fallback',
-                  'name',
-                  name,
-                  'cpf',
-                  cpf,
-                )
-            } else {
-              $app
-                .logger()
-                .error(
-                  'Validation Error: Incomplete name from regex fallback',
-                  'name',
-                  name,
-                  'cpf',
-                  cpf,
-                )
-            }
-          } else {
-            $app
-              .logger()
-              .error('Validation Error: Could not find name for CPF in regex fallback', 'cpf', cpf)
-          }
+        const isGhost = invalidKeywords.some((kw) => lowerName.includes(kw))
+        if (!isGhost && name.includes(' ') && name.length > 5) {
+          employees.push({ name, tax_id: cpf })
         }
       }
     }
@@ -257,11 +153,9 @@ routerAdd(
       try {
         const doc = $app.findRecordById('documents', body.documentId)
         try {
-          // Attempt to link all employees (works if field is multi-select)
           doc.set('employee', savedEmployeeIds)
           $app.save(doc)
         } catch (_) {
-          // Fallback to linking the first employee (works if field is single-select)
           doc.set('employee', savedEmployeeIds[0])
           $app.save(doc)
         }
