@@ -6,22 +6,42 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import useAppStore from '@/stores/use-app-store'
 import { useToast } from '@/hooks/use-toast'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '@/hooks/use-auth'
 import logoUrl from '@/assets/image-bb79d.png'
 
 export default function Index() {
-  const { login } = useAppStore()
+  const { login: setAppRole } = useAppStore()
+  const { signIn } = useAuth()
   const { toast } = useToast()
+  const navigate = useNavigate()
+
+  const [email, setEmail] = useState('demo@empresa.com')
+  const [password, setPassword] = useState('123456')
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleMockLogin = (role: 'admin' | 'stakeholder') => {
+  const handleLogin = async (role: 'admin' | 'stakeholder') => {
     setIsLoading(true)
-    setTimeout(() => {
-      login(role)
+
+    const { error } = await signIn(email, password)
+
+    setIsLoading(false)
+
+    if (error) {
       toast({
-        title: 'Login realizado com sucesso',
-        description: `Bem-vindo ao Portal de Documentação.`,
+        variant: 'destructive',
+        title: 'Erro ao fazer login',
+        description: 'Verifique suas credenciais e tente novamente.',
       })
-    }, 800)
+      return
+    }
+
+    setAppRole(role)
+    toast({
+      title: 'Login realizado com sucesso',
+      description: `Bem-vindo ao Portal de Documentação.`,
+    })
+    navigate(role === 'admin' ? '/admin' : '/portal')
   }
 
   return (
@@ -79,8 +99,10 @@ export default function Index() {
                   <Label htmlFor="email">E-mail corporativo</Label>
                   <Input
                     id="email"
+                    type="email"
                     placeholder="nome@empresa.com"
-                    defaultValue="demo@empresa.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -90,7 +112,12 @@ export default function Index() {
                       Esqueci minha senha
                     </a>
                   </div>
-                  <Input id="password" type="password" defaultValue="123456" />
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
                 </div>
               </div>
 
@@ -98,7 +125,7 @@ export default function Index() {
                 <Button
                   className="w-full h-12 text-base shadow-sm"
                   disabled={isLoading}
-                  onClick={() => handleMockLogin('admin')}
+                  onClick={() => handleLogin('admin')}
                 >
                   {isLoading ? 'Conectando...' : 'Acesso Colaborador'}{' '}
                   <ArrowRight className="w-4 h-4 ml-2" />
@@ -107,10 +134,22 @@ export default function Index() {
                   variant="outline"
                   className="w-full h-12 text-base border-2"
                   disabled={isLoading}
-                  onClick={() => handleMockLogin('stakeholder')}
+                  onClick={() => handleLogin('stakeholder')}
                 >
                   Acesso Fornecedor / Stakeholder
                 </Button>
+              </div>
+
+              <div className="pt-4 text-center">
+                <p className="text-sm text-slate-600">
+                  Ainda não possui conta?{' '}
+                  <Link
+                    to="/register"
+                    className="font-semibold text-primary hover:underline transition-colors"
+                  >
+                    CADASTRAR MINHA CONTA
+                  </Link>
+                </p>
               </div>
             </CardContent>
           </Card>
