@@ -13,11 +13,13 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { useAuth } from '@/hooks/use-auth'
 import { useApp } from '@/contexts/AppContext'
 import logoUrl from '@/assets/image-bb79d.png'
 
 export function AppSidebar() {
-  const { user, logout } = useApp()
+  const { user: appUser, logout } = useApp()
+  const { user, signOut } = useAuth()
 
   const masterItems = [
     { title: 'Dashboard', url: '/admin', icon: LayoutDashboard },
@@ -32,7 +34,8 @@ export function AppSidebar() {
     { title: 'Suporte', url: '/portal/support', icon: LifeBuoy },
   ]
 
-  const items = user?.role === 'master' ? masterItems : stakeholderItems
+  const isMaster = user?.isAdmin === true || appUser?.role === 'master'
+  const items = isMaster ? masterItems : stakeholderItems
 
   return (
     <Sidebar variant="inset" className="border-r shadow-sm">
@@ -44,7 +47,7 @@ export function AppSidebar() {
         />
         <div className="flex flex-col gap-0.5 leading-none text-center mt-1">
           <span className="text-xs font-medium text-muted-foreground">
-            {user?.role === 'master' ? 'Gestão Corporativa' : 'Portal do Fornecedor'}
+            {isMaster ? 'Gestão Corporativa' : 'Portal do Fornecedor'}
           </span>
         </div>
       </SidebarHeader>
@@ -78,15 +81,18 @@ export function AppSidebar() {
         <div className="flex items-center gap-3 mb-4">
           <Avatar className="h-9 w-9 border border-border">
             <AvatarImage src={user?.avatar} alt={user?.name} />
-            <AvatarFallback>{user?.name?.charAt(0)}</AvatarFallback>
+            <AvatarFallback>{user?.name?.charAt(0) || user?.email?.charAt(0)}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col overflow-hidden">
-            <span className="text-sm font-medium truncate">{user?.name}</span>
+            <span className="text-sm font-medium truncate">{user?.name || 'Usuário'}</span>
             <span className="text-xs text-muted-foreground truncate">{user?.email}</span>
           </div>
         </div>
         <SidebarMenuButton
-          onClick={logout}
+          onClick={() => {
+            logout?.()
+            signOut()
+          }}
           variant="outline"
           className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
         >

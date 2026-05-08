@@ -54,12 +54,13 @@ export default function Index() {
         return
       }
 
-      setAppRole('stakeholder')
+      const isAdmin = pb.authStore.record?.isAdmin === true
+      setAppRole(isAdmin ? 'master' : 'stakeholder')
       toast({
         title: 'Login realizado com sucesso',
         description: `Bem-vindo ao Portal de Documentação.`,
       })
-      navigate('/dashboard')
+      navigate(isAdmin ? '/admin/config' : '/dashboard')
     } catch (err) {
       setErrorMessage('Ocorreu um erro ao tentar fazer login. Tente novamente.')
     } finally {

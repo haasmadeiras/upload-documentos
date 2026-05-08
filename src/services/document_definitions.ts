@@ -1,0 +1,31 @@
+import pb from '@/lib/pocketbase/client'
+import { DocumentCategory } from './document_categories'
+
+export interface DocumentDefinition {
+  id: string
+  category: string
+  name: string
+  is_mandatory: boolean
+  validity_days: number
+  allowed_formats: string
+  created: string
+  updated: string
+  expand?: {
+    category?: DocumentCategory
+  }
+}
+
+export const getDocumentDefinitions = () =>
+  pb.collection('document_definitions').getFullList<DocumentDefinition>({
+    sort: 'name',
+    expand: 'category',
+  })
+
+export const createDocumentDefinition = (data: Partial<DocumentDefinition>) =>
+  pb.collection('document_definitions').create<DocumentDefinition>(data)
+
+export const updateDocumentDefinition = (id: string, data: Partial<DocumentDefinition>) =>
+  pb.collection('document_definitions').update<DocumentDefinition>(id, data)
+
+export const deleteDocumentDefinition = (id: string) =>
+  pb.collection('document_definitions').delete(id)
