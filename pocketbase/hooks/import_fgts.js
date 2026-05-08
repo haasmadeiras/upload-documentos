@@ -1,4 +1,3 @@
-// @deps pdf-parse@1.1.1, buffer@6.0.3
 routerAdd(
   'POST',
   '/backend/v1/employees/import-fgts',
@@ -9,29 +8,11 @@ routerAdd(
     }
 
     const body = e.requestInfo().body
-    if (!body || !body.fileData || !body.fileName) {
-      throw new BadRequestError('Conteúdo do arquivo não enviado ou formato inválido')
+    if (!body || !body.text) {
+      throw new BadRequestError('Conteúdo do arquivo não enviado ou texto não extraído.')
     }
 
-    if (!body.fileName.toLowerCase().endsWith('.pdf')) {
-      throw new BadRequestError(
-        'Formato de arquivo inválido. Por favor, envie apenas arquivos PDF.',
-      )
-    }
-
-    let text = ''
-    try {
-      const { Buffer } = require('buffer')
-      const pdf = require('pdf-parse')
-      const fileBuffer = Buffer.from(body.fileData, 'base64')
-      const data = await pdf(fileBuffer)
-      text = data.text
-    } catch (err) {
-      $app.logger().error('PDF parse failed', 'error', err.message)
-      throw new BadRequestError(
-        'Falha ao processar o arquivo PDF. Certifique-se de que não está corrompido ou protegido por senha.',
-      )
-    }
+    const text = body.text
 
     if (!text || text.trim().length === 0) {
       throw new BadRequestError('Nenhum texto pôde ser extraído do documento PDF.')

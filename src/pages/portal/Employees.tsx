@@ -38,6 +38,12 @@ import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
+import * as pdfjsLib from 'pdfjs-dist'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.mjs',
+  import.meta.url,
+).toString()
 
 export default function PortalEmployees() {
   const { user } = useAuth()
@@ -123,45 +129,44 @@ export default function PortalEmployees() {
     }
 
     setImporting(true)
-    const reader = new FileReader()
 
-    reader.onload = async (event) => {
-      try {
-        const result = event.target?.result as string
-        const base64Data = result?.includes(',') ? result.split(',')[1] : result
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+      let fullText = ''
 
-        if (!base64Data) {
-          throw new Error('Falha ao processar o arquivo')
-        }
-
-        const res = await pb.send('/backend/v1/employees/import-fgts', {
-          method: 'POST',
-          body: JSON.stringify({ fileData: base64Data, fileName: file.name }),
-          headers: { 'Content-Type': 'application/json' },
-        })
-
-        if (res.count > 0) {
-          toast.success(`Arquivo processado! ${res.count} funcionários novos importados.`)
-        } else {
-          toast.success('Arquivo processado. Os funcionários encontrados já estavam cadastrados.')
-        }
-        setIsImportOpen(false)
-      } catch (err: any) {
-        const msg = err?.response?.message || err?.message || 'Erro ao importar.'
-        toast.error(msg)
-      } finally {
-        setImporting(false)
-        e.target.value = ''
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i)
+        const textContent = await page.getTextContent()
+        const pageText = textContent.items
+          .map((item: any) => ('str' in item ? item.str : ''))
+          .join(' ')
+        fullText += pageText + '\n'
       }
-    }
 
-    reader.onerror = () => {
-      toast.error('Erro ao ler o arquivo localmente.')
+      if (!fullText.trim()) {
+        throw new Error('Nenhum texto pôde ser extraído do documento PDF.')
+      }
+
+      const res = await pb.send('/backend/v1/employees/import-fgts', {
+        method: 'POST',
+        body: JSON.stringify({ text: fullText }),
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (res.count > 0) {
+        toast.success(`Arquivo processado! ${res.count} funcionários novos importados.`)
+      } else {
+        toast.success('Arquivo processado. Os funcionários encontrados já estavam cadastrados.')
+      }
+      setIsImportOpen(false)
+    } catch (err: any) {
+      const msg = err?.response?.message || err?.message || 'Erro ao importar.'
+      toast.error(msg)
+    } finally {
       setImporting(false)
       e.target.value = ''
     }
-
-    reader.readAsDataURL(file)
   }
 
   return (
