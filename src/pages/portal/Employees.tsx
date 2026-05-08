@@ -117,29 +117,39 @@ export default function PortalEmployees() {
     if (!file || !user) return
 
     setImporting(true)
-    try {
-      const uploadData = new FormData()
-      uploadData.append('file', file)
-      const res = await pb.send('/backend/v1/employees/import-fgts', {
-        method: 'POST',
-        body: uploadData,
-      })
+    const reader = new FileReader()
 
-      if (res.count > 0) {
-        toast.success(`Arquivo processado! ${res.count} funcionários importados.`)
-      } else {
-        toast.success('Arquivo processado, mas nenhum funcionário novo foi encontrado.')
+    reader.onload = async (event) => {
+      try {
+        const base64 = (event.target?.result as string).split(',')[1]
+        const res = await pb.send('/backend/v1/employees/import-fgts', {
+          method: 'POST',
+          body: JSON.stringify({ fileData: base64, fileName: file.name }),
+          headers: { 'Content-Type': 'application/json' },
+        })
+
+        if (res.count > 0) {
+          toast.success(`Arquivo processado! ${res.count} funcionários novos importados.`)
+        } else {
+          toast.success('Arquivo processado. Os funcionários encontrados já estavam cadastrados.')
+        }
+        setIsImportOpen(false)
+      } catch (err: any) {
+        const msg = err?.response?.message || err?.message || 'Erro ao importar.'
+        toast.error(msg)
+      } finally {
+        setImporting(false)
+        e.target.value = ''
       }
-      setIsImportOpen(false)
-    } catch (err: any) {
-      // Access err.response.message directly to show specific validation error
-      const msg = err?.response?.message || err?.message || 'Erro ao importar.'
-      toast.error(msg)
-    } finally {
+    }
+
+    reader.onerror = () => {
+      toast.error('Erro ao ler o arquivo localmente.')
       setImporting(false)
-      // reset file input
       e.target.value = ''
     }
+
+    reader.readAsDataURL(file)
   }
 
   return (
