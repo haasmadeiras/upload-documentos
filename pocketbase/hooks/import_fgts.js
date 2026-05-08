@@ -13,16 +13,6 @@ routerAdd(
     }
 
     const file = files[0]
-    const fileName = file.name().toLowerCase()
-
-    // Simulate parsing and validation.
-    // If the file name includes "invalid", we trigger the validation error
-    // matching the acceptance criteria.
-    if (fileName.includes('invalid')) {
-      throw new BadRequestError(
-        'Erro de validação: O CNPJ da guia de FGTS não corresponde ao CNPJ cadastrado para este fornecedor.',
-      )
-    }
 
     const employees = [
       {

@@ -172,10 +172,6 @@ export default function PortalEmployees() {
                     onChange={handleImport}
                     disabled={importing}
                   />
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Dica: Envie um arquivo com a palavra "invalid" no nome para simular erro de
-                    CNPJ.
-                  </p>
                 </div>
                 {importing && (
                   <p className="text-sm text-muted-foreground animate-pulse">
