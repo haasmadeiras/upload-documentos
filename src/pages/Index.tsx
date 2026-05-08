@@ -19,7 +19,7 @@ export default function Index() {
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('pamelafrantz@pamelafrantz.onmicrosoft.com')
-  const [password, setPassword] = useState('Skip@Pass')
+  const [password, setPassword] = useState('Skip@2026')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -41,7 +41,7 @@ export default function Index() {
       })
 
       if (!checkRes.exists) {
-        setErrorMessage('O e-mail informado não possui cadastro na plataforma.')
+        setErrorMessage('O e-mail informado não possui cadastro')
         setIsLoading(false)
         return
       }
@@ -133,7 +133,7 @@ export default function Index() {
                   <AlertTitle>Falha no login</AlertTitle>
                   <AlertDescription className="mt-1 flex flex-col gap-2">
                     <span>{errorMessage}</span>
-                    {errorMessage === 'O e-mail informado não possui cadastro na plataforma.' && (
+                    {errorMessage === 'O e-mail informado não possui cadastro' && (
                       <Link to="/register" className="font-semibold underline underline-offset-2">
                         Ir para o cadastro
                       </Link>
@@ -157,7 +157,7 @@ export default function Index() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="password">Senha</Label>
-                    <a href="#" className="text-sm font-medium text-primary hover:underline">
+                    <a href="#" className="text-sm font-medium text-destructive hover:underline">
                       Esqueci minha senha
                     </a>
                   </div>
@@ -184,7 +184,7 @@ export default function Index() {
 
               <div className="grid gap-3 pt-4 border-t">
                 <Button
-                  className="w-full h-12 text-base shadow-sm"
+                  className="w-full h-12 text-base shadow-sm bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                   disabled={isLoading}
                   onClick={handleLogin}
                 >
@@ -197,7 +197,7 @@ export default function Index() {
                   Ainda não possui conta?{' '}
                   <Link
                     to="/register"
-                    className="font-semibold text-primary hover:underline transition-colors"
+                    className="font-semibold text-destructive hover:underline transition-colors"
                   >
                     CADASTRAR MINHA CONTA
                   </Link>
