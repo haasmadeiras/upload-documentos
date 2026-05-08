@@ -10,8 +10,8 @@ export const getDocument = async (id: string) => {
   return await pb.collection('documents').getOne(id)
 }
 
-export const createDocument = async (data: any) => {
-  return await pb.collection('documents').create(data)
+export const createDocument = async (formData: FormData) => {
+  return await pb.collection('documents').create(formData)
 }
 
 export const updateDocument = async (id: string, formData: FormData) => {

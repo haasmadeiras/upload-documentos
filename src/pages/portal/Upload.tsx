@@ -88,7 +88,7 @@ export default function PortalUpload() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <FileUploader onUpload={handleUpload} />
+              <FileUploader file={null} onFileSelect={(f) => f && handleUpload(f)} />
             </CardContent>
           </Card>
         </div>

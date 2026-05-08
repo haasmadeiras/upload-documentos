@@ -1,19 +1,16 @@
 import React, { useState, useCallback } from 'react'
-import { UploadCloud, File as FileIcon, CheckCircle2, X } from 'lucide-react'
+import { UploadCloud, File as FileIcon, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 
 interface FileUploaderProps {
-  onUploadComplete: (file: File) => void
+  onFileSelect: (file: File | null) => void
+  file: File | null
   accept?: string
 }
 
-export function FileUploader({ onUploadComplete, accept = '.pdf,.jpg,.png' }: FileUploaderProps) {
+export function FileUploader({ onFileSelect, file, accept = '.pdf,.jpg,.png' }: FileUploaderProps) {
   const [isDragging, setIsDragging] = useState(false)
-  const [file, setFile] = useState<File | null>(null)
-  const [progress, setProgress] = useState(0)
-  const [isUploading, setIsUploading] = useState(false)
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -41,33 +38,12 @@ export function FileUploader({ onUploadComplete, accept = '.pdf,.jpg,.png' }: Fi
   }
 
   const handleFileSelection = (selectedFile: File) => {
-    // Check if it's a valid type roughly based on extension
     const extension = selectedFile.name.substring(selectedFile.name.lastIndexOf('.')).toLowerCase()
     if (!accept.includes(extension)) {
       alert('Formato de arquivo inválido.')
       return
     }
-    setFile(selectedFile)
-  }
-
-  const simulateUpload = () => {
-    if (!file) return
-    setIsUploading(true)
-    setProgress(0)
-
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          setTimeout(() => {
-            setIsUploading(false)
-            onUploadComplete(file)
-          }, 500)
-          return 100
-        }
-        return prev + 10
-      })
-    }, 200)
+    onFileSelect(selectedFile)
   }
 
   return (
@@ -87,7 +63,7 @@ export function FileUploader({ onUploadComplete, accept = '.pdf,.jpg,.png' }: Fi
         >
           <div className="flex flex-col items-center justify-center pt-5 pb-6">
             <UploadCloud className="w-10 h-10 mb-3 text-muted-foreground" />
-            <p className="mb-2 text-sm text-muted-foreground">
+            <p className="mb-2 text-sm text-muted-foreground text-center">
               <span className="font-semibold text-foreground">Clique para fazer upload</span> ou
               arraste o arquivo
             </p>
@@ -116,26 +92,10 @@ export function FileUploader({ onUploadComplete, accept = '.pdf,.jpg,.png' }: Fi
                 </p>
               </div>
             </div>
-            {!isUploading && progress === 0 && (
-              <Button variant="ghost" size="icon" onClick={() => setFile(null)}>
-                <X className="w-4 h-4" />
-              </Button>
-            )}
-            {progress === 100 && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
-          </div>
-
-          {isUploading && (
-            <div className="space-y-1">
-              <Progress value={progress} className="h-2" />
-              <p className="text-xs text-right text-muted-foreground">{progress}%</p>
-            </div>
-          )}
-
-          {!isUploading && progress === 0 && (
-            <Button onClick={simulateUpload} className="w-full">
-              Enviar Documento
+            <Button variant="ghost" size="icon" onClick={() => onFileSelect(null)}>
+              <X className="w-4 h-4" />
             </Button>
-          )}
+          </div>
         </div>
       )}
     </div>
