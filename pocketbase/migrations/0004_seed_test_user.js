@@ -9,7 +9,7 @@ migrate(
 
     const record = new Record(users)
     record.setEmail('pamelafrantz@pamelafrantz.onmicrosoft.com')
-    record.setPassword('123321')
+    record.setPassword('Skip@Pass')
     record.setVerified(true)
     record.set('name', 'Pamela Frantz')
     app.save(record)
