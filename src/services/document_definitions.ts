@@ -8,6 +8,7 @@ export interface DocumentDefinition {
   is_mandatory: boolean
   validity_days: number
   allowed_formats: string
+  target_person_type?: 'PF' | 'PJ' | 'Both'
   created: string
   updated: string
   expand?: {

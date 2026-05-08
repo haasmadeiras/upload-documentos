@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-08T14:19:16.236Z",
+  "generatedAt": "2026-05-08T15:30:42.163Z",
   "collections": [
     {
       "name": "users",
@@ -41,6 +41,19 @@
         {
           "name": "isAdmin",
           "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "person_type",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["PF", "PJ"]
+        },
+        {
+          "name": "tax_id",
+          "type": "text",
           "required": false,
           "system": false
         }
@@ -200,6 +213,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "target_person_type",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["PF", "PJ", "Both"]
         }
       ],
       "indexes": []

@@ -85,8 +85,14 @@ export default function PortalDashboard() {
   if (loading) return null
   if (!user) return <Navigate to="/" replace />
 
-  const totalDefs = definitions.length
-  const approvedDefs = definitions.filter(
+  const relevantDefs = definitions.filter((d) => {
+    const target = d.target_person_type || 'Both'
+    if (target === 'Both') return true
+    return target === (user?.person_type || 'PF')
+  })
+
+  const totalDefs = relevantDefs.length
+  const approvedDefs = relevantDefs.filter(
     (d) => documents.find((doc) => doc.definition === d.id)?.status === 'Approved',
   ).length
   const progress = totalDefs > 0 ? (approvedDefs / totalDefs) * 100 : 0
@@ -178,8 +184,17 @@ export default function PortalDashboard() {
                 <FileText className="w-5 h-5 text-blue-500" />
                 Meus Documentos
               </CardTitle>
-              <CardDescription className="mt-1">
-                Fornecedor: <strong className="text-foreground">{user?.name || user?.email}</strong>
+              <CardDescription className="mt-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+                <span>
+                  Fornecedor:{' '}
+                  <strong className="text-foreground">{user?.name || user?.email}</strong>
+                </span>
+                {user?.tax_id && (
+                  <span>
+                    {user?.person_type === 'PF' ? 'CPF' : 'CNPJ'}:{' '}
+                    <strong className="text-foreground">{user.tax_id}</strong>
+                  </span>
+                )}
               </CardDescription>
             </div>
           </CardHeader>
@@ -198,7 +213,13 @@ export default function PortalDashboard() {
                 defaultValue={categories.map((c) => c.id)}
               >
                 {categories.map((category) => {
-                  const catDefs = definitions.filter((d) => d.category === category.id)
+                  const catDefs = definitions.filter((d) => {
+                    if (d.category !== category.id) return false
+                    const target = d.target_person_type || 'Both'
+                    const uType = user?.person_type || 'PF'
+                    if (target === 'Both') return true
+                    return target === uType
+                  })
 
                   return (
                     <AccordionItem

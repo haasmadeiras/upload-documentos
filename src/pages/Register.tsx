@@ -4,6 +4,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
@@ -20,6 +27,8 @@ export default function Register() {
     email: '',
     password: '',
     passwordConfirm: '',
+    person_type: 'PF',
+    tax_id: '',
   })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
@@ -132,6 +141,41 @@ export default function Register() {
                     required
                   />
                   {fieldErrors.email && <p className="text-xs text-red-500">{fieldErrors.email}</p>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="person_type">Tipo de Pessoa</Label>
+                    <Select
+                      value={formData.person_type}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({ ...prev, person_type: value }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PF">Pessoa Física (PF)</SelectItem>
+                        <SelectItem value="PJ">Pessoa Jurídica (PJ)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tax_id">{formData.person_type === 'PF' ? 'CPF' : 'CNPJ'}</Label>
+                    <Input
+                      id="tax_id"
+                      placeholder={
+                        formData.person_type === 'PF' ? '000.000.000-00' : '00.000.000/0000-00'
+                      }
+                      value={formData.tax_id}
+                      onChange={handleChange}
+                      required
+                    />
+                    {fieldErrors.tax_id && (
+                      <p className="text-xs text-red-500">{fieldErrors.tax_id}</p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-2">

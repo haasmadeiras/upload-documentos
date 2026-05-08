@@ -22,7 +22,14 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Card, CardContent } from '@/components/ui/card'
-import { Plus, Trash2, Pencil, ShieldAlert } from 'lucide-react'
+import { Plus, Trash2, Pencil, ShieldAlert, Users } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
@@ -42,6 +49,7 @@ export default function AdminConfig() {
     is_mandatory: true,
     validity_days: 0,
     allowed_formats: 'pdf, jpg, png',
+    target_person_type: 'Both',
   })
 
   const loadData = async () => {
@@ -84,6 +92,7 @@ export default function AdminConfig() {
         is_mandatory: def.is_mandatory,
         validity_days: def.validity_days || 0,
         allowed_formats: def.allowed_formats || '',
+        target_person_type: def.target_person_type || 'Both',
       })
     } else {
       setEditingDef(null)
@@ -92,6 +101,7 @@ export default function AdminConfig() {
         is_mandatory: true,
         validity_days: 0,
         allowed_formats: 'pdf, jpg, png',
+        target_person_type: 'Both',
       })
     }
     setIsDialogOpen(true)
@@ -198,6 +208,16 @@ export default function AdminConfig() {
                             </div>
                             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                               <span className="flex items-center gap-1">
+                                Público:{' '}
+                                <strong className="text-slate-700 flex items-center gap-1">
+                                  <Users className="w-3 h-3" />
+                                  {def.target_person_type === 'Both'
+                                    ? 'Todos (PF e PJ)'
+                                    : def.target_person_type}
+                                </strong>
+                              </span>
+                              <span className="hidden sm:inline">•</span>
+                              <span className="flex items-center gap-1">
                                 Validade:{' '}
                                 <strong className="text-slate-700">
                                   {def.validity_days > 0
@@ -282,6 +302,23 @@ export default function AdminConfig() {
                 onChange={(e) => setFormData({ ...formData, allowed_formats: e.target.value })}
                 placeholder="Ex: pdf, jpg, png"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Público Alvo (PF/PJ)</Label>
+              <Select
+                value={formData.target_person_type}
+                onValueChange={(val) => setFormData({ ...formData, target_person_type: val })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o público" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Both">Todos (PF e PJ)</SelectItem>
+                  <SelectItem value="PF">Apenas Pessoa Física (PF)</SelectItem>
+                  <SelectItem value="PJ">Apenas Pessoa Jurídica (PJ)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex items-center justify-between border rounded-lg p-3 mt-2">
