@@ -38,6 +38,7 @@ import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
+import { isValidCPF } from '@/lib/utils'
 import * as pdfjsLib from 'pdfjs-dist'
 import PdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker'
 
@@ -65,6 +66,14 @@ export default function PortalEmployees() {
 
   const [formData, setFormData] = useState({ name: '', tax_id: '', role: 'outros' })
   const [editingEmp, setEditingEmp] = useState<Employee | null>(null)
+
+  const addTaxIdCleaned = formData.tax_id.replace(/\D/g, '')
+  const addCpfInvalid = addTaxIdCleaned.length === 11 && !isValidCPF(addTaxIdCleaned)
+  const isAddSubmitDisabled = addTaxIdCleaned.length !== 11 || !isValidCPF(addTaxIdCleaned)
+
+  const editTaxIdCleaned = editingEmp?.tax_id.replace(/\D/g, '') || ''
+  const editCpfInvalid = editTaxIdCleaned.length === 11 && !isValidCPF(editTaxIdCleaned)
+  const isEditSubmitDisabled = editTaxIdCleaned.length !== 11 || !isValidCPF(editTaxIdCleaned)
 
   const load = async () => {
     if (!user) return
@@ -269,6 +278,9 @@ export default function PortalEmployees() {
                     }}
                     placeholder="000.000.000-00"
                   />
+                  {addCpfInvalid && (
+                    <p className="text-sm font-medium text-destructive">CPF inválido</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Função</Label>
@@ -286,7 +298,7 @@ export default function PortalEmployees() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button type="submit" className="w-full">
+                <Button type="submit" className="w-full" disabled={isAddSubmitDisabled}>
                   Salvar
                 </Button>
               </form>
@@ -337,10 +349,13 @@ export default function PortalEmployees() {
                     else if (val.length > 3) val = val.replace(/(\d{3})(\d{1,3})/, '$1.$2')
                     setEditingEmp({ ...editingEmp, tax_id: val })
                   }}
-                />{' '}
+                />
+                {editCpfInvalid && (
+                  <p className="text-sm font-medium text-destructive">CPF inválido</p>
+                )}
               </div>
               <div className="space-y-2">
-                <Label>Função</Label>
+                <Label>Função</Label>{' '}
                 <Select
                   value={editingEmp.role}
                   onValueChange={(v: any) => setEditingEmp({ ...editingEmp, role: v })}
@@ -355,7 +370,7 @@ export default function PortalEmployees() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button type="submit" className="w-full">
+              <Button type="submit" className="w-full" disabled={isEditSubmitDisabled}>
                 Salvar
               </Button>
             </form>
