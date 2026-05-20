@@ -188,6 +188,10 @@ export default function PortalEmployees() {
 
       if (res.count > 0) {
         toast.success(`Arquivo processado! ${res.count} funcionários novos importados.`)
+        toast.warning(
+          'Os cadastros realizados automaticamente pela importação da guia do FGTS devem ser revisados para que seja feito o ajuste do campo FUNÇÃO.',
+          { duration: 10000 },
+        )
       } else {
         toast.success('Arquivo processado. Os funcionários encontrados já estavam cadastrados.')
       }
