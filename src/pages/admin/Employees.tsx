@@ -88,11 +88,12 @@ export default function AdminEmployees() {
 
   const handleSave = async () => {
     try {
+      const dataToSave = { ...formData, tax_id: formData.tax_id.replace(/\D/g, '') }
       if (editingId) {
-        await updateEmployee(editingId, formData as any)
+        await updateEmployee(editingId, dataToSave as any)
         toast.success('Atualizado com sucesso')
       } else {
-        await createEmployee(formData as any)
+        await createEmployee(dataToSave as any)
         toast.success('Criado com sucesso')
       }
       setIsDialogOpen(false)
@@ -153,7 +154,7 @@ export default function AdminEmployees() {
                     {emp.expand?.user?.name || emp.expand?.user?.email || 'Desconhecido'}
                   </TableCell>
                   <TableCell className="font-medium">{emp.name}</TableCell>
-                  <TableCell>{emp.tax_id}</TableCell>
+                  <TableCell>{formatCPF(emp.tax_id)}</TableCell>
                   <TableCell className="capitalize">{emp.role}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">

@@ -199,7 +199,9 @@ export default function PortalEmployees() {
         setIsImportOpen(false)
         setIsPreviewOpen(true)
       } else {
-        toast.error('Nenhum funcionário extraído.')
+        toast.error(
+          'Não foi possível identificar funcionários neste documento. Verifique a formatação do PDF.',
+        )
       }
     } catch (err: any) {
       toast.error(getErrorMessage(err))

@@ -32,10 +32,13 @@ routerAdd(
     }
 
     if (action === 'extract' || action === 'extract_and_save') {
-      const text = body.text
+      let text = body.text
       if (!text || text.trim().length === 0) {
         throw e.badRequestError('Nenhum texto pôde ser extraído do documento PDF.')
       }
+
+      // Clean special characters and invisible whitespace to prevent processing issues
+      text = text.replace(/[\x00-\x09\x0B-\x1F\x7F-\x9F\u200B-\u200D\uFEFF\u00A0]/g, ' ')
 
       let employees = []
       const cpfPattern = /\d{3}\.?\d{3}\.?\d{3}\-?\d{2}/g
@@ -138,7 +141,9 @@ routerAdd(
       }
 
       if (employees.length === 0) {
-        throw e.badRequestError('Não foi possível identificar funcionários neste documento.')
+        throw e.badRequestError(
+          'Não foi possível identificar funcionários neste documento. Verifique a formatação do PDF.',
+        )
       }
 
       const uniqueEmps = []
@@ -152,7 +157,9 @@ routerAdd(
       }
 
       if (uniqueEmps.length === 0) {
-        throw e.badRequestError('Nenhum registro com CPF válido encontrado.')
+        throw e.badRequestError(
+          'Não foi possível identificar funcionários neste documento. Verifique a formatação do PDF.',
+        )
       }
 
       if (action === 'extract') {
@@ -172,33 +179,39 @@ routerAdd(
       let count = 0
       const savedEmployeeIds = []
 
+      // Fetch existing employees for this user to avoid N+1 queries timeout
+      const existingRecords = $app.findRecordsByFilter(
+        'employees',
+        "user = '" + user.id + "'",
+        '',
+        10000,
+        0,
+      )
+      const existingCpfs = new Set()
+      const cpfToId = {}
+      for (const rec of existingRecords) {
+        const c = rec.getString('tax_id')
+        existingCpfs.add(c)
+        cpfToId[c] = rec.id
+      }
+
       for (const empData of employeesToSave) {
         const rawCpf = String(empData.tax_id || '').replace(/\D/g, '')
         if (!isValidCPF(rawCpf)) continue
 
         try {
-          let record = null
-          try {
-            record = $app.findFirstRecordByFilter(
-              'employees',
-              'tax_id = {:tax_id} && user = {:user}',
-              {
-                tax_id: rawCpf,
-                user: user.id,
-              },
-            )
-          } catch (_) {}
-
-          if (record) {
-            savedEmployeeIds.push(record.id)
+          if (existingCpfs.has(rawCpf)) {
+            savedEmployeeIds.push(cpfToId[rawCpf])
           } else {
-            record = new Record(empCollection)
+            const record = new Record(empCollection)
             record.set('name', String(empData.name || '').trim())
             record.set('tax_id', rawCpf)
             record.set('role', 'outros')
             record.set('user', user.id)
             $app.save(record)
             savedEmployeeIds.push(record.id)
+            existingCpfs.add(rawCpf)
+            cpfToId[rawCpf] = record.id
             count++
           }
         } catch (err) {
@@ -212,4 +225,5 @@ routerAdd(
     throw e.badRequestError('Invalid action')
   },
   $apis.requireAuth(),
+  $apis.bodyLimit(50 * 1024 * 1024),
 )
