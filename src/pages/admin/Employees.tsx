@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Trash2, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { formatCPF, isValidCPF } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -42,6 +43,7 @@ export default function AdminEmployees() {
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [cpfTouched, setCpfTouched] = useState(false)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -72,7 +74,7 @@ export default function AdminEmployees() {
       setEditingId(emp.id)
       setFormData({
         name: emp.name,
-        tax_id: emp.tax_id,
+        tax_id: formatCPF(emp.tax_id),
         role: emp.role,
         user: emp.user,
       })
@@ -80,6 +82,7 @@ export default function AdminEmployees() {
       setEditingId(null)
       setFormData({ name: '', tax_id: '', role: 'motorista', user: '' })
     }
+    setCpfTouched(false)
     setIsDialogOpen(true)
   }
 
@@ -209,8 +212,16 @@ export default function AdminEmployees() {
               <Label>CPF</Label>
               <Input
                 value={formData.tax_id}
-                onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, tax_id: formatCPF(e.target.value) })
+                  setCpfTouched(true)
+                }}
+                onBlur={() => setCpfTouched(true)}
+                maxLength={14}
               />
+              {cpfTouched && formData.tax_id.length > 0 && !isValidCPF(formData.tax_id) && (
+                <p className="text-sm text-destructive">CPF inválido</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Função</Label>
@@ -232,7 +243,9 @@ export default function AdminEmployees() {
           <DialogFooter>
             <Button
               onClick={handleSave}
-              disabled={!formData.name || !formData.user || !formData.role}
+              disabled={
+                !formData.name || !formData.user || !formData.role || !isValidCPF(formData.tax_id)
+              }
             >
               Salvar
             </Button>
