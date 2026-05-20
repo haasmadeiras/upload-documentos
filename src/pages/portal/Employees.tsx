@@ -66,6 +66,7 @@ export default function PortalEmployees() {
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState('')
 
   const [extractedEmployees, setExtractedEmployees] = useState<{ name: string; tax_id: string }[]>(
     [],
@@ -160,6 +161,7 @@ export default function PortalEmployees() {
     }
 
     setImporting(true)
+    setImportProgress('Abrindo arquivo PDF...')
 
     try {
       const arrayBuffer = await file.arrayBuffer()
@@ -175,6 +177,8 @@ export default function PortalEmployees() {
       let fullText = ''
 
       for (let i = 1; i <= pdf.numPages; i++) {
+        setImportProgress(`Extraindo texto: página ${i} de ${pdf.numPages}...`)
+        await new Promise((resolve) => setTimeout(resolve, 10)) // Yield to UI
         const page = await pdf.getPage(i)
         const textContent = await page.getTextContent()
         const pageText = textContent.items
@@ -188,6 +192,7 @@ export default function PortalEmployees() {
         return
       }
 
+      setImportProgress('Enviando dados para processamento...')
       const res = await pb.send('/backend/v1/employees/import-fgts', {
         method: 'POST',
         body: JSON.stringify({ action: 'extract', text: fullText }),
@@ -213,6 +218,7 @@ export default function PortalEmployees() {
 
   const handleConfirmImport = async () => {
     setImporting(true)
+    setImportProgress('Salvando funcionários no sistema...')
     try {
       const res = await pb.send('/backend/v1/employees/import-fgts', {
         method: 'POST',
@@ -273,7 +279,7 @@ export default function PortalEmployees() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" className="font-semibold" onClick={handleExportCsv}>
-            <Download className="w-4 h-4 mr-2" /> EXPORTAR FUNCIONÁRIOS
+            <Download className="w-4 h-4 mr-2" /> Exportar Base
           </Button>
 
           <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
@@ -298,9 +304,11 @@ export default function PortalEmployees() {
                   />
                 </div>
                 {importing && (
-                  <p className="text-sm text-muted-foreground animate-pulse">
-                    Processando arquivo, extraindo e validando dados...
-                  </p>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground animate-pulse">
+                      {importProgress || 'Processando arquivo, extraindo e validando dados...'}
+                    </p>
+                  </div>
                 )}
               </div>
             </DialogContent>

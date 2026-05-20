@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Pencil } from 'lucide-react'
+import { Plus, Trash2, Pencil, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatCPF, isValidCPF } from '@/lib/utils'
 import {
@@ -114,6 +114,33 @@ export default function AdminEmployees() {
     }
   }
 
+  const handleExportCsv = () => {
+    if (employees.length === 0) {
+      toast.error('Nenhum funcionário para exportar.')
+      return
+    }
+
+    const headers = ['Fornecedor', 'Nome', 'CPF (tax_id)', 'Função (role)', 'Data de Cadastro']
+    const rows = employees.map((emp) => [
+      emp.expand?.user?.name || emp.expand?.user?.email || 'Desconhecido',
+      emp.name,
+      formatCPF(emp.tax_id),
+      emp.role,
+      new Date(emp.created).toLocaleDateString('pt-BR'),
+    ])
+
+    const csvContent = [headers.join(';'), ...rows.map((e) => e.join(';'))].join('\n')
+
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `base_funcionarios_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -123,9 +150,14 @@ export default function AdminEmployees() {
             Visão geral de todos os funcionários de todos os fornecedores.
           </p>
         </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="w-4 h-4 mr-2" /> Novo Funcionário
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={handleExportCsv}>
+            <Download className="w-4 h-4 mr-2" /> Exportar Base
+          </Button>
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="w-4 h-4 mr-2" /> Novo Funcionário
+          </Button>
+        </div>
       </div>
 
       <Card>

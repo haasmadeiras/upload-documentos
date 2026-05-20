@@ -34,7 +34,7 @@ routerAdd(
     if (action === 'extract' || action === 'extract_and_save') {
       let text = body.text
       if (!text || text.trim().length === 0) {
-        throw e.badRequestError('Nenhum texto pôde ser extraído do documento PDF.')
+        throw e.badRequestError('O arquivo PDF parece estar vazio ou não contém texto extraível.')
       }
 
       // Clean special characters and invisible whitespace to prevent processing issues
@@ -140,12 +140,6 @@ routerAdd(
         }
       }
 
-      if (employees.length === 0) {
-        throw e.badRequestError(
-          'Não foi possível identificar funcionários neste documento. Verifique a formatação do PDF.',
-        )
-      }
-
       const uniqueEmps = []
       const seenCpfs = new Set()
       for (const emp of employees) {
@@ -172,57 +166,62 @@ routerAdd(
     if (action === 'save' || action === 'extract_and_save') {
       const employeesToSave = body.employees || []
       if (employeesToSave.length === 0) {
-        throw e.badRequestError('Nenhum funcionário para salvar.')
+        throw e.badRequestError('Nenhum funcionário válido foi encontrado para salvar.')
       }
 
-      const empCollection = $app.findCollectionByNameOrId('employees')
       let count = 0
       const savedEmployeeIds = []
 
-      // Fetch existing employees for this user to avoid N+1 queries timeout
-      const existingRecords = $app.findRecordsByFilter(
-        'employees',
-        "user = '" + user.id + "'",
-        '',
-        10000,
-        0,
-      )
-      const existingCpfs = new Set()
-      const cpfToId = {}
-      for (const rec of existingRecords) {
-        const c = rec.getString('tax_id')
-        existingCpfs.add(c)
-        cpfToId[c] = rec.id
-      }
+      try {
+        $app.runInTransaction((txApp) => {
+          const empCollection = txApp.findCollectionByNameOrId('employees')
 
-      for (const empData of employeesToSave) {
-        const rawCpf = String(empData.tax_id || '').replace(/\D/g, '')
-        if (!isValidCPF(rawCpf)) continue
+          const existingRecords = txApp.findRecordsByFilter(
+            'employees',
+            "user = '" + user.id + "'",
+            '',
+            10000,
+            0,
+          )
 
-        try {
-          if (existingCpfs.has(rawCpf)) {
-            savedEmployeeIds.push(cpfToId[rawCpf])
-          } else {
-            const record = new Record(empCollection)
-            record.set('name', String(empData.name || '').trim())
-            record.set('tax_id', rawCpf)
-            record.set('role', 'outros')
-            record.set('user', user.id)
-            $app.save(record)
-            savedEmployeeIds.push(record.id)
-            existingCpfs.add(rawCpf)
-            cpfToId[rawCpf] = record.id
-            count++
+          const existingCpfs = new Set()
+          const cpfToId = {}
+          for (const rec of existingRecords) {
+            const c = rec.getString('tax_id')
+            existingCpfs.add(c)
+            cpfToId[c] = rec.id
           }
-        } catch (err) {
-          $app.logger().error('Failed to save employee', 'cpf', rawCpf, 'error', err.message)
-        }
+
+          for (const empData of employeesToSave) {
+            const rawCpf = String(empData.tax_id || '').replace(/\D/g, '')
+            if (!isValidCPF(rawCpf)) continue
+
+            if (existingCpfs.has(rawCpf)) {
+              savedEmployeeIds.push(cpfToId[rawCpf])
+            } else {
+              const record = new Record(empCollection)
+              record.set('name', String(empData.name || '').trim())
+              record.set('tax_id', rawCpf)
+              record.set('role', 'outros')
+              record.set('user', user.id)
+              txApp.save(record)
+
+              savedEmployeeIds.push(record.id)
+              existingCpfs.add(rawCpf)
+              cpfToId[rawCpf] = record.id
+              count++
+            }
+          }
+        })
+      } catch (err) {
+        $app.logger().error('Transaction failed while saving employees', 'error', err.message)
+        throw e.internalServerError('Ocorreu um erro ao salvar os funcionários. Tente novamente.')
       }
 
       return e.json(200, { message: 'Success', count, employeeIds: savedEmployeeIds })
     }
 
-    throw e.badRequestError('Invalid action')
+    throw e.badRequestError('Ação inválida solicitada ao servidor.')
   },
   $apis.requireAuth(),
   $apis.bodyLimit(50 * 1024 * 1024),
