@@ -1,7 +1,7 @@
 routerAdd(
   'POST',
   '/backend/v1/employees/import-fgts',
-  async (e) => {
+  (e) => {
     const user = e.auth
     if (!user) {
       throw new UnauthorizedError('Unauthorized')
@@ -16,86 +16,6 @@ routerAdd(
 
     if (!text || text.trim().length === 0) {
       throw new BadRequestError('Nenhum texto pôde ser extraído do documento PDF.')
-    }
-
-    let employees = []
-
-    // Targeted Row Detection based on standard layout:
-    // [MM/YYYY] [DD/MM/YYYY] [NOME DO TRABALHADOR] [MATRÍCULA (10+ digits)] [CPF]
-    const strictRegex =
-      /\d{2}\/\d{4}\s+\d{2}\/\d{2}\/\d{4}\s+([A-Za-zÀ-ÿ\s\.\'\-]+?)\s+\d{10,}\s+(\d{3}\.\d{3}\.\d{3}\-\d{2})/g
-
-    let matches = [...text.matchAll(strictRegex)]
-
-    if (matches.length > 0) {
-      for (const match of matches) {
-        let name = match[1].replace(/\s+/g, ' ').trim()
-        const cpf = match[2].replace(/\D/g, '')
-
-        const lowerName = name.toLowerCase()
-        const invalidKeywords = [
-          'empresa',
-          'total',
-          'ltda',
-          's/a',
-          's.a',
-          'cnpj',
-          'competência',
-          'página',
-          'fgts',
-          'guia',
-          'recolhimento',
-          'data',
-          'valor',
-          'banco',
-        ]
-
-        const isGhost = invalidKeywords.some((kw) => lowerName.includes(kw))
-        if (!isGhost && name.includes(' ') && name.length > 5) {
-          employees.push({ name, tax_id: cpf })
-        }
-      }
-    } else {
-      // Fallback: search for CPF and take preceding words
-      const fallbackRegex =
-        /(?:^|\s)([A-ZÀ-Ÿ][A-Za-zÀ-ÿ\s\.\'\-]{4,60}?)\s+(?:\d{10,}\s+)?(\d{3}\.\d{3}\.\d{3}\-\d{2})/g
-      matches = [...text.matchAll(fallbackRegex)]
-      for (const match of matches) {
-        let name = match[1].replace(/\s+/g, ' ').trim()
-        const cpf = match[2].replace(/\D/g, '')
-
-        // Strip any leading dates that might have been caught
-        name = name.replace(/^\d{2}\/\d{4}\s+\d{2}\/\d{2}\/\d{4}\s+/, '').trim()
-
-        const lowerName = name.toLowerCase()
-        const invalidKeywords = [
-          'empresa',
-          'total',
-          'ltda',
-          's/a',
-          's.a',
-          'cnpj',
-          'competência',
-          'página',
-          'fgts',
-          'guia',
-          'recolhimento',
-          'data',
-          'valor',
-          'banco',
-        ]
-
-        const isGhost = invalidKeywords.some((kw) => lowerName.includes(kw))
-        if (!isGhost && name.includes(' ') && name.length > 5) {
-          employees.push({ name, tax_id: cpf })
-        }
-      }
-    }
-
-    if (employees.length === 0) {
-      throw new BadRequestError(
-        'Não foi possível identificar funcionários neste documento de forma confiável. Verifique se a guia contém CPFs legíveis e nomes completos.',
-      )
     }
 
     const isValidCPF = (cpf) => {
@@ -115,7 +35,113 @@ routerAdd(
       return true
     }
 
-    // Deduplicate extracted records by CPF and validate
+    let employees = []
+
+    const cpfPattern = /\d{3}\.?\d{3}\.?\d{3}\-?\d{2}/g
+    let match
+    const foundCpfs = []
+
+    while ((match = cpfPattern.exec(text)) !== null) {
+      const start = match.index
+      const end = start + match[0].length
+
+      const charBefore = start > 0 ? text[start - 1] : ''
+      const charAfter = end < text.length ? text[end] : ''
+
+      if (/[0-9]/.test(charBefore) || /[0-9]/.test(charAfter)) {
+        continue
+      }
+
+      const rawCpf = match[0].replace(/\D/g, '')
+      if (isValidCPF(rawCpf)) {
+        foundCpfs.push({ cpf: rawCpf, index: start })
+      }
+    }
+
+    for (const item of foundCpfs) {
+      const textBefore = text.substring(Math.max(0, item.index - 250), item.index)
+      const tokens = textBefore.trim().split(/\s+/)
+
+      let nameTokens = []
+      for (let i = tokens.length - 1; i >= 0; i--) {
+        const token = tokens[i]
+
+        if (/^[\d\/\.\-]+$/.test(token)) {
+          if (nameTokens.length === 0) continue
+          break
+        }
+
+        if (/[A-Za-zÀ-ÿ]/.test(token)) {
+          const lower = token.toLowerCase()
+          if (
+            [
+              'empresa',
+              'total',
+              'ltda',
+              'cnpj',
+              'competência',
+              'página',
+              'fgts',
+              'guia',
+              'recolhimento',
+              'banco',
+              'trabalhador',
+              'nome',
+              'pis',
+              'pasep',
+              'ci',
+              'admissão',
+              'categoria',
+              'vínculos',
+              'múltiplos',
+              'dep',
+            ].includes(lower)
+          ) {
+            if (nameTokens.length > 0) break
+            continue
+          }
+          nameTokens.unshift(token)
+        } else {
+          if (nameTokens.length > 0) break
+        }
+      }
+
+      let name = nameTokens
+        .join(' ')
+        .replace(/[^A-Za-zÀ-ÿ\s\.\'\-]/g, '')
+        .trim()
+
+      const invalidKeywords = [
+        'empresa',
+        'total',
+        'ltda',
+        's/a',
+        's.a',
+        'cnpj',
+        'competência',
+        'página',
+        'fgts',
+        'guia',
+        'recolhimento',
+        'data',
+        'valor',
+        'banco',
+        'gerado',
+        'sistema',
+      ]
+
+      const isGhost = invalidKeywords.some((kw) => name.toLowerCase().includes(kw))
+      if (!isGhost && name.includes(' ') && name.length > 4) {
+        employees.push({ name, tax_id: item.cpf })
+      }
+    }
+
+    if (employees.length === 0) {
+      throw new BadRequestError(
+        'Não foi possível identificar funcionários neste documento de forma confiável. Verifique se a guia contém CPFs legíveis e nomes completos.',
+      )
+    }
+
     const uniqueEmps = []
     const seenCpfs = new Set()
     for (const emp of employees) {
@@ -150,10 +176,6 @@ routerAdd(
         } catch (_) {}
 
         if (record) {
-          if (record.getString('name') !== empData.name) {
-            record.set('name', empData.name)
-            $app.save(record)
-          }
           savedEmployeeIds.push(record.id)
         } else {
           record = new Record(empCollection)
@@ -170,7 +192,6 @@ routerAdd(
       }
     }
 
-    // Link employees to the uploaded document to maintain relationship integrity
     if (body.documentId && savedEmployeeIds.length > 0) {
       try {
         const doc = $app.findRecordById('documents', body.documentId)

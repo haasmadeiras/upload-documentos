@@ -218,13 +218,13 @@ export default function PortalEmployees() {
         <div className="flex gap-2">
           <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
-                <Upload className="w-4 h-4 mr-2" /> Importar Guia FGTS
+              <Button variant="outline" className="font-semibold">
+                <Upload className="w-4 h-4 mr-2" /> IMPORTAR GUIA FGTS
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Importar Guia FGTS</DialogTitle>
+                <DialogTitle>IMPORTAR GUIA FGTS</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="grid w-full max-w-sm items-center gap-1.5">
