@@ -1,6 +1,15 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Upload, ArrowRight, Trash2, Pencil, Users, AlertCircle } from 'lucide-react'
+import {
+  Plus,
+  Upload,
+  ArrowRight,
+  Trash2,
+  Pencil,
+  Users,
+  AlertCircle,
+  Download,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
@@ -40,7 +49,7 @@ import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
-import { isValidCPF } from '@/lib/utils'
+import { isValidCPF, formatCPF } from '@/lib/utils'
 import * as pdfjsLib from 'pdfjs-dist'
 import PdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker'
 
@@ -50,14 +59,6 @@ try {
   console.error('Falha ao inicializar o worker do PDF', e)
 }
 
-const formatCpf = (cpf: string) => {
-  const cleaned = cpf.replace(/\D/g, '')
-  if (cleaned.length === 11) {
-    return cleaned.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-  }
-  return cpf
-}
-
 export default function PortalEmployees() {
   const { user } = useAuth()
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -65,6 +66,11 @@ export default function PortalEmployees() {
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [importing, setImporting] = useState(false)
+
+  const [extractedEmployees, setExtractedEmployees] = useState<{ name: string; tax_id: string }[]>(
+    [],
+  )
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
 
   const [formData, setFormData] = useState({ name: '', tax_id: '', role: 'outros' })
   const [editingEmp, setEditingEmp] = useState<Employee | null>(null)
@@ -184,27 +190,74 @@ export default function PortalEmployees() {
 
       const res = await pb.send('/backend/v1/employees/import-fgts', {
         method: 'POST',
-        body: JSON.stringify({ text: fullText }),
+        body: JSON.stringify({ action: 'extract', text: fullText }),
         headers: { 'Content-Type': 'application/json' },
       })
 
-      if (res.count > 0) {
-        toast.success(`Arquivo processado! ${res.count} funcionários novos importados.`)
-        toast.warning(
-          'Os cadastros realizados automaticamente pela importação da guia do FGTS devem ser revisados para que seja feito o ajuste do campo FUNÇÃO.',
-          { duration: 10000 },
-        )
+      if (res.employees && res.employees.length > 0) {
+        setExtractedEmployees(res.employees)
+        setIsImportOpen(false)
+        setIsPreviewOpen(true)
       } else {
-        toast.success('Arquivo processado. Os funcionários encontrados já estavam cadastrados.')
+        toast.error('Nenhum funcionário extraído.')
       }
-      setIsImportOpen(false)
-      load()
     } catch (err: any) {
       toast.error(getErrorMessage(err))
     } finally {
       setImporting(false)
       e.target.value = ''
     }
+  }
+
+  const handleConfirmImport = async () => {
+    setImporting(true)
+    try {
+      const res = await pb.send('/backend/v1/employees/import-fgts', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'save', employees: extractedEmployees }),
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (res.count > 0) {
+        toast.success(`Importação concluída! ${res.count} novos registros criados.`)
+      } else {
+        toast.success('Importação concluída. Os funcionários encontrados já estavam cadastrados.')
+      }
+      setIsPreviewOpen(false)
+      setExtractedEmployees([])
+      load()
+    } catch (err: any) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleExportCsv = () => {
+    if (employees.length === 0) {
+      toast.error('Nenhum funcionário para exportar.')
+      return
+    }
+
+    const headers = ['Nome', 'CPF (tax_id)', 'Função (role)', 'Data de Cadastro']
+    const rows = employees.map((emp) => [
+      emp.name,
+      formatCPF(emp.tax_id),
+      emp.role,
+      new Date(emp.created).toLocaleDateString('pt-BR'),
+    ])
+
+    const csvContent = [headers.join(';'), ...rows.map((e) => e.join(';'))].join('\n')
+
+    // Prefix with BOM for proper UTF-8 handling in Excel
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `funcionarios_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   return (
@@ -216,7 +269,11 @@ export default function PortalEmployees() {
             Gerencie a lista de funcionários e seus documentos.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="font-semibold" onClick={handleExportCsv}>
+            <Download className="w-4 h-4 mr-2" /> EXPORTAR FUNCIONÁRIOS
+          </Button>
+
           <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="font-semibold">
@@ -247,6 +304,51 @@ export default function PortalEmployees() {
             </DialogContent>
           </Dialog>
 
+          <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Conferência de Importação</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <p className="text-sm text-muted-foreground">
+                  Foram identificados <strong>{extractedEmployees.length}</strong> funcionários
+                  neste documento. Verifique os dados abaixo antes de salvar. (Registros com CPF já
+                  existentes na base serão ignorados).
+                </p>
+                <div className="max-h-[400px] overflow-y-auto border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>CPF</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {extractedEmployees.map((emp, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-medium">{emp.name}</TableCell>
+                          <TableCell>{formatCPF(emp.tax_id)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsPreviewOpen(false)}
+                    disabled={importing}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleConfirmImport} disabled={importing}>
+                    {importing ? 'Salvando...' : 'Confirmar Importação'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -272,16 +374,11 @@ export default function PortalEmployees() {
                     required
                     value={formData.tax_id}
                     onChange={(e) => {
-                      let val = e.target.value.replace(/\D/g, '')
-                      if (val.length > 11) val = val.slice(0, 11)
-                      if (val.length > 9)
-                        val = val.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4')
-                      else if (val.length > 6)
-                        val = val.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3')
-                      else if (val.length > 3) val = val.replace(/(\d{3})(\d{1,3})/, '$1.$2')
-                      setFormData({ ...formData, tax_id: val })
+                      const val = e.target.value
+                      setFormData({ ...formData, tax_id: formatCPF(val) })
                     }}
                     placeholder="000.000.000-00"
+                    maxLength={14}
                   />
                   {addCpfInvalid && (
                     <p className="text-sm font-medium text-destructive">CPF inválido</p>
@@ -332,8 +429,8 @@ export default function PortalEmployees() {
           <AlertCircle className="h-4 w-4 !text-amber-600 dark:!text-amber-400" />
           <AlertTitle>Atenção à Função</AlertTitle>
           <AlertDescription>
-            Os cadastros realizados automaticamente pela importação da guia do FGTS devem ser
-            revisados para que seja feito o ajuste do campo FUNÇÃO (atualmente como "Outros").
+            Atenção: Os funcionários importados via FGTS foram cadastrados com a função 'OUTROS'.
+            Por favor, revise e atualize os cargos conforme necessário.
           </AlertDescription>
         </Alert>
       )}
@@ -359,15 +456,11 @@ export default function PortalEmployees() {
                   required
                   value={editingEmp.tax_id}
                   onChange={(e) => {
-                    let val = e.target.value.replace(/\D/g, '')
-                    if (val.length > 11) val = val.slice(0, 11)
-                    if (val.length > 9)
-                      val = val.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4')
-                    else if (val.length > 6)
-                      val = val.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3')
-                    else if (val.length > 3) val = val.replace(/(\d{3})(\d{1,3})/, '$1.$2')
-                    setEditingEmp({ ...editingEmp, tax_id: val })
+                    const val = e.target.value
+                    setEditingEmp({ ...editingEmp, tax_id: formatCPF(val) })
                   }}
+                  placeholder="000.000.000-00"
+                  maxLength={14}
                 />
                 {editCpfInvalid && (
                   <p className="text-sm font-medium text-destructive">CPF inválido</p>
@@ -419,14 +512,14 @@ export default function PortalEmployees() {
               {employees.map((emp) => (
                 <TableRow key={emp.id}>
                   <TableCell className="font-medium">{emp.name}</TableCell>
-                  <TableCell>{formatCpf(emp.tax_id)}</TableCell>
+                  <TableCell>{formatCPF(emp.tax_id)}</TableCell>
                   <TableCell className="capitalize">{emp.role}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => setEditingEmp({ ...emp, tax_id: formatCpf(emp.tax_id) })}
+                        onClick={() => setEditingEmp({ ...emp, tax_id: formatCPF(emp.tax_id) })}
                         className="text-muted-foreground hover:text-primary"
                       >
                         <Pencil className="w-4 h-4" />
