@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Upload, ArrowRight, Trash2, Pencil, Users } from 'lucide-react'
+import { Plus, Upload, ArrowRight, Trash2, Pencil, Users, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 import {
   Table,
   TableBody,
@@ -198,8 +200,7 @@ export default function PortalEmployees() {
       setIsImportOpen(false)
       load()
     } catch (err: any) {
-      const msg = err?.response?.message || err?.message || 'Erro ao importar. Tente novamente.'
-      toast.error(msg)
+      toast.error(getErrorMessage(err))
     } finally {
       setImporting(false)
       e.target.value = ''
@@ -322,6 +323,20 @@ export default function PortalEmployees() {
           </CardContent>
         </Card>
       </div>
+
+      {employees.some((emp) => emp.role === 'outros') && (
+        <Alert
+          variant="default"
+          className="bg-amber-50 text-amber-900 border-amber-200 dark:bg-amber-900/20 dark:text-amber-200 dark:border-amber-800"
+        >
+          <AlertCircle className="h-4 w-4 !text-amber-600 dark:!text-amber-400" />
+          <AlertTitle>Atenção à Função</AlertTitle>
+          <AlertDescription>
+            Os cadastros realizados automaticamente pela importação da guia do FGTS devem ser
+            revisados para que seja feito o ajuste do campo FUNÇÃO (atualmente como "Outros").
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Dialog open={!!editingEmp} onOpenChange={(v) => !v && setEditingEmp(null)}>
         <DialogContent>
