@@ -5,6 +5,7 @@ import {
   Settings,
   FolderLock,
   Users,
+  UserCog,
   LogOut,
   ChevronRight,
   FileText,
@@ -40,6 +41,7 @@ export function AppSidebar() {
 
   const masterItems = [
     { title: 'Dashboard', url: '/admin', icon: LayoutDashboard },
+    { title: 'Usuários', url: '/admin/users', icon: UserCog },
     { title: 'Regras de Documentos', url: '/admin/config', icon: Settings },
     { title: 'Fornecedores', url: '/admin/suppliers', icon: Users },
     { title: 'Funcionários', url: '/admin/employees', icon: Users },
@@ -63,7 +65,7 @@ export function AppSidebar() {
     },
   ]
 
-  const isMaster = user?.isAdmin === true || appUser?.role === 'master'
+  const isMaster = user?.isAdmin === true || user?.role === 'Admin' || appUser?.role === 'master'
   const items = isMaster ? masterItems : stakeholderItems
 
   return (

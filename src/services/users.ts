@@ -7,6 +7,9 @@ export interface User {
   isAdmin: boolean
   person_type: 'PF' | 'PJ'
   tax_id: string
+  role: 'Admin' | 'Colaborador' | 'Fornecedor'
+  phone?: string
+  legal_name?: string
   created: string
   updated: string
 }

@@ -14,6 +14,7 @@ import AdminEmployees from './pages/admin/Employees'
 import AdminVehicles from './pages/admin/Vehicles'
 import AdminContracts from './pages/admin/Contracts'
 import AdminForests from './pages/admin/Forests'
+import AdminUsers from './pages/admin/Users'
 import PortalDashboard from './pages/portal/Dashboard'
 import PortalUpload from './pages/portal/Upload'
 import PortalEmployeeDetails from './pages/portal/EmployeeDetails'
@@ -39,6 +40,7 @@ const App = () => (
               <Route path="/admin/vehicles" element={<AdminVehicles />} />
               <Route path="/admin/contracts" element={<AdminContracts />} />
               <Route path="/admin/forests" element={<AdminForests />} />
+              <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/employees/:id" element={<PortalEmployeeDetails />} />
               {/* Dashboard Routes */}
               <Route path="/dashboard" element={<PortalDashboard />} />
