@@ -52,6 +52,8 @@ const formSchema = z
     person_type: z.enum(['PF', 'PJ']),
     phone: z.string().optional(),
     legal_name: z.string().optional(),
+    address: z.string().optional(),
+    password: z.string().min(8, 'Senha deve ter no mínimo 8 caracteres'),
   })
   .superRefine((data, ctx) => {
     const taxIdClean = data.tax_id.replace(/\D/g, '')
@@ -136,6 +138,8 @@ export default function AdminUsers() {
       person_type: 'PJ',
       phone: '',
       legal_name: '',
+      address: '',
+      password: '',
     },
   })
 
@@ -165,8 +169,8 @@ export default function AdminUsers() {
       await createUser({
         ...values,
         isAdmin: values.role === 'Admin',
-        password: 'Senha123!@#',
-        passwordConfirm: 'Senha123!@#',
+        password: values.password,
+        passwordConfirm: values.password,
       })
       toast.success('Usuário criado com sucesso')
       setOpen(false)
@@ -232,7 +236,7 @@ export default function AdminUsers() {
               Novo Usuário
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-xl">
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Cadastrar Novo Usuário</DialogTitle>
             </DialogHeader>
@@ -378,6 +382,34 @@ export default function AdminUsers() {
                     )}
                   />
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Endereço Completo</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Rua, Número, Bairro, Cidade - Estado, CEP" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Senha</FormLabel>
+                      <FormControl>
+                        <Input placeholder="******" type="password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <div className="pt-4 flex justify-end">
                   <Button type="submit">Salvar Usuário</Button>

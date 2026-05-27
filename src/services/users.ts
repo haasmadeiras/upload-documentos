@@ -10,6 +10,7 @@ export interface User {
   role: 'Admin' | 'Colaborador' | 'Fornecedor'
   phone?: string
   legal_name?: string
+  address?: string
   created: string
   updated: string
 }
