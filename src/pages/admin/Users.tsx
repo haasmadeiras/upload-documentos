@@ -47,28 +47,50 @@ const formSchema = z
   .object({
     name: z.string().min(1, 'Nome é obrigatório'),
     email: z.string().email('E-mail inválido'),
-    tax_id: z.string().min(14, 'CNPJ/CPF inválido'),
+    tax_id: z.string().min(14, 'Documento inválido'),
     role: z.enum(['Admin', 'Colaborador', 'Fornecedor']),
+    person_type: z.enum(['PF', 'PJ']),
     phone: z.string().optional(),
     legal_name: z.string().optional(),
   })
   .superRefine((data, ctx) => {
-    if (data.role !== 'Colaborador' && (!data.legal_name || data.legal_name.trim().length === 0)) {
+    const taxIdClean = data.tax_id.replace(/\D/g, '')
+    if (data.person_type === 'PF' && taxIdClean.length !== 11) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Razão Social é obrigatória para este perfil',
+        message: 'CPF inválido',
+        path: ['tax_id'],
+      })
+    }
+    if (data.person_type === 'PJ' && taxIdClean.length !== 14) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'CNPJ inválido',
+        path: ['tax_id'],
+      })
+    }
+
+    if (
+      data.role === 'Fornecedor' &&
+      data.person_type === 'PJ' &&
+      (!data.legal_name || data.legal_name.trim().length === 0)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Razão Social é obrigatória para Fornecedor PJ',
         path: ['legal_name'],
       })
     }
   })
 
-function maskTaxId(value: string) {
+function maskTaxId(value: string, personType: 'PF' | 'PJ') {
   const raw = value.replace(/\D/g, '')
-  if (raw.length <= 11) {
+  if (personType === 'PF') {
     return raw
       .replace(/(\d{3})(\d)/, '$1.$2')
       .replace(/(\d{3})(\d)/, '$1.$2')
       .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+      .slice(0, 14)
   } else {
     return raw
       .replace(/^(\d{2})(\d)/, '$1.$2')
@@ -96,7 +118,7 @@ export default function AdminUsers() {
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
 
-  const isMaster = user?.isAdmin || user?.role === 'Admin'
+  const isMaster = user?.isAdmin === true || user?.role === 'Admin'
 
   useEffect(() => {
     if (isAuthenticated && !isMaster) {
@@ -111,12 +133,14 @@ export default function AdminUsers() {
       email: '',
       tax_id: '',
       role: 'Colaborador',
+      person_type: 'PJ',
       phone: '',
       legal_name: '',
     },
   })
 
   const roleValue = form.watch('role')
+  const personTypeValue = form.watch('person_type')
 
   const fetchUsers = async () => {
     try {
@@ -138,13 +162,9 @@ export default function AdminUsers() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      const isCnpj = values.tax_id.replace(/\D/g, '').length > 11
-      const person_type = isCnpj ? 'PJ' : 'PF'
-
       await createUser({
         ...values,
         isAdmin: values.role === 'Admin',
-        person_type,
         password: 'Senha123!@#',
         passwordConfirm: 'Senha123!@#',
       })
@@ -152,14 +172,30 @@ export default function AdminUsers() {
       setOpen(false)
       form.reset()
       fetchUsers()
-    } catch (error) {
+    } catch (error: any) {
       const errs = extractFieldErrors(error)
+      let emailErrorHandled = false
       if (Object.keys(errs).length > 0) {
         Object.entries(errs).forEach(([field, msg]) => {
-          form.setError(field as any, { message: msg })
+          if (field === 'email') {
+            form.setError('email', { message: 'Este e-mail já está em uso' })
+            emailErrorHandled = true
+          } else {
+            form.setError(field as any, { message: msg })
+          }
         })
-      } else {
-        toast.error('Erro ao criar usuário')
+      }
+
+      if (!emailErrorHandled) {
+        if (
+          error?.message?.toLowerCase().includes('email') ||
+          error?.message?.toLowerCase().includes('already in use') ||
+          error?.message?.toLowerCase().includes('validation')
+        ) {
+          form.setError('email', { message: 'Este e-mail já está em uso' })
+        } else {
+          toast.error('Erro ao criar usuário')
+        }
       }
     }
   }
@@ -180,7 +216,7 @@ export default function AdminUsers() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Gestão de Usuários</h1>
           <p className="text-muted-foreground">
-            Gerencie o acesso de colaboradores e fornecedores.
+            Gerencie o acesso de administradores, colaboradores e fornecedores.
           </p>
         </div>
         <Dialog
@@ -228,6 +264,57 @@ export default function AdminUsers() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
+                    name="person_type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tipo de Pessoa</FormLabel>
+                        <Select
+                          onValueChange={(val) => {
+                            field.onChange(val)
+                            form.setValue('tax_id', '')
+                          }}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o tipo" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="PF">Pessoa Física (PF)</SelectItem>
+                            <SelectItem value="PJ">Pessoa Jurídica (PJ)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="tax_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>CNPJ/CPF</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={
+                              personTypeValue === 'PF' ? '000.000.000-00' : '00.000.000/0000-00'
+                            }
+                            {...field}
+                            onChange={(e) =>
+                              field.onChange(maskTaxId(e.target.value, personTypeValue))
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
                     name="name"
                     render={({ field }) => (
                       <FormItem>
@@ -241,41 +328,23 @@ export default function AdminUsers() {
                   />
                   <FormField
                     control={form.control}
-                    name="tax_id"
+                    name="legal_name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>CNPJ/CPF</FormLabel>
+                        <FormLabel>
+                          Razão Social{' '}
+                          {roleValue !== 'Fornecedor' || personTypeValue === 'PF' ? (
+                            <span className="text-muted-foreground font-normal">(Opcional)</span>
+                          ) : null}
+                        </FormLabel>
                         <FormControl>
-                          <Input
-                            placeholder="000.000.000-00"
-                            {...field}
-                            onChange={(e) => field.onChange(maskTaxId(e.target.value))}
-                          />
+                          <Input placeholder="Razão social (se aplicável)" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
-
-                <FormField
-                  control={form.control}
-                  name="legal_name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        Razão Social{' '}
-                        {roleValue === 'Colaborador' && (
-                          <span className="text-muted-foreground font-normal">(Opcional)</span>
-                        )}
-                      </FormLabel>
-                      <FormControl>
-                        <Input placeholder="Razão social (se aplicável)" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
@@ -364,7 +433,7 @@ export default function AdminUsers() {
                   <TableCell>
                     <Badge
                       variant={
-                        u.role === 'Admin'
+                        u.role === 'Admin' || u.isAdmin
                           ? 'default'
                           : u.role === 'Fornecedor'
                             ? 'outline'

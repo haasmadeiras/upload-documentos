@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Settings,
   Users,
+  UserCog,
   FileText,
   ChevronRight,
   Truck,
@@ -32,6 +33,7 @@ export function AppSidebar() {
 
   const adminMenu = [
     { title: 'Dashboard', icon: LayoutDashboard, path: '/admin' },
+    { title: 'Usuários', icon: UserCog, path: '/admin/users' },
     { title: 'Regras de Documentos', icon: Settings, path: '/admin/config' },
     { title: 'Fornecedores', icon: Users, path: '/admin/suppliers' },
     { title: 'Funcionários', icon: Users, path: '/admin/employees' },
