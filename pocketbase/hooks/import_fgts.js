@@ -15,7 +15,8 @@ routerAdd(
     const action = body.action || 'extract_and_save'
 
     const isValidCPF = (cpf) => {
-      cpf = cpf.replace(/\D/g, '')
+      if (!cpf) return false
+      cpf = String(cpf).replace(/\D/g, '')
       if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false
       let sum = 0,
         rest
@@ -31,139 +32,104 @@ routerAdd(
       return true
     }
 
-    if (action === 'extract' || action === 'extract_and_save') {
+    if (action === 'extract') {
       let text = body.text
       if (!text || text.trim().length === 0) {
         throw e.badRequestError('O arquivo PDF parece estar vazio ou não contém texto extraível.')
       }
 
-      // Clean special characters and invisible whitespace to prevent processing issues
+      // Clean special characters and invisible whitespace
       text = text.replace(/[\x00-\x09\x0B-\x1F\x7F-\x9F\u200B-\u200D\uFEFF\u00A0]/g, ' ')
 
-      let employees = []
-      const cpfPattern = /\d{3}\.?\d{3}\.?\d{3}\-?\d{2}/g
-      let match
-      const foundCpfs = []
-
-      while ((match = cpfPattern.exec(text)) !== null) {
-        const start = match.index
-        const end = start + match[0].length
-
-        const charBefore = start > 0 ? text[start - 1] : ''
-        const charAfter = end < text.length ? text[end] : ''
-
-        if (/[0-9]/.test(charBefore) || /[0-9]/.test(charAfter)) {
-          continue
-        }
-
-        const rawCpf = match[0].replace(/\D/g, '')
-        if (isValidCPF(rawCpf)) {
-          foundCpfs.push({ cpf: rawCpf, index: start })
-        }
+      const OPENAI_KEY = $secrets.get('OPENAI_API_KEY')
+      if (!OPENAI_KEY) {
+        throw e.internalServerError('A chave da API da OpenAI não está configurada no servidor.')
       }
 
-      for (const item of foundCpfs) {
-        const textBefore = text.substring(Math.max(0, item.index - 250), item.index)
-        const tokens = textBefore.trim().split(/\s+/)
+      const aiReq = $http.send({
+        url: 'https://api.openai.com/v1/chat/completions',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + OPENAI_KEY,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'system',
+              content:
+                "Você é um assistente de extração de dados especializado. O usuário fornecerá o texto bruto de uma guia de FGTS ou folha de pagamento. Extraia todos os funcionários listados na seção 'Relação de Trabalhadores'. Retorne um objeto JSON contendo a chave 'employees' com uma lista de objetos. Cada objeto deve ter os campos: 'name' (nome completo do trabalhador, string), 'tax_id' (CPF do trabalhador, string contendo exatamente 11 números, sem pontuação), e 'role' (cargo do trabalhador, string que deve ser 'motorista', 'operador' ou 'outros'). Se o cargo não for especificado de forma clara no documento, utilize o valor 'outros'. Nunca inclua o nome da empresa emissora como um funcionário.",
+            },
+            {
+              role: 'user',
+              content: text.substring(0, 30000),
+            },
+          ],
+          temperature: 0.1,
+        }),
+        timeout: 90,
+      })
 
-        let nameTokens = []
-        for (let i = tokens.length - 1; i >= 0; i--) {
-          const token = tokens[i]
+      if (aiReq.statusCode !== 200) {
+        $app
+          .logger()
+          .error(
+            'Erro na integração com OpenAI',
+            'status',
+            aiReq.statusCode,
+            'body',
+            aiReq.json || aiReq.body,
+          )
+        throw e.internalServerError('A extração via IA falhou devido a um erro no provedor.')
+      }
 
-          if (/^[\d\/\.\-]+$/.test(token)) {
-            if (nameTokens.length === 0) continue
-            break
-          }
-
-          if (/[A-Za-zÀ-ÿ]/.test(token)) {
-            const lower = token.toLowerCase()
-            if (
-              [
-                'empresa',
-                'total',
-                'ltda',
-                'cnpj',
-                'competência',
-                'página',
-                'fgts',
-                'guia',
-                'recolhimento',
-                'banco',
-                'trabalhador',
-                'nome',
-                'pis',
-                'pasep',
-                'ci',
-                'admissão',
-                'categoria',
-                'vínculos',
-                'múltiplos',
-                'dep',
-              ].includes(lower)
-            ) {
-              if (nameTokens.length > 0) break
-              continue
-            }
-            nameTokens.unshift(token)
-          } else {
-            if (nameTokens.length > 0) break
-          }
+      let aiEmployees = []
+      try {
+        const aiData = aiReq.json
+        const contentStr = aiData.choices[0].message.content
+        const parsed = JSON.parse(contentStr)
+        if (parsed && Array.isArray(parsed.employees)) {
+          aiEmployees = parsed.employees
+        } else {
+          throw new Error('Estrutura JSON inválida recebida da IA')
         }
-
-        let name = nameTokens
-          .join(' ')
-          .replace(/[^A-Za-zÀ-ÿ\s\.\'\-]/g, '')
-          .trim()
-
-        const invalidKeywords = [
-          'empresa',
-          'total',
-          'ltda',
-          's/a',
-          's.a',
-          'cnpj',
-          'competência',
-          'página',
-          'fgts',
-          'guia',
-          'recolhimento',
-          'data',
-          'valor',
-          'banco',
-          'gerado',
-          'sistema',
-        ]
-
-        const isGhost = invalidKeywords.some((kw) => name.toLowerCase().includes(kw))
-        if (!isGhost && name.includes(' ') && name.length > 4) {
-          employees.push({ name, tax_id: item.cpf })
-        }
+      } catch (err) {
+        $app.logger().error('Falha ao processar resposta JSON da IA', 'error', err.message)
+        throw e.internalServerError('A IA retornou uma estrutura de dados inválida ou vazia.')
       }
 
       const uniqueEmps = []
       const seenCpfs = new Set()
-      for (const emp of employees) {
-        const rawCpf = emp.tax_id.replace(/\D/g, '')
-        if (!seenCpfs.has(rawCpf) && isValidCPF(rawCpf)) {
+
+      for (const emp of aiEmployees) {
+        const rawCpf = String(emp.tax_id || '').replace(/\D/g, '')
+        let role = String(emp.role || '').toLowerCase()
+        if (!['motorista', 'operador', 'outros'].includes(role)) {
+          role = 'outros'
+        }
+
+        if (isValidCPF(rawCpf) && !seenCpfs.has(rawCpf)) {
           seenCpfs.add(rawCpf)
-          uniqueEmps.push({ ...emp, tax_id: rawCpf })
+          uniqueEmps.push({
+            name: String(emp.name || '').trim(),
+            tax_id: rawCpf,
+            role: role,
+          })
         }
       }
 
       if (uniqueEmps.length === 0) {
         throw e.badRequestError(
-          'Não foi possível identificar funcionários neste documento. Verifique a formatação do PDF.',
+          'Não foi possível extrair dados válidos de funcionários com CPF neste documento.',
         )
       }
 
-      if (action === 'extract') {
-        return e.json(200, { employees: uniqueEmps })
-      }
-
-      body.employees = uniqueEmps
+      return e.json(200, { employees: uniqueEmps })
     }
 
-    if (action === 'save' || action === 'extract_and_save') {
+    if (action === 'save') {
       const employeesToSave = body.employees || []
       if (employeesToSave.length === 0) {
         throw e.badRequestError('Nenhum funcionário válido foi encontrado para salvar.')
@@ -202,7 +168,13 @@ routerAdd(
               const record = new Record(empCollection)
               record.set('name', String(empData.name || '').trim())
               record.set('tax_id', rawCpf)
-              record.set('role', 'outros')
+
+              let role = String(empData.role || '').toLowerCase()
+              if (!['motorista', 'operador', 'outros'].includes(role)) {
+                role = 'outros'
+              }
+              record.set('role', role)
+
               record.set('user', user.id)
               txApp.save(record)
 
@@ -214,8 +186,12 @@ routerAdd(
           }
         })
       } catch (err) {
-        $app.logger().error('Transaction failed while saving employees', 'error', err.message)
-        throw e.internalServerError('Ocorreu um erro ao salvar os funcionários. Tente novamente.')
+        $app
+          .logger()
+          .error('Transaction failed while saving extracted employees', 'error', err.message)
+        throw e.internalServerError(
+          'Ocorreu um erro interno ao salvar os funcionários. Tente novamente.',
+        )
       }
 
       return e.json(200, { message: 'Success', count, employeeIds: savedEmployeeIds })

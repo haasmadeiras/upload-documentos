@@ -49,7 +49,7 @@ import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
-import { isValidCPF, formatCPF } from '@/lib/utils'
+import { isValidCPF, formatCPF, cn } from '@/lib/utils'
 import * as pdfjsLib from 'pdfjs-dist'
 import PdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker'
 
@@ -68,10 +68,11 @@ export default function PortalEmployees() {
   const [importing, setImporting] = useState(false)
   const [importProgress, setImportProgress] = useState('')
 
-  const [extractedEmployees, setExtractedEmployees] = useState<{ name: string; tax_id: string }[]>(
-    [],
-  )
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [extractedEmployees, setExtractedEmployees] = useState<
+    { name: string; tax_id: string; role: string }[]
+  >([])
+  const [importStep, setImportStep] = useState<'upload' | 'preview_text' | 'preview_data'>('upload')
+  const [rawText, setRawText] = useState('')
 
   const [formData, setFormData] = useState({ name: '', tax_id: '', role: 'outros' })
   const [editingEmp, setEditingEmp] = useState<Employee | null>(null)
@@ -161,11 +162,10 @@ export default function PortalEmployees() {
     }
 
     setImporting(true)
-    setImportProgress('Abrindo arquivo PDF...')
+    setImportProgress('Extraindo texto do PDF...')
 
     try {
       const arrayBuffer = await file.arrayBuffer()
-
       let pdf
       try {
         pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
@@ -175,10 +175,9 @@ export default function PortalEmployees() {
       }
 
       let fullText = ''
-
       for (let i = 1; i <= pdf.numPages; i++) {
-        setImportProgress(`Extraindo texto: página ${i} de ${pdf.numPages}...`)
-        await new Promise((resolve) => setTimeout(resolve, 10)) // Yield to UI
+        setImportProgress(`Lendo página ${i} de ${pdf.numPages}...`)
+        await new Promise((resolve) => setTimeout(resolve, 10))
         const page = await pdf.getPage(i)
         const textContent = await page.getTextContent()
         const pageText = textContent.items
@@ -192,27 +191,36 @@ export default function PortalEmployees() {
         return
       }
 
-      setImportProgress('Enviando dados para processamento...')
-      const res = await pb.send('/backend/v1/employees/import-fgts', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'extract', text: fullText }),
-        headers: { 'Content-Type': 'application/json' },
-      })
-
-      if (res.employees && res.employees.length > 0) {
-        setExtractedEmployees(res.employees)
-        setIsImportOpen(false)
-        setIsPreviewOpen(true)
-      } else {
-        toast.error(
-          'Não foi possível identificar funcionários neste documento. Verifique a formatação do PDF.',
-        )
-      }
+      setRawText(fullText)
+      setImportStep('preview_text')
     } catch (err: any) {
       toast.error(getErrorMessage(err))
     } finally {
       setImporting(false)
       e.target.value = ''
+    }
+  }
+
+  const handleProcessAI = async () => {
+    setImporting(true)
+    setImportProgress('Analisando documento com IA...')
+    try {
+      const res = await pb.send('/backend/v1/employees/import-fgts', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'extract', text: rawText }),
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (res.employees && res.employees.length > 0) {
+        setExtractedEmployees(res.employees)
+        setImportStep('preview_data')
+      } else {
+        toast.error('Não foi possível identificar funcionários na resposta da IA.')
+      }
+    } catch (err: any) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -229,10 +237,14 @@ export default function PortalEmployees() {
       if (res.count > 0) {
         toast.success(`Importação concluída! ${res.count} novos registros criados.`)
       } else {
-        toast.success('Importação concluída. Os funcionários encontrados já estavam cadastrados.')
+        toast.success(
+          'Importação concluída. Todos os funcionários encontrados já estavam cadastrados.',
+        )
       }
-      setIsPreviewOpen(false)
+      setIsImportOpen(false)
       setExtractedEmployees([])
+      setRawText('')
+      setImportStep('upload')
       load()
     } catch (err: any) {
       toast.error(getErrorMessage(err))
@@ -282,79 +294,131 @@ export default function PortalEmployees() {
             <Download className="w-4 h-4 mr-2" /> Exportar Base
           </Button>
 
-          <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+          <Dialog
+            open={isImportOpen}
+            onOpenChange={(open) => {
+              if (!open) {
+                setImportStep('upload')
+                setRawText('')
+                setExtractedEmployees([])
+              }
+              setIsImportOpen(open)
+            }}
+          >
             <DialogTrigger asChild>
               <Button variant="outline" className="font-semibold">
-                <Upload className="w-4 h-4 mr-2" /> IMPORTAR GUIA FGTS
+                <Upload className="w-4 h-4 mr-2" /> Extração via IA
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent
+              className={cn(
+                'transition-all duration-300',
+                importStep === 'upload' ? 'max-w-md' : 'max-w-3xl',
+              )}
+            >
               <DialogHeader>
-                <DialogTitle>IMPORTAR GUIA FGTS</DialogTitle>
+                <DialogTitle>
+                  {importStep === 'upload' && 'Importar Guia FGTS'}
+                  {importStep === 'preview_text' && 'Pré-visualização do Texto'}
+                  {importStep === 'preview_data' && 'Conferência de Dados (IA)'}
+                </DialogTitle>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="grid w-full max-w-sm items-center gap-1.5">
-                  <Label htmlFor="fgts-file">Arquivo FGTS (.pdf)</Label>
-                  <Input
-                    id="fgts-file"
-                    type="file"
-                    accept="application/pdf,.pdf"
-                    onChange={handleImport}
-                    disabled={importing}
-                  />
-                </div>
-                {importing && (
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground animate-pulse">
-                      {importProgress || 'Processando arquivo, extraindo e validando dados...'}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
 
-          <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Conferência de Importação</DialogTitle>
-              </DialogHeader>
               <div className="space-y-4 py-4">
-                <p className="text-sm text-muted-foreground">
-                  Foram identificados <strong>{extractedEmployees.length}</strong> funcionários
-                  neste documento. Verifique os dados abaixo antes de salvar. (Registros com CPF já
-                  existentes na base serão ignorados).
-                </p>
-                <div className="max-h-[400px] overflow-y-auto border rounded-md">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Nome</TableHead>
-                        <TableHead>CPF</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {extractedEmployees.map((emp, i) => (
-                        <TableRow key={i}>
-                          <TableCell className="font-medium">{emp.name}</TableCell>
-                          <TableCell>{formatCPF(emp.tax_id)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsPreviewOpen(false)}
-                    disabled={importing}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleConfirmImport} disabled={importing}>
-                    {importing ? 'Salvando...' : 'Confirmar Importação'}
-                  </Button>
-                </div>
+                {importStep === 'upload' && (
+                  <>
+                    <div className="grid w-full items-center gap-1.5">
+                      <Label htmlFor="fgts-file">Selecione o Arquivo PDF</Label>
+                      <Input
+                        id="fgts-file"
+                        type="file"
+                        accept="application/pdf,.pdf"
+                        onChange={handleImport}
+                        disabled={importing}
+                      />
+                    </div>
+                    {importing && (
+                      <p className="text-sm text-muted-foreground animate-pulse mt-4">
+                        {importProgress}
+                      </p>
+                    )}
+                  </>
+                )}
+
+                {importStep === 'preview_text' && (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      O texto abaixo foi extraído do seu PDF. Verifique se os dados parecem corretos
+                      antes de enviá-los para o processamento da IA.
+                    </p>
+                    <div className="bg-muted p-4 rounded-md h-[400px] overflow-y-auto whitespace-pre-wrap font-mono text-xs border">
+                      {rawText}
+                    </div>
+                    {importing && (
+                      <p className="text-sm font-medium text-primary animate-pulse">
+                        {importProgress}
+                      </p>
+                    )}
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setImportStep('upload')}
+                        disabled={importing}
+                      >
+                        Voltar
+                      </Button>
+                      <Button onClick={handleProcessAI} disabled={importing}>
+                        {importing ? 'Processando...' : 'Confirmar e Extrair (IA)'}
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                {importStep === 'preview_data' && (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      A IA identificou <strong>{extractedEmployees.length}</strong> funcionários.
+                      Revise os dados abaixo. CPFs já cadastrados serão ignorados.
+                    </p>
+                    <div className="max-h-[400px] overflow-y-auto border rounded-md">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Nome</TableHead>
+                            <TableHead>CPF</TableHead>
+                            <TableHead>Função (Role)</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {extractedEmployees.map((emp, i) => (
+                            <TableRow key={i}>
+                              <TableCell className="font-medium">{emp.name}</TableCell>
+                              <TableCell>{formatCPF(emp.tax_id)}</TableCell>
+                              <TableCell className="capitalize">{emp.role}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    {importing && (
+                      <p className="text-sm font-medium text-primary animate-pulse">
+                        {importProgress}
+                      </p>
+                    )}
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setImportStep('preview_text')}
+                        disabled={importing}
+                      >
+                        Voltar ao Texto
+                      </Button>
+                      <Button onClick={handleConfirmImport} disabled={importing}>
+                        {importing ? 'Salvando...' : 'Salvar no Banco de Dados'}
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             </DialogContent>
           </Dialog>
