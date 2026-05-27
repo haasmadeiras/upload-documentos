@@ -22,13 +22,13 @@ import {
   SidebarMenuSubButton,
 } from '@/components/ui/sidebar'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import useAppStore from '@/stores/use-app-store'
+import { useAuth } from '@/hooks/use-auth'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import logoUrl from '@/assets/image-bb79d.png'
 
 export function AppSidebar() {
   const location = useLocation()
-  const { user, logout } = useAppStore()
+  const { user, signOut } = useAuth()
 
   const adminMenu = [
     { title: 'Dashboard', icon: LayoutDashboard, path: '/admin' },
@@ -55,7 +55,8 @@ export function AppSidebar() {
     },
   ]
 
-  const menu = user?.role === 'admin' ? adminMenu : portalMenu
+  const isAdmin = user?.isAdmin === true || user?.role === 'Admin'
+  const menu = isAdmin ? adminMenu : portalMenu
 
   return (
     <Sidebar variant="sidebar" collapsible="icon">
@@ -134,9 +135,9 @@ export function AppSidebar() {
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-              <p className="text-sm font-medium truncate">{user.name}</p>
+              <p className="text-sm font-medium truncate">{user.name || user.email}</p>
               <button
-                onClick={logout}
+                onClick={signOut}
                 className="text-xs text-muted-foreground hover:text-accent transition-colors"
               >
                 Sair

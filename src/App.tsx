@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppStoreProvider } from '@/stores/use-app-store'
 import { AuthProvider } from '@/hooks/use-auth'
 import Layout from './components/Layout'
+import { ProtectedRoute } from './components/ProtectedRoute'
 import Index from './pages/Index'
 import Register from './pages/Register'
 import AdminDashboard from './pages/admin/Dashboard'
@@ -32,27 +33,33 @@ const App = () => (
             <Route element={<Layout />}>
               <Route path="/" element={<Index />} />
               <Route path="/register" element={<Register />} />
-              {/* Admin Routes */}
-              <Route path="/admin" element={<AdminDashboard />} />
-              <Route path="/admin/config" element={<AdminConfig />} />
-              <Route path="/admin/suppliers" element={<AdminSuppliers />} />
-              <Route path="/admin/employees" element={<AdminEmployees />} />
-              <Route path="/admin/vehicles" element={<AdminVehicles />} />
-              <Route path="/admin/contracts" element={<AdminContracts />} />
-              <Route path="/admin/forests" element={<AdminForests />} />
-              <Route path="/admin/users" element={<AdminUsers />} />
-              <Route path="/admin/employees/:id" element={<PortalEmployeeDetails />} />
-              {/* Dashboard Routes */}
-              <Route path="/dashboard" element={<PortalDashboard />} />
-              {/* Portal Routes */}
-              <Route path="/portal" element={<PortalDashboard />} />
-              <Route path="/portal/upload/:id" element={<PortalUpload />} />
-              <Route path="/portal/employees" element={<PortalEmployees />} />
-              <Route path="/portal/employees/:id" element={<PortalEmployeeDetails />} />{' '}
-              <Route path="/portal/fornecedor" element={<PortalDashboard />} />
-              <Route path="/portal/veiculos" element={<PortalDashboard />} />
-              <Route path="/portal/contratados" element={<PortalDashboard />} />
-              <Route path="/portal/florestas" element={<PortalDashboard />} />
+
+              <Route element={<ProtectedRoute adminOnly />}>
+                {/* Admin Routes */}
+                <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/admin/config" element={<AdminConfig />} />
+                <Route path="/admin/suppliers" element={<AdminSuppliers />} />
+                <Route path="/admin/employees" element={<AdminEmployees />} />
+                <Route path="/admin/vehicles" element={<AdminVehicles />} />
+                <Route path="/admin/contracts" element={<AdminContracts />} />
+                <Route path="/admin/forests" element={<AdminForests />} />
+                <Route path="/admin/users" element={<AdminUsers />} />
+                <Route path="/admin/employees/:id" element={<PortalEmployeeDetails />} />
+              </Route>
+
+              <Route element={<ProtectedRoute />}>
+                {/* Dashboard Routes */}
+                <Route path="/dashboard" element={<PortalDashboard />} />
+                {/* Portal Routes */}
+                <Route path="/portal" element={<PortalDashboard />} />
+                <Route path="/portal/upload/:id" element={<PortalUpload />} />
+                <Route path="/portal/employees" element={<PortalEmployees />} />
+                <Route path="/portal/employees/:id" element={<PortalEmployeeDetails />} />{' '}
+                <Route path="/portal/fornecedor" element={<PortalDashboard />} />
+                <Route path="/portal/veiculos" element={<PortalDashboard />} />
+                <Route path="/portal/contratados" element={<PortalDashboard />} />
+                <Route path="/portal/florestas" element={<PortalDashboard />} />
+              </Route>
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

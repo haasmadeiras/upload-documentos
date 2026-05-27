@@ -31,12 +31,10 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/hooks/use-auth'
-import { useApp } from '@/contexts/AppContext'
 import logoUrl from '@/assets/image-bb79d.png'
 
 export function AppSidebar() {
   const location = useLocation()
-  const { user: appUser, logout } = useApp()
   const { user, signOut } = useAuth()
 
   const masterItems = [
@@ -65,7 +63,7 @@ export function AppSidebar() {
     },
   ]
 
-  const isMaster = user?.isAdmin === true || user?.role === 'Admin' || appUser?.role === 'master'
+  const isMaster = user?.isAdmin === true || user?.role === 'Admin'
   const items = isMaster ? masterItems : stakeholderItems
 
   return (
@@ -157,7 +155,6 @@ export function AppSidebar() {
         </div>
         <SidebarMenuButton
           onClick={() => {
-            logout?.()
             signOut()
           }}
           variant="outline"
