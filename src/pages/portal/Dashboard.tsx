@@ -3,7 +3,15 @@ import { useLocation, Link } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { UploadCloud, CheckCircle2, Clock, AlertCircle } from 'lucide-react'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { UploadCloud, CheckCircle2, Clock, AlertCircle, FileText } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { getDocumentCategories, DocumentCategory } from '@/services/document_categories'
 import { getDocumentDefinitions, DocumentDefinition } from '@/services/document_definitions'
@@ -25,10 +33,13 @@ export default function PortalDashboard() {
     if (!user?.id) return
     try {
       setError(null)
+      const isAdmin = user?.isAdmin || user?.role === 'Admin'
+      const filter = isAdmin ? '' : `user = "${user?.id}"`
+
       const [cats, defs, docs] = await Promise.all([
         getDocumentCategories(),
         getDocumentDefinitions(),
-        getDocuments(`user = "${user?.id}"`),
+        getDocuments(filter, 'definition.category'),
       ])
       setCategories(cats)
       setDefinitions(defs)
@@ -48,7 +59,8 @@ export default function PortalDashboard() {
   useRealtime(
     'documents',
     (e) => {
-      if (e.record.user === user?.id) {
+      const isAdmin = user?.isAdmin || user?.role === 'Admin'
+      if (isAdmin || e.record.user === user?.id) {
         loadData()
       }
     },
@@ -73,8 +85,9 @@ export default function PortalDashboard() {
 
   if (loading) {
     return (
-      <div className="p-8 space-y-4 max-w-4xl mx-auto">
+      <div className="p-8 space-y-4 max-w-6xl mx-auto">
         <Skeleton className="h-12 w-1/3" />
+        <Skeleton className="h-32 w-full" />
         <Skeleton className="h-64 w-full" />
       </div>
     )
@@ -82,7 +95,7 @@ export default function PortalDashboard() {
 
   if (error) {
     return (
-      <div className="p-8 max-w-4xl mx-auto text-center">
+      <div className="p-8 max-w-6xl mx-auto text-center">
         <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
         <h2 className="text-xl font-bold mb-2">Erro de Conexão</h2>
         <p className="text-muted-foreground mb-4">{error}</p>
@@ -99,12 +112,144 @@ export default function PortalDashboard() {
   }
 
   if (!activeName) {
+    const totalDocs = userDocs.length
+    const pendingDocs = userDocs.filter((d) => d.status === 'Pending').length
+    const approvedDocs = userDocs.filter((d) => d.status === 'Approved').length
+    const rejectedDocs = userDocs.filter((d) => d.status === 'Rejected').length
+
+    const recentDocs = [...userDocs]
+      .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
+      .slice(0, 5)
+
     return (
-      <div className="p-8 max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-4">Bem-vindo ao Portal</h1>
-        <p className="text-muted-foreground">
-          Selecione uma categoria no menu lateral para enviar seus documentos.
-        </p>
+      <div className="p-6 max-w-6xl mx-auto space-y-6 animate-fade-in">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard Overview</h1>
+          <p className="text-muted-foreground mt-1">
+            Resumo dos seus documentos e atividades recentes.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="shadow-sm border-border/60">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Total de Documentos
+              </CardTitle>
+              <FileText className="w-4 h-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalDocs}</div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm border-border/60">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Aprovados</CardTitle>
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-emerald-600">{approvedDocs}</div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm border-border/60">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Pendentes</CardTitle>
+              <Clock className="w-4 h-4 text-amber-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-600">{pendingDocs}</div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm border-border/60">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Rejeitados
+              </CardTitle>
+              <AlertCircle className="w-4 h-4 text-rose-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-rose-600">{rejectedDocs}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="shadow-sm border-border/60">
+          <CardHeader>
+            <CardTitle>Documentos Recentes</CardTitle>
+            <CardDescription>Os 5 últimos documentos enviados no sistema.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {recentDocs.length === 0 ? (
+              <div className="p-8 text-center border border-dashed rounded-lg text-muted-foreground flex flex-col items-center gap-2">
+                <FileText className="w-8 h-8 opacity-50" />
+                <p>Nenhum documento encontrado.</p>
+              </div>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Título</TableHead>
+                      <TableHead>Categoria</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Data de Envio</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentDocs.map((doc) => {
+                      const isVide = doc.expand?.definition?.is_vide_documento
+                      const catName =
+                        doc.expand?.definition?.expand?.category?.name || 'Sem categoria'
+                      return (
+                        <TableRow key={doc.id}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {doc.title}
+                              {isVide && (
+                                <Badge variant="outline" className="text-[10px] bg-slate-50">
+                                  Vide Documento
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>{catName}</TableCell>
+                          <TableCell>
+                            {doc.status === 'Approved' ? (
+                              <Badge
+                                variant="outline"
+                                className="bg-emerald-50 text-emerald-700 border-emerald-200"
+                              >
+                                Aprovado
+                              </Badge>
+                            ) : doc.status === 'Rejected' ? (
+                              <Badge variant="destructive">Rejeitado</Badge>
+                            ) : (
+                              <Badge
+                                variant="secondary"
+                                className="bg-amber-50 text-amber-700 border-amber-200"
+                              >
+                                Pendente
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
+                            {new Date(doc.created).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -138,7 +283,7 @@ export default function PortalDashboard() {
             const doc = userDocs.find((d) => d.definition === def.id)
 
             let statusEl = (
-              <Badge variant="outline" className="bg-slate-100">
+              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
                 <Clock className="w-3 h-3 mr-1" /> Pendente
               </Badge>
             )
@@ -181,6 +326,11 @@ export default function PortalDashboard() {
                           className="text-[10px] uppercase font-bold tracking-wider"
                         >
                           Obrigatório
+                        </Badge>
+                      )}
+                      {def.is_vide_documento && (
+                        <Badge variant="outline" className="text-[10px] bg-slate-50">
+                          Vide Documento
                         </Badge>
                       )}
                     </div>
