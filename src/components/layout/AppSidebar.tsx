@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -12,8 +12,11 @@ import {
   Truck,
   Briefcase,
   TreePine,
+  Folder,
 } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
+import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
 import {
   Sidebar,
   SidebarContent,
@@ -36,11 +39,48 @@ import logoUrl from '@/assets/image-bb79d.png'
 export function AppSidebar() {
   const location = useLocation()
   const { user, signOut } = useAuth()
+  const [categories, setCategories] = useState<any[]>([])
+
+  const isMaster = user?.isAdmin === true || user?.role === 'Admin'
+
+  useEffect(() => {
+    if (!isMaster) return
+    pb.collection('document_categories')
+      .getFullList({ sort: 'name' })
+      .then((data) => setCategories(data))
+      .catch(() => {})
+  }, [isMaster])
+
+  useRealtime(
+    'document_categories',
+    (e) => {
+      if (e.action === 'create') {
+        setCategories((prev) => [...prev, e.record].sort((a, b) => a.name.localeCompare(b.name)))
+      } else if (e.action === 'update') {
+        setCategories((prev) =>
+          prev
+            .map((c) => (c.id === e.record.id ? e.record : c))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        )
+      } else if (e.action === 'delete') {
+        setCategories((prev) => prev.filter((c) => c.id !== e.record.id))
+      }
+    },
+    isMaster,
+  )
 
   const masterItems = [
     { title: 'Dashboard', url: '/admin', icon: LayoutDashboard },
     { title: 'Usuários', url: '/admin/users', icon: UserCog },
     { title: 'Regras de Documentos', url: '/admin/config', icon: Settings },
+    {
+      title: 'Documentos por Categoria',
+      icon: Folder,
+      subItems: categories.map((c) => ({
+        title: c.name,
+        url: `/admin/documents/category/${c.id}`,
+      })),
+    },
     { title: 'Fornecedores', url: '/admin/suppliers', icon: Users },
     { title: 'Funcionários', url: '/admin/employees', icon: Users },
     { title: 'Veículos', url: '/admin/vehicles', icon: Truck },
@@ -63,7 +103,6 @@ export function AppSidebar() {
     },
   ]
 
-  const isMaster = user?.isAdmin === true || user?.role === 'Admin'
   const items = isMaster ? masterItems : stakeholderItems
 
   return (

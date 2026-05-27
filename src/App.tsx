@@ -20,6 +20,7 @@ import PortalDashboard from './pages/portal/Dashboard'
 import PortalUpload from './pages/portal/Upload'
 import PortalEmployeeDetails from './pages/portal/EmployeeDetails'
 import PortalEmployees from './pages/portal/Employees'
+import AdminCategoryDocuments from './pages/admin/CategoryDocuments'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -45,6 +46,10 @@ const App = () => (
                 <Route path="/admin/forests" element={<AdminForests />} />
                 <Route path="/admin/users" element={<AdminUsers />} />
                 <Route path="/admin/employees/:id" element={<PortalEmployeeDetails />} />
+                <Route
+                  path="/admin/documents/category/:categoryId"
+                  element={<AdminCategoryDocuments />}
+                />
               </Route>
 
               <Route element={<ProtectedRoute />}>
