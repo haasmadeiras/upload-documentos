@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-27T13:25:03.506Z",
+  "generatedAt": "2026-05-27T15:03:50.153Z",
   "collections": [
     {
       "name": "users",
@@ -274,6 +274,12 @@
           "required": false,
           "system": false,
           "selectValues": ["all", "motorista", "operador", "outros"]
+        },
+        {
+          "name": "is_vide_documento",
+          "type": "bool",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []

@@ -48,6 +48,7 @@ export default function AdminConfig() {
     name: string
     is_mandatory: boolean
     validity_days: number
+    is_vide_documento: boolean
     allowed_formats: string
     target_person_type: 'Both' | 'PF' | 'PJ'
     target_role: 'all' | 'motorista' | 'operador' | 'outros'
@@ -55,6 +56,7 @@ export default function AdminConfig() {
     name: '',
     is_mandatory: true,
     validity_days: 0,
+    is_vide_documento: false,
     allowed_formats: 'pdf, jpg, png',
     target_person_type: 'Both',
     target_role: 'all',
@@ -99,6 +101,7 @@ export default function AdminConfig() {
         name: def.name,
         is_mandatory: def.is_mandatory,
         validity_days: def.validity_days || 0,
+        is_vide_documento: def.is_vide_documento || false,
         allowed_formats: def.allowed_formats || '',
         target_person_type: (def.target_person_type as any) || 'Both',
         target_role: def.target_role || 'all',
@@ -109,6 +112,7 @@ export default function AdminConfig() {
         name: '',
         is_mandatory: true,
         validity_days: 0,
+        is_vide_documento: false,
         allowed_formats: 'pdf, jpg, png',
         target_person_type: 'Both',
         target_role: 'all',
@@ -122,7 +126,7 @@ export default function AdminConfig() {
       const payload = {
         ...formData,
         category: selectedCategory,
-        validity_days: Number(formData.validity_days),
+        validity_days: formData.is_vide_documento ? 0 : Number(formData.validity_days),
       }
 
       if (editingDef) {
@@ -241,9 +245,11 @@ export default function AdminConfig() {
                               <span className="flex items-center gap-1">
                                 Validade:{' '}
                                 <strong className="text-slate-700">
-                                  {def.validity_days > 0
-                                    ? `${def.validity_days} dias`
-                                    : 'Indeterminado'}
+                                  {def.is_vide_documento
+                                    ? 'VIDE DOCUMENTO'
+                                    : def.validity_days > 0
+                                      ? `${def.validity_days} dias`
+                                      : 'Indeterminado'}
                                 </strong>
                               </span>
                               <span className="hidden sm:inline">•</span>
@@ -302,13 +308,33 @@ export default function AdminConfig() {
               />
             </div>
 
+            <div className="flex items-center justify-between border rounded-lg p-3 mt-2">
+              <div className="space-y-0.5">
+                <Label>VIDE DOCUMENTO</Label>
+                <p className="text-xs text-muted-foreground">
+                  A validade será verificada diretamente no documento anexado.
+                </p>
+              </div>
+              <Switch
+                checked={formData.is_vide_documento}
+                onCheckedChange={(c) =>
+                  setFormData({
+                    ...formData,
+                    is_vide_documento: c,
+                    validity_days: c ? 0 : formData.validity_days,
+                  })
+                }
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="validity_days">Validade em Dias (0 para indeterminado)</Label>
               <Input
                 id="validity_days"
                 type="number"
                 min="0"
-                value={formData.validity_days}
+                disabled={formData.is_vide_documento}
+                value={formData.is_vide_documento ? '' : formData.validity_days}
                 onChange={(e) =>
                   setFormData({ ...formData, validity_days: parseInt(e.target.value) || 0 })
                 }

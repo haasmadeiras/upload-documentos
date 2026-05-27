@@ -7,6 +7,7 @@ export interface DocumentDefinition {
   name: string
   is_mandatory: boolean
   validity_days: number
+  is_vide_documento?: boolean
   allowed_formats: string
   target_person_type?: 'PF' | 'PJ' | 'Both'
   target_role?: 'all' | 'motorista' | 'operador' | 'outros'
