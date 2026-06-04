@@ -32,7 +32,9 @@ export default function Index() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const handleLogin = async () => {
-    if (!email || !password) {
+    const normalizedEmail = email.trim().toLowerCase()
+
+    if (!normalizedEmail || !password) {
       setErrorMessage('Por favor, preencha todos os campos.')
       return
     }
@@ -45,7 +47,7 @@ export default function Index() {
       try {
         checkRes = await pb.send('/backend/v1/auth/check-email', {
           method: 'POST',
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email: normalizedEmail }),
           headers: { 'Content-Type': 'application/json' },
         })
       } catch (err) {
@@ -59,17 +61,17 @@ export default function Index() {
           return
         }
 
-        if (!checkRes.hasPassword) {
+        if (!checkRes.hasPassword && !checkRes.isAdmin) {
           toast({
             title: 'Primeiro Acesso',
             description: 'Por favor, defina sua senha para continuar.',
           })
-          navigate('/register', { state: { email } })
+          navigate('/register', { state: { email: normalizedEmail } })
           return
         }
       }
 
-      const { error } = await signIn(email, password)
+      const { error } = await signIn(normalizedEmail, password)
 
       if (error) {
         if (

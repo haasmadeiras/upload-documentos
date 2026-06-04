@@ -1,6 +1,6 @@
 routerAdd('POST', '/backend/v1/auth/invite-check', (e) => {
   const body = e.requestInfo().body || {}
-  const email = (body.email || '').trim()
+  const email = (body.email || '').trim().toLowerCase()
   if (!email) return e.badRequestError('Email is required')
 
   try {
