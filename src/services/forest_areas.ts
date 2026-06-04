@@ -5,12 +5,21 @@ export interface ForestArea {
   name: string
   registration_number: string
   location: string
+  user: string
   created: string
   updated: string
+  expand?: {
+    user?: {
+      name: string
+      email: string
+    }
+  }
 }
 
-export const getForestAreas = () =>
-  pb.collection('forest_areas').getFullList<ForestArea>({ sort: '-created' })
+export const getForestAreas = (filter?: string) =>
+  pb
+    .collection('forest_areas')
+    .getFullList<ForestArea>({ sort: '-created', expand: 'user', filter })
 export const createForestArea = (data: Partial<ForestArea>) =>
   pb.collection('forest_areas').create<ForestArea>(data)
 export const updateForestArea = (id: string, data: Partial<ForestArea>) =>

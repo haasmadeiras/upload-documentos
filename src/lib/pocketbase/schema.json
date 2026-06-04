@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-27T15:28:06.370Z",
+  "generatedAt": "2026-06-04T12:27:36.077Z",
   "collections": [
     {
       "name": "users",
@@ -294,11 +294,11 @@
       "name": "employees",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.isAdmin = true || user = @request.auth.id",
-        "view": "@request.auth.isAdmin = true || user = @request.auth.id",
+        "list": "@request.auth.isAdmin = true || @request.auth.role = 'Admin' || user = @request.auth.id",
+        "view": "@request.auth.isAdmin = true || @request.auth.role = 'Admin' || user = @request.auth.id",
         "create": "@request.auth.isAdmin = true || user = @request.auth.id",
-        "update": "@request.auth.isAdmin = true || user = @request.auth.id",
-        "delete": "@request.auth.isAdmin = true || user = @request.auth.id"
+        "update": "@request.auth.isAdmin = true || @request.auth.role = 'Admin' || user = @request.auth.id",
+        "delete": "@request.auth.isAdmin = true || @request.auth.role = 'Admin' || user = @request.auth.id"
       },
       "fields": [
         {
@@ -340,19 +340,26 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "forest_area",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "forest_areas"
         }
       ],
-      "indexes": []
+      "indexes": ["CREATE INDEX `idx_employees_forest` ON `employees` (forest_area)"]
     },
     {
       "name": "vehicles",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.isAdmin = true",
-        "update": "@request.auth.isAdmin = true",
-        "delete": "@request.auth.isAdmin = true"
+        "list": "@request.auth.isAdmin = true || @request.auth.role = 'Admin' || user = @request.auth.id",
+        "view": "@request.auth.isAdmin = true || @request.auth.role = 'Admin' || user = @request.auth.id",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.isAdmin = true || @request.auth.role = 'Admin' || user = @request.auth.id",
+        "delete": "@request.auth.isAdmin = true || @request.auth.role = 'Admin' || user = @request.auth.id"
       },
       "fields": [
         {
@@ -392,19 +399,36 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "user",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "forest_area",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "forest_areas"
         }
       ],
-      "indexes": []
+      "indexes": [
+        "CREATE INDEX `idx_vehicles_user` ON `vehicles` (user)",
+        "CREATE INDEX `idx_vehicles_forest` ON `vehicles` (forest_area)"
+      ]
     },
     {
       "name": "contracts",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.isAdmin = true",
-        "update": "@request.auth.isAdmin = true",
-        "delete": "@request.auth.isAdmin = true"
+        "list": "@request.auth.isAdmin = true || @request.auth.role = 'Admin' || user = @request.auth.id",
+        "view": "@request.auth.isAdmin = true || @request.auth.role = 'Admin' || user = @request.auth.id",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.isAdmin = true || @request.auth.role = 'Admin' || user = @request.auth.id",
+        "delete": "@request.auth.isAdmin = true || @request.auth.role = 'Admin' || user = @request.auth.id"
       },
       "fields": [
         {
@@ -444,16 +468,33 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "user",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "forest_area",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "forest_areas"
         }
       ],
-      "indexes": []
+      "indexes": [
+        "CREATE INDEX `idx_contracts_user` ON `contracts` (user)",
+        "CREATE INDEX `idx_contracts_forest` ON `contracts` (forest_area)"
+      ]
     },
     {
       "name": "forest_areas",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
+        "list": "@request.auth.isAdmin = true || @request.auth.role = 'Admin' || user = @request.auth.id",
+        "view": "@request.auth.isAdmin = true || @request.auth.role = 'Admin' || user = @request.auth.id",
         "create": "@request.auth.isAdmin = true",
         "update": "@request.auth.isAdmin = true",
         "delete": "@request.auth.isAdmin = true"
@@ -490,9 +531,16 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "user",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
         }
       ],
-      "indexes": []
+      "indexes": ["CREATE INDEX `idx_forest_user` ON `forest_areas` (user)"]
     }
   ]
 }

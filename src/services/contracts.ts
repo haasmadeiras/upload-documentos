@@ -6,12 +6,25 @@ export interface Contract {
   description: string
   start_date: string
   end_date: string
+  user: string
+  forest_area: string
   created: string
   updated: string
+  expand?: {
+    user?: {
+      name: string
+      email: string
+    }
+    forest_area?: {
+      name: string
+    }
+  }
 }
 
-export const getContracts = () =>
-  pb.collection('contracts').getFullList<Contract>({ sort: '-created' })
+export const getContracts = (filter?: string) =>
+  pb
+    .collection('contracts')
+    .getFullList<Contract>({ sort: '-created', expand: 'user,forest_area', filter })
 export const createContract = (data: Partial<Contract>) =>
   pb.collection('contracts').create<Contract>(data)
 export const updateContract = (id: string, data: Partial<Contract>) =>

@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react'
-import { Plus, Trash2, Pencil, Download } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { formatCPF, isValidCPF } from '@/lib/utils'
+import { useState, useEffect, useCallback } from 'react'
+import { getEmployees, Employee } from '@/services/employees'
+import { getForestAreas, ForestArea } from '@/services/forest_areas'
 import {
   Table,
   TableBody,
@@ -11,280 +10,136 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  getEmployees,
-  createEmployee,
-  updateEmployee,
-  deleteEmployee,
-  Employee,
-} from '@/services/employees'
-import { getUsers, User } from '@/services/users'
-import { toast } from 'sonner'
-import { Card, CardContent } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import pb from '@/lib/pocketbase/client'
+import { formatCPF } from '@/lib/utils'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function AdminEmployees() {
   const [employees, setEmployees] = useState<Employee[]>([])
-  const [users, setUsers] = useState<User[]>([])
+  const [suppliers, setSuppliers] = useState<any[]>([])
+  const [forestAreas, setForestAreas] = useState<ForestArea[]>([])
+
+  const [selectedSupplier, setSelectedSupplier] = useState<string>('all')
+  const [selectedForest, setSelectedForest] = useState<string>('all')
   const [loading, setLoading] = useState(true)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [cpfTouched, setCpfTouched] = useState(false)
 
-  const [formData, setFormData] = useState({
-    name: '',
-    tax_id: '',
-    role: 'motorista',
-    user: '',
-  })
-
-  const load = async () => {
+  const loadData = useCallback(async () => {
     try {
-      const data = await getEmployees()
-      setEmployees(data)
-      const usersData = await getUsers('isAdmin = false')
-      setUsers(usersData)
-    } catch (e) {
-      toast.error('Erro ao carregar funcionários')
+      const [emp, sup, forest] = await Promise.all([
+        getEmployees(),
+        pb.collection('users').getFullList({ filter: 'role="Fornecedor"' }),
+        getForestAreas(),
+      ])
+      setEmployees(emp)
+      setSuppliers(sup)
+      setForestAreas(forest)
     } finally {
       setLoading(false)
     }
-  }
-
-  useEffect(() => {
-    load()
   }, [])
 
-  const handleOpenDialog = (emp?: Employee) => {
-    if (emp) {
-      setEditingId(emp.id)
-      setFormData({
-        name: emp.name,
-        tax_id: formatCPF(emp.tax_id),
-        role: emp.role,
-        user: emp.user,
-      })
-    } else {
-      setEditingId(null)
-      setFormData({ name: '', tax_id: '', role: 'motorista', user: '' })
-    }
-    setCpfTouched(false)
-    setIsDialogOpen(true)
-  }
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
-  const handleSave = async () => {
-    try {
-      const dataToSave = { ...formData, tax_id: formData.tax_id.replace(/\D/g, '') }
-      if (editingId) {
-        await updateEmployee(editingId, dataToSave as any)
-        toast.success('Atualizado com sucesso')
-      } else {
-        await createEmployee(dataToSave as any)
-        toast.success('Criado com sucesso')
-      }
-      setIsDialogOpen(false)
-      load()
-    } catch (err) {
-      toast.error('Erro ao salvar')
-    }
-  }
+  useRealtime('employees', loadData)
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Deseja excluir este funcionário?')) return
-    try {
-      await deleteEmployee(id)
-      toast.success('Excluído com sucesso')
-      load()
-    } catch (err) {
-      toast.error('Erro ao excluir')
-    }
-  }
-
-  const handleExportCsv = () => {
-    if (employees.length === 0) {
-      toast.error('Nenhum funcionário para exportar.')
-      return
-    }
-
-    const headers = ['Fornecedor', 'Nome', 'CPF (tax_id)', 'Função (role)', 'Data de Cadastro']
-    const rows = employees.map((emp) => [
-      emp.expand?.user?.name || emp.expand?.user?.email || 'Desconhecido',
-      emp.name,
-      formatCPF(emp.tax_id),
-      emp.role,
-      new Date(emp.created).toLocaleDateString('pt-BR'),
-    ])
-
-    const csvContent = [headers.join(';'), ...rows.map((e) => e.join(';'))].join('\n')
-
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.setAttribute('href', url)
-    link.setAttribute('download', `base_funcionarios_${new Date().toISOString().slice(0, 10)}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
+  const filteredEmployees = employees.filter((e) => {
+    const matchSupplier = selectedSupplier === 'all' || e.user === selectedSupplier
+    const matchForest = selectedForest === 'all' || e.forest_area === selectedForest
+    return matchSupplier && matchForest
+  })
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gestão de Funcionários</h1>
-          <p className="text-muted-foreground">
-            Visão geral de todos os funcionários de todos os fornecedores.
-          </p>
+          <h1 className="text-3xl font-bold">Funcionários (Admin)</h1>
+          <p className="text-muted-foreground">Gestão e filtro de funcionários cadastrados</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={handleExportCsv}>
-            <Download className="w-4 h-4 mr-2" /> Exportar Base
-          </Button>
-          <Button onClick={() => handleOpenDialog()}>
-            <Plus className="w-4 h-4 mr-2" /> Novo Funcionário
-          </Button>
+
+        <div className="flex gap-4 items-center bg-muted/50 p-3 rounded-lg border">
+          <div className="space-y-1">
+            <Label className="text-xs">Filtrar por Fornecedor</Label>
+            <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
+              <SelectTrigger className="w-[200px] bg-background">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {suppliers.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name || s.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">Filtrar por Área Florestal</Label>
+            <Select value={selectedForest} onValueChange={setSelectedForest}>
+              <SelectTrigger className="w-[200px] bg-background">
+                <SelectValue placeholder="Todas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {forestAreas.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {f.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
+      <div className="border rounded-md bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nome</TableHead>
+              <TableHead>CPF</TableHead>
+              <TableHead>Função</TableHead>
+              <TableHead>Fornecedor</TableHead>
+              <TableHead>Área Florestal</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading && (
               <TableRow>
-                <TableHead>Fornecedor</TableHead>
-                <TableHead>Nome</TableHead>
-                <TableHead>CPF</TableHead>
-                <TableHead>Função</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableCell colSpan={5} className="text-center py-8">
+                  Carregando...
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {employees.length === 0 && !loading && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    Nenhum funcionário cadastrado.
-                  </TableCell>
-                </TableRow>
-              )}
-              {employees.map((emp) => (
-                <TableRow key={emp.id}>
-                  <TableCell className="font-medium text-muted-foreground">
-                    {emp.expand?.user?.name || emp.expand?.user?.email || 'Desconhecido'}
-                  </TableCell>
-                  <TableCell className="font-medium">{emp.name}</TableCell>
-                  <TableCell>{formatCPF(emp.tax_id)}</TableCell>
-                  <TableCell className="capitalize">{emp.role}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(emp)}>
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(emp.id)}
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingId ? 'Editar' : 'Novo'} Funcionário</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Fornecedor</Label>
-              <Select
-                value={formData.user}
-                onValueChange={(val) => setFormData({ ...formData, user: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o fornecedor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.name || u.email}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Nome</Label>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>CPF</Label>
-              <Input
-                value={formData.tax_id}
-                onChange={(e) => {
-                  setFormData({ ...formData, tax_id: formatCPF(e.target.value) })
-                  setCpfTouched(true)
-                }}
-                onBlur={() => setCpfTouched(true)}
-                maxLength={14}
-              />
-              {cpfTouched && formData.tax_id.length > 0 && !isValidCPF(formData.tax_id) && (
-                <p className="text-sm text-destructive">CPF inválido</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Função</Label>
-              <Select
-                value={formData.role}
-                onValueChange={(val) => setFormData({ ...formData, role: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a função" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="motorista">Motorista</SelectItem>
-                  <SelectItem value="operador">Operador</SelectItem>
-                  <SelectItem value="outros">Outros</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={handleSave}
-              disabled={
-                !formData.name || !formData.user || !formData.role || !isValidCPF(formData.tax_id)
-              }
-            >
-              Salvar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            )}
+            {!loading && filteredEmployees.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8">
+                  Nenhum registro encontrado
+                </TableCell>
+              </TableRow>
+            )}
+            {filteredEmployees.map((emp) => (
+              <TableRow key={emp.id}>
+                <TableCell className="font-medium">{emp.name}</TableCell>
+                <TableCell>{formatCPF(emp.tax_id)}</TableCell>
+                <TableCell className="capitalize">{emp.role}</TableCell>
+                <TableCell>{emp.expand?.user?.name || emp.expand?.user?.email || '-'}</TableCell>
+                <TableCell>{emp.expand?.forest_area?.name || '-'}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   )
 }

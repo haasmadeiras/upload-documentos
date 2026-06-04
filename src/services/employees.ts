@@ -6,6 +6,7 @@ export interface Employee {
   tax_id: string
   role: 'motorista' | 'operador' | 'outros'
   user: string
+  forest_area: string
   created: string
   updated: string
   expand?: {
@@ -13,14 +14,19 @@ export interface Employee {
       name: string
       email: string
     }
+    forest_area?: {
+      name: string
+    }
   }
 }
 
 export const getEmployees = (filter?: string) =>
-  pb.collection('employees').getFullList<Employee>({ sort: '-created', expand: 'user', filter })
+  pb
+    .collection('employees')
+    .getFullList<Employee>({ sort: '-created', expand: 'user,forest_area', filter })
 
 export const getEmployee = (id: string) =>
-  pb.collection('employees').getOne<Employee>(id, { expand: 'user' })
+  pb.collection('employees').getOne<Employee>(id, { expand: 'user,forest_area' })
 
 export const createEmployee = (data: Partial<Employee>) =>
   pb.collection('employees').create<Employee>(data)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, History, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -8,6 +8,15 @@ import { StatusBadge } from '@/components/StatusBadge'
 import useAppStore from '@/stores/use-app-store'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
+import { getForestAreas, ForestArea } from '@/services/forest_areas'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 export default function PortalUpload() {
   const { id } = useParams<{ id: string }>()
@@ -16,8 +25,20 @@ export default function PortalUpload() {
   const { requirements, uploads, addUpload } = useAppStore()
   const [isUploading, setIsUploading] = useState(false)
 
+  const [forestAreas, setForestAreas] = useState<ForestArea[]>([])
+  const [selectedForest, setSelectedForest] = useState<string>('')
+
   const req = requirements.find((r) => r.id === id)
   const upload = uploads.find((u) => u.requirementId === id)
+
+  useEffect(() => {
+    getForestAreas()
+      .then((data) => {
+        setForestAreas(data)
+        if (data.length === 1) setSelectedForest(data[0].id)
+      })
+      .catch(console.error)
+  }, [])
 
   if (!req) {
     return <div className="p-8 text-center text-muted-foreground">Requisito não encontrado.</div>
@@ -33,6 +54,15 @@ export default function PortalUpload() {
       return
     }
 
+    if (forestAreas.length > 0 && !selectedForest) {
+      toast({
+        variant: 'destructive',
+        title: 'Área Florestal obrigatória',
+        description: 'Selecione a área florestal antes de enviar o arquivo.',
+      })
+      return
+    }
+
     try {
       setIsUploading(true)
 
@@ -41,6 +71,9 @@ export default function PortalUpload() {
       formData.append('file', file)
       formData.append('status', 'Pending')
       formData.append('user', pb.authStore.record.id)
+      if (selectedForest) {
+        formData.append('forest_area', selectedForest)
+      }
 
       const docRecord = await pb.collection('documents').create(formData)
 
@@ -152,7 +185,25 @@ export default function PortalUpload() {
                 legíveis.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-6">
+              {forestAreas.length > 0 && (
+                <div className="space-y-2 max-w-sm">
+                  <Label>Área Florestal de Origem</Label>
+                  <Select value={selectedForest} onValueChange={setSelectedForest}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a área florestal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {forestAreas.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {isUploading ? (
                 <div className="flex flex-col items-center justify-center py-12 space-y-4">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />

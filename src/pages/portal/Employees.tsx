@@ -45,6 +45,7 @@ import {
   deleteEmployee,
   Employee,
 } from '@/services/employees'
+import { getForestAreas, ForestArea } from '@/services/forest_areas'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import pb from '@/lib/pocketbase/client'
@@ -62,6 +63,7 @@ try {
 export default function PortalEmployees() {
   const { user } = useAuth()
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [forestAreas, setForestAreas] = useState<ForestArea[]>([])
   const [loading, setLoading] = useState(true)
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isImportOpen, setIsImportOpen] = useState(false)
@@ -69,29 +71,40 @@ export default function PortalEmployees() {
   const [importProgress, setImportProgress] = useState('')
 
   const [extractedEmployees, setExtractedEmployees] = useState<
-    { name: string; tax_id: string; role: string }[]
+    { name: string; tax_id: string; role: string; forest_area?: string }[]
   >([])
   const [importStep, setImportStep] = useState<'upload' | 'preview_text' | 'preview_data'>('upload')
   const [rawText, setRawText] = useState('')
 
-  const [formData, setFormData] = useState({ name: '', tax_id: '', role: 'outros' })
+  const [formData, setFormData] = useState({
+    name: '',
+    tax_id: '',
+    role: 'outros',
+    forest_area: '',
+  })
   const [editingEmp, setEditingEmp] = useState<Employee | null>(null)
 
   const addTaxIdCleaned = formData.tax_id.replace(/\D/g, '')
   const addCpfInvalid = addTaxIdCleaned.length === 11 && !isValidCPF(addTaxIdCleaned)
-  const isAddSubmitDisabled = addTaxIdCleaned.length !== 11 || !isValidCPF(addTaxIdCleaned)
+  const isAddSubmitDisabled =
+    addTaxIdCleaned.length !== 11 || !isValidCPF(addTaxIdCleaned) || !formData.forest_area
 
   const editTaxIdCleaned = editingEmp?.tax_id.replace(/\D/g, '') || ''
   const editCpfInvalid = editTaxIdCleaned.length === 11 && !isValidCPF(editTaxIdCleaned)
-  const isEditSubmitDisabled = editTaxIdCleaned.length !== 11 || !isValidCPF(editTaxIdCleaned)
+  const isEditSubmitDisabled =
+    editTaxIdCleaned.length !== 11 || !isValidCPF(editTaxIdCleaned) || !editingEmp?.forest_area
 
   const load = async () => {
     if (!user) return
     try {
-      const data = await getEmployees(`user = "${user.id}"`)
+      const [data, forests] = await Promise.all([
+        getEmployees(`user = "${user.id}"`),
+        getForestAreas(),
+      ])
       setEmployees(data)
+      setForestAreas(forests)
     } catch (e) {
-      toast.error('Erro ao carregar funcionários')
+      toast.error('Erro ao carregar dados')
     } finally {
       setLoading(false)
     }
@@ -116,7 +129,7 @@ export default function PortalEmployees() {
       } as Partial<Employee>)
       toast.success('Funcionário adicionado com sucesso!')
       setIsAddOpen(false)
-      setFormData({ name: '', tax_id: '', role: 'outros' })
+      setFormData({ name: '', tax_id: '', role: 'outros', forest_area: '' })
       load()
     } catch (err) {
       toast.error('Erro ao adicionar funcionário.')
@@ -131,6 +144,7 @@ export default function PortalEmployees() {
         name: editingEmp.name,
         tax_id: editingEmp.tax_id.replace(/\D/g, ''),
         role: editingEmp.role,
+        forest_area: editingEmp.forest_area,
       })
       toast.success('Funcionário atualizado com sucesso!')
       setEditingEmp(null)
@@ -259,17 +273,17 @@ export default function PortalEmployees() {
       return
     }
 
-    const headers = ['Nome', 'CPF (tax_id)', 'Função (role)', 'Data de Cadastro']
+    const headers = ['Nome', 'CPF (tax_id)', 'Função (role)', 'Área Florestal', 'Data de Cadastro']
     const rows = employees.map((emp) => [
       emp.name,
       formatCPF(emp.tax_id),
       emp.role,
+      emp.expand?.forest_area?.name || 'Não vinculada',
       new Date(emp.created).toLocaleDateString('pt-BR'),
     ])
 
     const csvContent = [headers.join(';'), ...rows.map((e) => e.join(';'))].join('\n')
 
-    // Prefix with BOM for proper UTF-8 handling in Excel
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -386,7 +400,7 @@ export default function PortalEmployees() {
                           <TableRow>
                             <TableHead>Nome</TableHead>
                             <TableHead>CPF</TableHead>
-                            <TableHead>Função (Role)</TableHead>
+                            <TableHead>Função</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -457,6 +471,24 @@ export default function PortalEmployees() {
                   {addCpfInvalid && (
                     <p className="text-sm font-medium text-destructive">CPF inválido</p>
                   )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Área Florestal de Origem</Label>
+                  <Select
+                    value={formData.forest_area}
+                    onValueChange={(v: string) => setFormData({ ...formData, forest_area: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a área florestal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {forestAreas.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Função</Label>
@@ -541,7 +573,25 @@ export default function PortalEmployees() {
                 )}
               </div>
               <div className="space-y-2">
-                <Label>Função</Label>{' '}
+                <Label>Área Florestal de Origem</Label>
+                <Select
+                  value={editingEmp.forest_area}
+                  onValueChange={(v: string) => setEditingEmp({ ...editingEmp, forest_area: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a área florestal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {forestAreas.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Função</Label>
                 <Select
                   value={editingEmp.role}
                   onValueChange={(v: any) => setEditingEmp({ ...editingEmp, role: v })}
@@ -572,13 +622,14 @@ export default function PortalEmployees() {
                 <TableHead>Nome</TableHead>
                 <TableHead>CPF</TableHead>
                 <TableHead>Função</TableHead>
+                <TableHead>Área Florestal</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {employees.length === 0 && !loading && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     Nenhum funcionário cadastrado.
                   </TableCell>
                 </TableRow>
@@ -588,6 +639,7 @@ export default function PortalEmployees() {
                   <TableCell className="font-medium">{emp.name}</TableCell>
                   <TableCell>{formatCPF(emp.tax_id)}</TableCell>
                   <TableCell className="capitalize">{emp.role}</TableCell>
+                  <TableCell>{emp.expand?.forest_area?.name || 'Não vinculada'}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button

@@ -1,140 +1,168 @@
-import React from 'react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Users, FileText, AlertTriangle, CheckCircle } from 'lucide-react'
-import { useApp } from '@/contexts/AppContext'
-import { Badge } from '@/components/ui/badge'
+import { useState, useEffect, useCallback } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
+import pb from '@/lib/pocketbase/client'
+import { getForestAreas, ForestArea } from '@/services/forest_areas'
+import { useRealtime } from '@/hooks/use-realtime'
+import { Users, Truck, FileText, Map as MapIcon } from 'lucide-react'
 
 export default function AdminDashboard() {
-  const { uploads } = useApp()
+  const [stats, setStats] = useState({ employees: 0, vehicles: 0, documents: 0, forests: 0 })
+  const [suppliers, setSuppliers] = useState<any[]>([])
+  const [forestAreas, setForestAreas] = useState<ForestArea[]>([])
 
-  const stats = [
-    {
-      title: 'Stakeholders Ativos',
-      value: '142',
-      icon: Users,
-      desc: '+4 este mês',
-      color: 'text-blue-500',
-    },
-    {
-      title: 'Docs em Análise',
-      value: uploads.filter((u) => u.status === 'Em Análise').length.toString(),
-      icon: FileText,
-      desc: 'Requerem atenção',
-      color: 'text-amber-500',
-    },
-    {
-      title: 'Docs Rejeitados',
-      value: uploads.filter((u) => u.status === 'Rejeitado').length.toString(),
-      icon: AlertTriangle,
-      desc: 'Aguardando reenvio',
-      color: 'text-rose-500',
-    },
-    {
-      title: 'Aprovações Recentes',
-      value: '28',
-      icon: CheckCircle,
-      desc: 'Nos últimos 7 dias',
-      color: 'text-emerald-500',
-    },
-  ]
+  const [selectedSupplier, setSelectedSupplier] = useState<string>('all')
+  const [selectedForest, setSelectedForest] = useState<string>('all')
 
-  const getBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'Aprovado':
-        return 'default'
-      case 'Em Análise':
-        return 'secondary'
-      case 'Rejeitado':
-        return 'destructive'
-      default:
-        return 'outline'
+  useEffect(() => {
+    Promise.all([
+      pb.collection('users').getFullList({ filter: 'role="Fornecedor"' }),
+      getForestAreas(),
+    ]).then(([s, f]) => {
+      setSuppliers(s)
+      setForestAreas(f)
+    })
+  }, [])
+
+  const fetchStats = useCallback(async () => {
+    const filters = []
+    if (selectedSupplier !== 'all') filters.push(`user="${selectedSupplier}"`)
+    if (selectedForest !== 'all') filters.push(`forest_area="${selectedForest}"`)
+
+    const filterStr = filters.join(' && ')
+    const options = filterStr ? { filter: filterStr } : undefined
+
+    try {
+      const [emp, veh, doc, fora] = await Promise.all([
+        pb.collection('employees').getList(1, 1, options),
+        pb.collection('vehicles').getList(1, 1, options),
+        pb.collection('documents').getList(1, 1, options),
+        pb
+          .collection('forest_areas')
+          .getList(
+            1,
+            1,
+            selectedSupplier !== 'all' ? { filter: `user="${selectedSupplier}"` } : undefined,
+          ),
+      ])
+
+      setStats({
+        employees: emp.totalItems,
+        vehicles: veh.totalItems,
+        documents: doc.totalItems,
+        forests: fora.totalItems,
+      })
+    } catch (err) {
+      console.error(err)
     }
-  }
+  }, [selectedSupplier, selectedForest])
+
+  useEffect(() => {
+    fetchStats()
+  }, [fetchStats])
+
+  useRealtime('employees', fetchStats)
+  useRealtime('vehicles', fetchStats)
+  useRealtime('documents', fetchStats)
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard Global</h1>
-        <p className="text-muted-foreground mt-1">
-          Visão geral do compliance de fornecedores e parceiros.
-        </p>
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard Admin</h1>
+          <p className="text-muted-foreground">Visão geral do sistema e cadastros</p>
+        </div>
+
+        <div className="flex gap-4 items-center bg-muted/50 p-3 rounded-lg border">
+          <div className="space-y-1">
+            <Label className="text-xs">Filtrar por Fornecedor</Label>
+            <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
+              <SelectTrigger className="w-[200px] bg-background">
+                <SelectValue placeholder="Todos fornecedores" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos fornecedores</SelectItem>
+                {suppliers.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name || s.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">Filtrar por Área Florestal</Label>
+            <Select value={selectedForest} onValueChange={setSelectedForest}>
+              <SelectTrigger className="w-[200px] bg-background">
+                <SelectValue placeholder="Todas áreas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas áreas</SelectItem>
+                {forestAreas.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {f.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat, i) => (
-          <Card key={i} className="animate-slide-up" style={{ animationDelay: `${i * 100}ms` }}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-              <stat.icon className={`w-4 h-4 ${stat.color}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground mt-1">{stat.desc}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Funcionários
+            </CardTitle>
+            <Users className="w-4 h-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{stats.employees}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Veículos
+            </CardTitle>
+            <Truck className="w-4 h-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{stats.vehicles}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Documentos
+            </CardTitle>
+            <FileText className="w-4 h-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{stats.documents}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Áreas Florestais
+            </CardTitle>
+            <MapIcon className="w-4 h-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{stats.forests}</div>
+          </CardContent>
+        </Card>
       </div>
-
-      <Card className="animate-slide-up" style={{ animationDelay: '400ms' }}>
-        <CardHeader>
-          <CardTitle>Atividade Recente</CardTitle>
-          <CardDescription>Últimos documentos enviados pelos stakeholders.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Arquivo</TableHead>
-                <TableHead>Stakeholder</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {uploads.map((upload) => (
-                <TableRow key={upload.id}>
-                  <TableCell className="font-medium">
-                    {upload.fileName || `Documento ${upload.id}`}
-                  </TableCell>
-                  <TableCell>Tech Solutions LTDA</TableCell>
-                  <TableCell>
-                    {new Date(upload.uploadDate || '').toLocaleDateString('pt-BR')}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={getBadgeVariant(upload.status)}
-                      className={
-                        upload.status === 'Em Análise'
-                          ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 border-amber-200'
-                          : upload.status === 'Aprovado'
-                            ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-emerald-200'
-                            : ''
-                      }
-                    >
-                      {upload.status}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {uploads.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground h-24">
-                    Nenhuma atividade recente.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
     </div>
   )
 }
