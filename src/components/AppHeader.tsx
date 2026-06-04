@@ -7,8 +7,7 @@ import { useAuth } from '@/hooks/use-auth'
 export function AppHeader() {
   const { isMobile } = useSidebar()
   const location = useLocation()
-  const navigate = useNavigate()
-  const { signOut, user } = useAuth()
+  const { user } = useAuth()
 
   const getTitle = () => {
     if (location.pathname.includes('/config')) return 'Configuração de Documentos'
@@ -39,10 +38,7 @@ export function AppHeader() {
             variant="ghost"
             size="sm"
             className="text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              signOut()
-              navigate('/', { replace: true })
-            }}
+            onClick={() => window.dispatchEvent(new Event('app:manual-logout'))}
           >
             <LogOut className="w-4 h-4 mr-2" />
             <span>Sair</span>

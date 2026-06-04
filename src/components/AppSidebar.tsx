@@ -29,7 +29,7 @@ import logoUrl from '@/assets/image-bb79d.png'
 
 export function AppSidebar() {
   const location = useLocation()
-  const { user, signOut } = useAuth()
+  const { user } = useAuth()
 
   const adminMenu = [
     { title: 'Dashboard', icon: LayoutDashboard, path: '/admin' },
@@ -139,7 +139,7 @@ export function AppSidebar() {
             <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
               <p className="text-sm font-medium truncate">{user.name || user.email}</p>
               <button
-                onClick={signOut}
+                onClick={() => window.dispatchEvent(new Event('app:manual-logout'))}
                 className="text-xs text-muted-foreground hover:text-accent transition-colors"
               >
                 Sair

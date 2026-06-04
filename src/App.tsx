@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppStoreProvider } from '@/stores/use-app-store'
 import { AppProvider } from '@/contexts/AppContext'
 import { AuthProvider } from '@/hooks/use-auth'
+import { SessionManager } from './components/SessionManager'
 import Layout from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import Index from './pages/Index'
@@ -32,6 +33,7 @@ const App = () => (
           <TooltipProvider>
             <Toaster />
             <Sonner />
+            <SessionManager />
             <Routes>
               <Route element={<Layout />}>
                 <Route path="/" element={<Index />} />

@@ -46,30 +46,45 @@ export default function Index() {
       const { error } = await signIn(normalizedEmail, password)
 
       if (error) {
-        if (
-          error.message &&
-          (error.message.includes('não verificada') || error.message.includes('verify'))
-        ) {
-          setErrorMessage(
-            "E-mail pré-cadastrado. Por favor, utilize a opção 'Cadastrar nova conta' para definir sua senha de primeiro acesso.",
-          )
-        } else if (error.message) {
-          setErrorMessage(error.message)
+        console.error('[Auth Error]:', error)
+
+        let errorMsg = 'Erro: E-mail não encontrado ou Senha incorreta.'
+        const errMessage = error.message?.toLowerCase() || ''
+
+        if (errMessage.includes('não verificada') || errMessage.includes('verify')) {
+          errorMsg =
+            "E-mail pré-cadastrado. Por favor, utilize a opção 'Cadastrar nova conta' para definir sua senha de primeiro acesso."
+        } else if (error.response?.data?.identity) {
+          errorMsg = 'Erro: E-mail não encontrado.'
+        } else if (error.response?.data?.password) {
+          errorMsg = 'Erro: Senha incorreta.'
         } else {
-          setErrorMessage('E-mail ou senha incorretos.')
+          // Fallback if pocketbase just gives a generic 400 without specific fields
+          errorMsg = 'Erro: E-mail não encontrado ou Senha incorreta.'
         }
+
+        setErrorMessage(errorMsg)
+        toast({
+          title: 'Falha no login',
+          description: errorMsg,
+          variant: 'destructive',
+        })
+
         setIsLoading(false)
         return
       }
+
       const userRecord = pb.authStore.record
       const isAdmin = userRecord?.isAdmin === true || userRecord?.role === 'Admin'
       setAppRole(isAdmin ? 'master' : 'stakeholder')
+
       toast({
-        title: 'Login realizado com sucesso',
-        description: `Bem-vindo ao Portal de Documentação.`,
+        description: 'Bem-vindo(a)! Login realizado com sucesso.',
       })
-      navigate(isAdmin ? '/admin' : '/dashboard')
+
+      navigate(isAdmin ? '/admin' : '/dashboard', { replace: true })
     } catch (err) {
+      console.error('[Auth Error] Unexpected failure:', err)
       setErrorMessage('Ocorreu um erro ao tentar fazer login. Tente novamente.')
     } finally {
       setIsLoading(false)
