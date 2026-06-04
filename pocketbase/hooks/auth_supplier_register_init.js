@@ -5,33 +5,44 @@ routerAdd('POST', '/backend/v1/auth/supplier-register-init', (e) => {
   const password = body.password || ''
 
   if (!email || !taxIdRaw || !password) {
-    return e.badRequestError('E-mail, CNPJ e senha são obrigatórios.')
+    return e.badRequestError('E-mail, CPF/CNPJ e senha são obrigatórios.')
   }
   if (password.length < 8) {
     return e.badRequestError('A senha deve ter no mínimo 8 caracteres.')
   }
 
+  const taxIdClean = taxIdRaw.replace(/\D/g, '')
+
   let user
   try {
-    user = $app.findAuthRecordByEmail('users', email)
-  } catch (_) {
-    return e.badRequestError(
-      'Cadastro de fornecedor não encontrado. Verifique os dados ou entre em contato com o administrador.',
-    )
+    user = $app.findFirstRecordByData('users', 'tax_id', taxIdClean)
+  } catch (_) {}
+
+  if (user) {
+    if (user.getString('passwordHash') !== '') {
+      return e.badRequestError(
+        'Documento já cadastrado. Por favor, realize o login ou recupere sua senha.',
+      )
+    }
+
+    let emailUser
+    try {
+      emailUser = $app.findAuthRecordByEmail('users', email)
+    } catch (_) {}
+    if (emailUser && emailUser.id !== user.id) {
+      return e.badRequestError('Este e-mail já está em uso por outro usuário.')
+    }
+  } else {
+    let emailUser
+    try {
+      emailUser = $app.findAuthRecordByEmail('users', email)
+    } catch (_) {}
+    if (emailUser) {
+      return e.badRequestError('Este e-mail já está em uso.')
+    }
   }
 
-  const taxIdClean = taxIdRaw.replace(/\D/g, '')
-  const userTaxId = user.getString('tax_id').replace(/\D/g, '')
-
-  if (userTaxId !== taxIdClean || user.getString('role') !== 'Fornecedor') {
-    return e.badRequestError(
-      'Cadastro de fornecedor não encontrado. Verifique os dados ou entre em contato com o administrador.',
-    )
-  }
-
-  // Generate OTP
   const code = $security.randomStringWithAlphabet(6, '0123456789')
-
   const otps = $app.findCollectionByNameOrId('otps')
   const otpRecord = new Record(otps)
   otpRecord.set('email', email)

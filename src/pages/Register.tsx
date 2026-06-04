@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import pb from '@/lib/pocketbase/client'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
 import { useAuth } from '@/hooks/use-auth'
@@ -21,6 +23,7 @@ import {
   Loader2,
   ArrowLeft,
   IdCard,
+  Info,
 } from 'lucide-react'
 import logoUrl from '@/assets/image-bb79d.png'
 
@@ -38,9 +41,13 @@ export default function Register() {
     }
   }, [isAuthenticated, user, navigate])
 
-  const [step, setStep] = useState<'form' | 'success'>('form')
+  const [step, setStep] = useState<'form' | 'otp' | 'success'>('form')
   const [isLoading, setIsLoading] = useState(false)
   const [personType, setPersonType] = useState<PersonType>('PF')
+  const [isClaiming, setIsClaiming] = useState(false)
+  const [otpCode, setOtpCode] = useState('')
+  const [mockCode, setMockCode] = useState('')
+
   const [formData, setFormData] = useState({
     taxId: '',
     email: '',
@@ -103,30 +110,57 @@ export default function Register() {
     setFormData((prev) => ({ ...prev, phone: formatted }))
   }
 
-  const checkDuplicate = async (field: 'tax_id' | 'email', value: string) => {
+  const checkTaxId = async (value: string) => {
     if (!value) return
 
-    if (field === 'tax_id') {
-      const raw = value.replace(/\D/g, '')
-      if (personType === 'PF' && raw.length !== 11) return
-      if (personType === 'PJ' && raw.length !== 14) return
-    }
-    if (field === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return
+    const raw = value.replace(/\D/g, '')
+    if (personType === 'PF' && raw.length !== 11) return
+    if (personType === 'PJ' && raw.length !== 14) return
 
     try {
-      const res = await pb.send('/backend/v1/auth/check-duplicate', {
+      const res = await pb.send('/backend/v1/auth/check-tax-id', {
         method: 'GET',
-        query: { field, value },
+        query: { tax_id: value },
       })
+
       if (res.exists) {
-        setFieldErrors((prev) => ({
-          ...prev,
-          [field === 'tax_id' ? 'taxId' : 'email']:
-            `Este ${field === 'tax_id' ? (personType === 'PF' ? 'CPF' : 'CNPJ') : 'e-mail'} já está cadastrado.`,
-        }))
+        if (res.hasPassword) {
+          setFieldErrors((prev) => ({
+            ...prev,
+            taxId: 'Documento já cadastrado. Por favor, realize o login ou recupere sua senha.',
+          }))
+          setIsClaiming(false)
+          toast({
+            title: 'Cadastro Existente',
+            description: 'Este documento já está cadastrado e possui senha.',
+            variant: 'destructive',
+          })
+        } else {
+          setIsClaiming(true)
+          setFieldErrors((prev) => ({ ...prev, taxId: '' }))
+          toast({
+            title: 'Cadastro Prévio Encontrado',
+            description:
+              'Identificamos seu cadastro prévio. Vamos definir seu e-mail e senha para acesso.',
+          })
+          setFormData((prev) => ({
+            ...prev,
+            email: res.email || prev.email,
+            name: res.name || prev.name,
+            legalName: res.legal_name || prev.legalName,
+            phone: res.phone || prev.phone,
+            address: res.address || prev.address,
+          }))
+          if (res.person_type && (res.person_type === 'PF' || res.person_type === 'PJ')) {
+            setPersonType(res.person_type as PersonType)
+          }
+        }
+      } else {
+        setIsClaiming(false)
+        setFieldErrors((prev) => ({ ...prev, taxId: '' }))
       }
     } catch (e) {
-      console.error('Error checking duplicate', e)
+      console.error('Error checking tax id', e)
     }
   }
 
@@ -143,7 +177,7 @@ export default function Register() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleInitRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setFieldErrors({})
 
@@ -190,23 +224,17 @@ export default function Register() {
     try {
       const payload = {
         email: formData.email,
-        password: formData.password,
-        passwordConfirm: formData.passwordConfirm,
-        person_type: personType,
         tax_id: formData.taxId,
-        role: 'Fornecedor',
-        isAdmin: false,
-        phone: formData.phone,
-        address: formData.address,
-        name: personType === 'PF' ? formData.name : '',
-        legal_name: personType === 'PJ' ? formData.legalName : '',
+        password: formData.password,
       }
 
-      await pb.collection('users').create(payload)
+      const res = await pb.send('/backend/v1/auth/supplier-register-init', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
 
-      await logAttempt('success')
-      localStorage.removeItem('reg_draft')
-      setStep('success')
+      setMockCode(res.mock_code)
+      setStep('otp')
     } catch (err: any) {
       const errs = extractFieldErrors(err)
       if (Object.keys(errs).length > 0) {
@@ -215,9 +243,43 @@ export default function Register() {
         toast({
           variant: 'destructive',
           title: 'Erro no Cadastro',
-          description: err.message || 'Ocorreu um erro ao criar a conta.',
+          description: err.message || 'Ocorreu um erro ao iniciar o cadastro.',
         })
       }
+      await logAttempt('failure', err.message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (otpCode.length !== 6) return
+
+    setIsLoading(true)
+    try {
+      const payload = {
+        email: formData.email,
+        code: otpCode,
+        password: formData.password,
+        tax_id: formData.taxId,
+        person_type: personType,
+        name: personType === 'PF' ? formData.name : '',
+        legal_name: personType === 'PJ' ? formData.legalName : '',
+        phone: formData.phone,
+        address: formData.address,
+      }
+
+      await pb.send('/backend/v1/auth/supplier-register-verify', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+
+      await logAttempt('success')
+      localStorage.removeItem('reg_draft')
+      setStep('success')
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erro de Verificação', description: err.message })
       await logAttempt('failure', err.message)
     } finally {
       setIsLoading(false)
@@ -254,12 +316,16 @@ export default function Register() {
           <CardHeader className="space-y-2 pb-6 pt-6">
             <div className="text-center space-y-2">
               <CardTitle className="text-2xl">
-                {step === 'form' ? 'Seus Dados' : 'Cadastro Concluído'}
+                {step === 'form' && 'Seus Dados'}
+                {step === 'otp' && 'Validação'}
+                {step === 'success' && 'Cadastro Concluído'}
               </CardTitle>
               <CardDescription className="text-base">
-                {step === 'form'
-                  ? 'Insira as informações da sua empresa ou dados pessoais para validar o acesso.'
-                  : 'Sua conta foi criada com sucesso. Você já pode acessar o portal.'}
+                {step === 'form' &&
+                  'Insira as informações da sua empresa ou dados pessoais para validar o acesso.'}
+                {step === 'otp' && 'Verifique seu e-mail para continuar.'}
+                {step === 'success' &&
+                  'Sua conta foi criada com sucesso. Você já pode acessar o portal.'}
               </CardDescription>
             </div>
           </CardHeader>
@@ -267,15 +333,27 @@ export default function Register() {
           <CardContent>
             {step === 'form' && (
               <form
-                onSubmit={handleSubmit}
+                onSubmit={handleInitRegister}
                 className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500"
               >
+                {isClaiming && (
+                  <Alert className="bg-blue-50 border-blue-200">
+                    <Info className="h-4 w-4 text-blue-600" />
+                    <AlertTitle className="text-blue-800">Cadastro Prévio Encontrado</AlertTitle>
+                    <AlertDescription className="text-blue-700">
+                      Identificamos seu cadastro prévio. Vamos definir seu e-mail e senha para
+                      acesso.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <Tabs
                   value={personType}
                   onValueChange={(v) => {
                     setPersonType(v as PersonType)
                     setFormData((prev) => ({ ...prev, taxId: '', name: '', legalName: '' }))
                     setFieldErrors({})
+                    setIsClaiming(false)
                   }}
                 >
                   <TabsList className="grid w-full grid-cols-2 mb-6 h-12">
@@ -302,7 +380,7 @@ export default function Register() {
                           className="pl-10 h-11"
                           value={formData.taxId}
                           onChange={handleTaxIdChange}
-                          onBlur={() => checkDuplicate('tax_id', formData.taxId)}
+                          onBlur={() => checkTaxId(formData.taxId)}
                           maxLength={personType === 'PF' ? 14 : 18}
                           required
                         />
@@ -374,9 +452,9 @@ export default function Register() {
                             ) {
                               setFieldErrors((prev) => ({ ...prev, email: 'E-mail inválido.' }))
                             } else {
-                              if (fieldErrors.email === 'E-mail inválido.')
+                              if (fieldErrors.email === 'E-mail inválido.') {
                                 setFieldErrors((prev) => ({ ...prev, email: '' }))
-                              checkDuplicate('email', formData.email)
+                              }
                             }
                           }}
                           required
@@ -496,6 +574,71 @@ export default function Register() {
                   </div>
                 </div>
               </form>
+            )}
+
+            {step === 'otp' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="text-center space-y-4">
+                  <div className="bg-slate-100 p-4 rounded-lg inline-block">
+                    <Mail className="w-8 h-8 text-slate-600 mx-auto" />
+                  </div>
+                  <h3 className="text-xl font-semibold">Verifique seu e-mail</h3>
+                  <p className="text-sm text-slate-600">
+                    Enviamos um código de 6 dígitos para <strong>{formData.email}</strong>. Insira-o
+                    abaixo para confirmar seu cadastro.
+                  </p>
+                  {mockCode && (
+                    <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200 mt-4">
+                      Ambiente de teste. Código gerado: <strong>{mockCode}</strong>
+                    </p>
+                  )}
+                </div>
+
+                <form onSubmit={handleVerifyOTP} className="space-y-6 pt-2">
+                  <div className="flex justify-center">
+                    <InputOTP
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={(val: string) => setOtpCode(val)}
+                    >
+                      <InputOTPGroup>
+                        <InputOTPSlot index={0} />
+                        <InputOTPSlot index={1} />
+                        <InputOTPSlot index={2} />
+                        <InputOTPSlot index={3} />
+                        <InputOTPSlot index={4} />
+                        <InputOTPSlot index={5} />
+                      </InputOTPGroup>
+                    </InputOTP>
+                  </div>
+
+                  <div className="pt-4 space-y-4">
+                    <Button
+                      type="submit"
+                      className="w-full h-12 text-base font-medium shadow-sm"
+                      disabled={isLoading || otpCode.length !== 6}
+                    >
+                      {isLoading ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="w-5 h-5 animate-spin" /> Verificando...
+                        </span>
+                      ) : (
+                        'Verificar Código'
+                      )}
+                    </Button>
+                    <div className="flex justify-center text-center mt-2">
+                      <Button
+                        variant="ghost"
+                        type="button"
+                        className="text-slate-600 hover:text-slate-900"
+                        onClick={() => setStep('form')}
+                      >
+                        <ArrowLeft className="w-4 h-4 mr-2" /> Voltar aos dados
+                      </Button>
+                    </div>
+                  </div>
+                </form>
+              </div>
             )}
 
             {step === 'success' && (
