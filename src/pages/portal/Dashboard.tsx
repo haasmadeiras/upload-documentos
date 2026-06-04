@@ -262,7 +262,17 @@ export default function PortalDashboard() {
     )
   }
 
-  const categoryDefs = definitions.filter((d) => d.category === activeCategory.id)
+  const categoryDefs = definitions.filter((d) => {
+    if (d.category !== activeCategory.id) return false
+
+    if (d.target_person_type && d.target_person_type !== 'Both') {
+      if (user?.person_type && d.target_person_type !== user.person_type) {
+        return false
+      }
+    }
+
+    return true
+  })
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6 animate-fade-in">

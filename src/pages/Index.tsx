@@ -101,6 +101,33 @@ export default function Index() {
     if (errorMessage) setErrorMessage(null)
   }
 
+  const handleForgotPassword = async () => {
+    const normalizedEmail = email.trim().toLowerCase()
+    if (!normalizedEmail) {
+      toast({
+        title: 'E-mail necessário',
+        description: 'Preencha o campo de e-mail para recuperar a senha.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      await pb.collection('users').requestPasswordReset(normalizedEmail)
+      toast({
+        title: 'Recuperação de Senha',
+        description:
+          'Se o e-mail estiver em nossa base, você receberá instruções para redefinir sua senha.',
+      })
+    } catch (err) {
+      toast({
+        title: 'Recuperação de Senha',
+        description:
+          'Se o e-mail estiver em nossa base, você receberá instruções para redefinir sua senha.',
+      })
+    }
+  }
+
   return (
     <div className="min-h-screen flex w-full max-w-full overflow-x-hidden bg-white">
       {/* Left Pane - Image & Brand */}
@@ -192,9 +219,13 @@ export default function Index() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="password">Senha</Label>
-                    <a href="#" className="text-sm font-medium text-destructive hover:underline">
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      className="text-sm font-medium text-destructive hover:underline"
+                    >
                       Esqueci minha senha
-                    </a>
+                    </button>
                   </div>
                   <div className="relative">
                     <Input

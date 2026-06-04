@@ -22,14 +22,14 @@ export default function PortalUpload() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { requirements, uploads, addUpload } = useAppStore()
+  const { addUpload } = useAppStore()
   const [isUploading, setIsUploading] = useState(false)
 
   const [forestAreas, setForestAreas] = useState<ForestArea[]>([])
   const [selectedForest, setSelectedForest] = useState<string>('')
-
-  const req = requirements.find((r) => r.id === id)
-  const upload = uploads.find((u) => u.requirementId === id)
+  const [req, setReq] = useState<any>(null)
+  const [upload, setUpload] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     getForestAreas()
@@ -38,7 +38,50 @@ export default function PortalUpload() {
         if (data.length === 1) setSelectedForest(data[0].id)
       })
       .catch(console.error)
-  }, [])
+
+    if (id && pb.authStore.record?.id) {
+      Promise.all([
+        pb.collection('document_definitions').getOne(id),
+        pb.collection('documents').getList(1, 1, {
+          filter: `definition = "${id}" && user = "${pb.authStore.record.id}"`,
+          sort: '-created',
+        }),
+      ])
+        .then(([def, docsRes]) => {
+          setReq({
+            id: def.id,
+            title: def.name,
+            description: `Formatos aceitos: ${def.allowed_formats || 'Qualquer'}`,
+          })
+          if (docsRes.items.length > 0) {
+            const doc = docsRes.items[0]
+            setUpload({
+              id: doc.id,
+              requirementId: def.id,
+              status:
+                doc.status === 'Approved'
+                  ? 'aprovado'
+                  : doc.status === 'Rejected'
+                    ? 'rejeitado'
+                    : 'pendente',
+              fileName: doc.file,
+            })
+          }
+        })
+        .catch(console.error)
+        .finally(() => setLoading(false))
+    } else {
+      setLoading(false)
+    }
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   if (!req) {
     return <div className="p-8 text-center text-muted-foreground">Requisito não encontrado.</div>
@@ -71,6 +114,7 @@ export default function PortalUpload() {
       formData.append('file', file)
       formData.append('status', 'Pending')
       formData.append('user', pb.authStore.record.id)
+      formData.append('definition', req.id)
       if (selectedForest) {
         formData.append('forest_area', selectedForest)
       }
@@ -207,12 +251,24 @@ export default function PortalUpload() {
               {isUploading ? (
                 <div className="flex flex-col items-center justify-center py-12 space-y-4">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <p className="text-sm text-muted-foreground">
-                    Processando e validando documento...
+                  <p className="text-sm text-muted-foreground font-medium">Enviando arquivo...</p>
+                  <div className="w-full max-w-xs h-2 bg-secondary rounded-full overflow-hidden">
+                    <div className="h-full bg-primary animate-pulse w-full"></div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Por favor, aguarde a conclusão do upload.
                   </p>
                 </div>
               ) : (
-                <FileUploader file={null} onFileSelect={(f) => f && handleUpload(f)} />
+                <FileUploader
+                  file={null}
+                  onFileSelect={(f) => f && handleUpload(f)}
+                  accept={
+                    req.description.includes('Qualquer')
+                      ? '.pdf,.jpg,.jpeg,.png'
+                      : req.description.split(': ')[1] || '.pdf,.jpg,.jpeg,.png'
+                  }
+                />
               )}
             </CardContent>
           </Card>

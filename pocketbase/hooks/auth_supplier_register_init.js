@@ -18,28 +18,28 @@ routerAdd('POST', '/backend/v1/auth/supplier-register-init', (e) => {
     user = $app.findFirstRecordByData('users', 'tax_id', taxIdClean)
   } catch (_) {}
 
-  if (user) {
-    if (user.getString('passwordHash') !== '') {
-      return e.badRequestError(
-        'Documento já cadastrado. Por favor, realize o login ou recupere sua senha.',
-      )
-    }
+  if (!user) {
+    return e.badRequestError(
+      'CPF/CNPJ não localizado. Entre em contato com a administração para seu pré-cadastro.',
+    )
+  }
 
-    let emailUser
-    try {
-      emailUser = $app.findAuthRecordByEmail('users', email)
-    } catch (_) {}
-    if (emailUser && emailUser.id !== user.id) {
-      return e.badRequestError('Este e-mail já está em uso por outro usuário.')
-    }
-  } else {
-    let emailUser
-    try {
-      emailUser = $app.findAuthRecordByEmail('users', email)
-    } catch (_) {}
-    if (emailUser) {
-      return e.badRequestError('Este e-mail já está em uso.')
-    }
+  if (user.getString('role') !== 'Fornecedor') {
+    return e.badRequestError('O documento informado não pertence a um Fornecedor.')
+  }
+
+  if (user.getString('passwordHash') !== '') {
+    return e.badRequestError(
+      'Documento já cadastrado. Por favor, realize o login ou recupere sua senha.',
+    )
+  }
+
+  let emailUser
+  try {
+    emailUser = $app.findAuthRecordByEmail('users', email)
+  } catch (_) {}
+  if (emailUser && emailUser.id !== user.id) {
+    return e.badRequestError('Este e-mail já está em uso por outro usuário.')
   }
 
   const code = $security.randomStringWithAlphabet(6, '0123456789')

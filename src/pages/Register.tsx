@@ -157,7 +157,11 @@ export default function Register() {
         }
       } else {
         setIsClaiming(false)
-        setFieldErrors((prev) => ({ ...prev, taxId: '' }))
+        setFieldErrors((prev) => ({
+          ...prev,
+          taxId:
+            'CPF/CNPJ não localizado. Entre em contato com a administração para seu pré-cadastro.',
+        }))
       }
     } catch (e) {
       console.error('Error checking tax id', e)
