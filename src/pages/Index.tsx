@@ -43,34 +43,6 @@ export default function Index() {
     setErrorMessage(null)
 
     try {
-      let checkRes
-      try {
-        checkRes = await pb.send('/backend/v1/auth/check-email', {
-          method: 'POST',
-          body: JSON.stringify({ email: normalizedEmail }),
-          headers: { 'Content-Type': 'application/json' },
-        })
-      } catch (err) {
-        console.warn('Check email custom route failed, falling back to standard login', err)
-      }
-
-      if (checkRes) {
-        if (!checkRes.exists) {
-          setErrorMessage('E-mail não encontrado. Entre em contato com o administrador.')
-          setIsLoading(false)
-          return
-        }
-
-        if (!checkRes.hasPassword && !checkRes.isAdmin) {
-          toast({
-            title: 'Primeiro Acesso',
-            description: 'Por favor, defina sua senha para continuar.',
-          })
-          navigate('/register', { state: { email: normalizedEmail } })
-          return
-        }
-      }
-
       const { error } = await signIn(normalizedEmail, password)
 
       if (error) {
@@ -82,7 +54,7 @@ export default function Index() {
             "E-mail pré-cadastrado. Por favor, utilize a opção 'Cadastrar nova conta' para definir sua senha de primeiro acesso.",
           )
         } else {
-          setErrorMessage('Senha incorreta. Verifique suas credenciais e tente novamente.')
+          setErrorMessage('E-mail ou senha incorretos.')
         }
         setIsLoading(false)
         return
