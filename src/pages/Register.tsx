@@ -8,11 +8,11 @@ import pb from '@/lib/pocketbase/client'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
-import { MailCheck, KeyRound, ShieldCheck } from 'lucide-react'
+import { MailCheck, KeyRound, ShieldCheck, Building2 } from 'lucide-react'
 import logoUrl from '@/assets/image-bb79d.png'
 
 export default function Register() {
-  const { signIn, isAuthenticated, user } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
 
@@ -24,51 +24,19 @@ export default function Register() {
   }, [isAuthenticated, user, navigate])
 
   const location = useLocation()
-  const [step, setStep] = useState<'email' | 'password' | 'otp'>('email')
+  const [step, setStep] = useState<'form' | 'otp'>('form')
   const [isLoading, setIsLoading] = useState(false)
+
+  const [taxId, setTaxId] = useState('')
   const [email, setEmail] = useState(location.state?.email || '')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
+
   const [otp, setOtp] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [mockCode, setMockCode] = useState('')
 
-  const handleCheckEmail = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setFieldErrors({})
-    setIsLoading(true)
-
-    try {
-      await pb.send('/backend/v1/auth/invite-check', {
-        method: 'POST',
-        body: JSON.stringify({ email }),
-      })
-      setStep('password')
-    } catch (err: any) {
-      const errs = extractFieldErrors(err)
-      if (Object.keys(errs).length > 0) {
-        setFieldErrors(errs)
-      } else if (
-        err.status === 404 ||
-        err.status === 400 ||
-        (err.message && err.message.toLowerCase().includes('not found'))
-      ) {
-        setFieldErrors({
-          email: 'E-mail não autorizado para cadastro. Entre em contato com o administrador.',
-        })
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Acesso Negado',
-          description: err.message || 'Erro ao verificar e-mail.',
-        })
-      }
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleSetPassword = async (e: React.FormEvent) => {
+  const handleInitRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setFieldErrors({})
 
@@ -77,11 +45,17 @@ export default function Register() {
       return
     }
 
+    if (password.length < 8) {
+      setFieldErrors({ password: 'A senha deve ter no mínimo 8 caracteres.' })
+      return
+    }
+
     setIsLoading(true)
+
     try {
-      const res = await pb.send('/backend/v1/auth/invite-setup', {
+      const res = await pb.send('/backend/v1/auth/supplier-register-init', {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, tax_id: taxId, password }),
       })
 
       setMockCode(res.mock_code)
@@ -97,8 +71,10 @@ export default function Register() {
       } else {
         toast({
           variant: 'destructive',
-          title: 'Erro',
-          description: err.message || 'Erro ao configurar senha.',
+          title: 'Acesso Negado',
+          description:
+            err.message ||
+            'Cadastro de fornecedor não encontrado. Verifique os dados ou entre em contato com o administrador.',
         })
       }
     } finally {
@@ -112,22 +88,16 @@ export default function Register() {
     setIsLoading(true)
 
     try {
-      await pb.send('/backend/v1/auth/invite-verify', {
+      await pb.send('/backend/v1/auth/supplier-register-verify', {
         method: 'POST',
         body: JSON.stringify({ email, code: otp, password }),
       })
 
-      // Account verified, now login
-      const { error } = await signIn(email, password)
-      if (error) {
-        throw error
-      }
-
       toast({
-        title: 'Conta ativada com sucesso!',
-        description: 'Bem-vindo ao portal.',
+        title: 'Cadastro realizado com sucesso!',
+        description: 'Agora você pode entrar no sistema.',
       })
-      navigate('/dashboard')
+      navigate('/')
     } catch (err: any) {
       const errs = extractFieldErrors(err)
       if (Object.keys(errs).length > 0) {
@@ -144,6 +114,16 @@ export default function Register() {
     }
   }
 
+  const formatCNPJ = (value: string) => {
+    const digits = value.replace(/\D/g, '')
+    let formatted = digits
+    if (digits.length > 2) formatted = digits.replace(/^(\d{2})(\d)/, '$1.$2')
+    if (digits.length > 5) formatted = formatted.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    if (digits.length > 8) formatted = formatted.replace(/\.(\d{3})(\d)/, '.$1/$2')
+    if (digits.length > 12) formatted = formatted.replace(/(\d{4})(\d)/, '$1-$2')
+    return formatted.slice(0, 18)
+  }
+
   return (
     <div className="min-h-screen flex w-full max-w-full overflow-x-hidden bg-white">
       {/* Left Pane - Image & Brand */}
@@ -157,10 +137,10 @@ export default function Register() {
 
           <div className="space-y-4">
             <h1 className="text-4xl font-bold text-slate-900 leading-tight tracking-tight">
-              Junte-se ao Portal
+              Portal do Fornecedor
             </h1>
             <p className="text-slate-600 text-lg">
-              Conclua seu cadastro para enviar documentos e acompanhar os requisitos da sua empresa.
+              Valide sua identidade e conclua seu cadastro para acessar o portal de documentos.
             </p>
           </div>
         </div>
@@ -176,31 +156,52 @@ export default function Register() {
               className="h-32 max-w-full object-contain mix-blend-multiply bg-transparent"
             />
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight text-center px-4">
-              Cadastro
+              Cadastro de Fornecedor
             </h1>
           </div>
 
           <Card className="border-slate-200 shadow-xl bg-slate-50">
             <CardHeader className="space-y-2 pb-6">
               <CardTitle className="text-2xl text-center">
-                {step === 'email' && 'Verificar Convite'}
-                {step === 'password' && 'Definir Senha'}
+                {step === 'form' && 'Verificar Cadastro'}
                 {step === 'otp' && 'Validação em Duas Etapas'}
               </CardTitle>
               <CardDescription className="text-center text-base">
-                {step === 'email' && 'Insira o e-mail que foi convidado pelo administrador.'}
-                {step === 'password' && 'Crie uma senha segura para o seu acesso.'}
+                {step === 'form' && 'Insira seus dados para validar o acesso da sua empresa.'}
                 {step === 'otp' && 'Insira o código de 6 dígitos que enviamos para seu e-mail.'}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {step === 'email' && (
+              {step === 'form' && (
                 <form
-                  onSubmit={handleCheckEmail}
+                  onSubmit={handleInitRegister}
                   className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500"
                 >
                   <div className="space-y-2">
-                    <Label htmlFor="email">E-mail corporativo</Label>
+                    <Label htmlFor="taxId">CNPJ</Label>
+                    <div className="relative">
+                      <Building2 className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+                      <Input
+                        id="taxId"
+                        type="text"
+                        placeholder="00.000.000/0001-00"
+                        className="pl-10"
+                        value={taxId}
+                        onChange={(e) => {
+                          setTaxId(formatCNPJ(e.target.value))
+                          setFieldErrors({})
+                        }}
+                        required
+                        maxLength={18}
+                      />
+                    </div>
+                    {fieldErrors.taxId && (
+                      <p className="text-xs text-red-500">{fieldErrors.taxId}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email">E-mail</Label>
                     <div className="relative">
                       <MailCheck className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
                       <Input
@@ -221,35 +222,6 @@ export default function Register() {
                     )}
                   </div>
 
-                  <div className="pt-4 space-y-4">
-                    <Button
-                      type="submit"
-                      className="w-full h-12 text-base"
-                      disabled={isLoading || !email}
-                    >
-                      {isLoading ? 'Verificando...' : 'Continuar'}
-                    </Button>
-
-                    <div className="text-center">
-                      <p className="text-sm text-slate-600">
-                        Já possui conta?{' '}
-                        <Link
-                          to="/"
-                          className="font-semibold text-primary hover:underline transition-colors"
-                        >
-                          Fazer Login
-                        </Link>
-                      </p>
-                    </div>
-                  </div>
-                </form>
-              )}
-
-              {step === 'password' && (
-                <form
-                  onSubmit={handleSetPassword}
-                  className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500"
-                >
                   <div className="space-y-2">
                     <Label htmlFor="password">Nova Senha</Label>
                     <div className="relative">
@@ -296,22 +268,26 @@ export default function Register() {
                     )}
                   </div>
 
-                  <div className="pt-4 flex flex-col gap-3">
+                  <div className="pt-4 space-y-4">
                     <Button
                       type="submit"
                       className="w-full h-12 text-base"
-                      disabled={isLoading || !password || !passwordConfirm}
+                      disabled={isLoading || !email || !taxId || !password || !passwordConfirm}
                     >
-                      {isLoading ? 'Salvando...' : 'Salvar Senha'}
+                      {isLoading ? 'Verificando...' : 'Cadastrar'}
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setStep('email')}
-                      disabled={isLoading}
-                    >
-                      Voltar
-                    </Button>
+
+                    <div className="text-center">
+                      <p className="text-sm text-slate-600">
+                        Já possui conta?{' '}
+                        <Link
+                          to="/"
+                          className="font-semibold text-primary hover:underline transition-colors"
+                        >
+                          Fazer Login
+                        </Link>
+                      </p>
+                    </div>
                   </div>
                 </form>
               )}
@@ -347,13 +323,21 @@ export default function Register() {
                     )}
                   </div>
 
-                  <div className="pt-4">
+                  <div className="pt-4 flex flex-col gap-3">
                     <Button
                       type="submit"
                       className="w-full h-12 text-base"
                       disabled={isLoading || otp.length !== 6}
                     >
                       {isLoading ? 'Verificando...' : 'Verificar e Acessar'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setStep('form')}
+                      disabled={isLoading}
+                    >
+                      Voltar
                     </Button>
                   </div>
                 </form>
