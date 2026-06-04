@@ -21,12 +21,12 @@ export default function Index() {
   useEffect(() => {
     if (isAuthenticated && user) {
       const isAdmin = user.isAdmin === true || user.role === 'Admin'
-      navigate(isAdmin ? '/admin/config' : '/dashboard')
+      navigate(isAdmin ? '/admin' : '/dashboard')
     }
   }, [isAuthenticated, user, navigate])
 
   const [email, setEmail] = useState('pamelafrantz@pamelafrantz.onmicrosoft.com')
-  const [password, setPassword] = useState('Skip@2026')
+  const [password, setPassword] = useState('Skip@Pass')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -41,41 +41,52 @@ export default function Index() {
     setErrorMessage(null)
 
     try {
-      const checkRes = await pb.send('/backend/v1/auth/check-email', {
-        method: 'POST',
-        body: JSON.stringify({ email }),
-        headers: { 'Content-Type': 'application/json' },
-      })
-
-      if (!checkRes.exists) {
-        setErrorMessage('O e-mail informado não possui cadastro')
-        setIsLoading(false)
-        return
+      let checkRes
+      try {
+        checkRes = await pb.send('/backend/v1/auth/check-email', {
+          method: 'POST',
+          body: JSON.stringify({ email }),
+          headers: { 'Content-Type': 'application/json' },
+        })
+      } catch (err) {
+        console.warn('Check email custom route failed, falling back to standard login', err)
       }
 
-      if (!checkRes.hasPassword) {
-        setErrorMessage(
-          "E-mail pré-cadastrado. Por favor, utilize a opção 'Cadastrar nova conta' para definir sua senha de primeiro acesso.",
-        )
-        setIsLoading(false)
-        return
+      if (checkRes) {
+        if (!checkRes.exists) {
+          setErrorMessage('E-mail não encontrado. Entre em contato com o administrador.')
+          setIsLoading(false)
+          return
+        }
+
+        if (!checkRes.hasPassword) {
+          toast({
+            title: 'Primeiro Acesso',
+            description: 'Por favor, defina sua senha para continuar.',
+          })
+          navigate('/register', { state: { email } })
+          return
+        }
       }
 
       const { error } = await signIn(email, password)
 
       if (error) {
-        setErrorMessage('Senha incorreta.')
+        setErrorMessage(
+          'Senha incorreta ou e-mail não encontrado. Entre em contato com o administrador se o problema persistir.',
+        )
         setIsLoading(false)
         return
       }
 
-      const isAdmin = pb.authStore.record?.isAdmin === true
+      const userRecord = pb.authStore.record
+      const isAdmin = userRecord?.isAdmin === true || userRecord?.role === 'Admin'
       setAppRole(isAdmin ? 'master' : 'stakeholder')
       toast({
         title: 'Login realizado com sucesso',
         description: `Bem-vindo ao Portal de Documentação.`,
       })
-      navigate(isAdmin ? '/admin/config' : '/dashboard')
+      navigate(isAdmin ? '/admin' : '/dashboard')
     } catch (err) {
       setErrorMessage('Ocorreu um erro ao tentar fazer login. Tente novamente.')
     } finally {
@@ -149,9 +160,8 @@ export default function Index() {
                   <AlertTitle>Falha no login</AlertTitle>
                   <AlertDescription className="mt-1 flex flex-col gap-2">
                     <span>{errorMessage}</span>
-                    {(errorMessage === 'O e-mail informado não possui cadastro' ||
-                      errorMessage ===
-                        "E-mail pré-cadastrado. Por favor, utilize a opção 'Cadastrar nova conta' para definir sua senha de primeiro acesso.") && (
+                    {errorMessage ===
+                      "E-mail pré-cadastrado. Por favor, utilize a opção 'Cadastrar nova conta' para definir sua senha de primeiro acesso." && (
                       <Link to="/register" className="font-semibold underline underline-offset-2">
                         Ir para o cadastro
                       </Link>

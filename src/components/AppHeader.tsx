@@ -41,7 +41,7 @@ export function AppHeader() {
             className="text-muted-foreground hover:text-foreground"
             onClick={() => {
               signOut()
-              navigate('/')
+              navigate('/', { replace: true })
             }}
           >
             <LogOut className="w-4 h-4 md:mr-2" />

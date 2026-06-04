@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,13 +19,14 @@ export default function Register() {
   useEffect(() => {
     if (isAuthenticated && user) {
       const isAdmin = user.isAdmin === true || user.role === 'Admin'
-      navigate(isAdmin ? '/admin/config' : '/dashboard')
+      navigate(isAdmin ? '/admin' : '/dashboard')
     }
   }, [isAuthenticated, user, navigate])
 
+  const location = useLocation()
   const [step, setStep] = useState<'email' | 'password' | 'otp'>('email')
   const [isLoading, setIsLoading] = useState(false)
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(location.state?.email || '')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [otp, setOtp] = useState('')
