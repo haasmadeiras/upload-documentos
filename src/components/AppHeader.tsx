@@ -1,4 +1,4 @@
-import { Bell, LogOut, Menu } from 'lucide-react'
+import { Bell, LogOut } from 'lucide-react'
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -44,8 +44,8 @@ export function AppHeader() {
               navigate('/', { replace: true })
             }}
           >
-            <LogOut className="w-4 h-4 md:mr-2" />
-            <span className="hidden md:inline">Sair</span>
+            <LogOut className="w-4 h-4 mr-2" />
+            <span>Sair</span>
           </Button>
         )}
       </div>
