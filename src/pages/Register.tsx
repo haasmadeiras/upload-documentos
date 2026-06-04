@@ -75,7 +75,7 @@ export default function Register() {
       toast({
         variant: 'destructive',
         title: 'Erro de Conexão',
-        description: 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet.',
+        description: 'Erro de conexão. Verifique sua internet e tente novamente.',
       })
       return
     }
@@ -103,8 +103,7 @@ export default function Register() {
           variant: 'destructive',
           title: 'Cadastro não localizado',
           description:
-            err.message ||
-            'Dados não encontrados na base de fornecedores. Verifique as informações ou entre em contato com o suporte.',
+            'Dados não encontrados na base de fornecedores. Por favor, entre em contato com o suporte.',
         })
       }
     } finally {
@@ -120,7 +119,7 @@ export default function Register() {
       toast({
         variant: 'destructive',
         title: 'Erro de Conexão',
-        description: 'Não foi possível conectar ao servidor. Verifique sua internet.',
+        description: 'Erro de conexão. Verifique sua internet e tente novamente.',
       })
       return
     }
@@ -164,6 +163,11 @@ export default function Register() {
     if (digits.length > 12) formatted = formatted.replace(/(\d{4})(\d)/, '$1-$2')
     return formatted.slice(0, 18)
   }
+
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  const isCnpjValid = taxId.replace(/\D/g, '').length === 14
+  const isFormValid =
+    isEmailValid && isCnpjValid && password.length >= 8 && password === passwordConfirm
 
   return (
     <div className="min-h-screen flex w-full max-w-full overflow-x-hidden bg-white">
@@ -277,7 +281,7 @@ export default function Register() {
                       <Input
                         id="taxId"
                         type="text"
-                        placeholder="00.000.000/0001-00"
+                        placeholder="00.000.000/0000-00"
                         className="pl-10 h-11"
                         value={taxId}
                         onChange={(e) => {
@@ -378,7 +382,7 @@ export default function Register() {
                     <Button
                       type="submit"
                       className="w-full h-12 text-base font-medium shadow-sm"
-                      disabled={isLoading || !email || !taxId || !password || !passwordConfirm}
+                      disabled={isLoading || !isFormValid}
                     >
                       {isLoading ? (
                         <span className="flex items-center gap-2">
