@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
+import { useRealtime } from '@/hooks/use-realtime'
 
 import { getUsers, createUser, User } from '@/services/users'
 import { Button } from '@/components/ui/button'
@@ -161,6 +162,22 @@ export default function AdminUsers() {
       fetchUsers()
     }
   }, [isMaster])
+
+  useRealtime(
+    'users',
+    (e) => {
+      if (e.action === 'create') {
+        setUsers((prev) => [e.record as unknown as User, ...prev])
+      } else if (e.action === 'update') {
+        setUsers((prev) =>
+          prev.map((u) => (u.id === e.record.id ? (e.record as unknown as User) : u)),
+        )
+      } else if (e.action === 'delete') {
+        setUsers((prev) => prev.filter((u) => u.id !== e.record.id))
+      }
+    },
+    isMaster,
+  )
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {

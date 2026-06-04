@@ -72,13 +72,19 @@ export default function Index() {
       const { error } = await signIn(email, password)
 
       if (error) {
-        setErrorMessage(
-          'Senha incorreta ou e-mail não encontrado. Entre em contato com o administrador se o problema persistir.',
-        )
+        if (
+          error.message &&
+          (error.message.includes('não verificada') || error.message.includes('verify'))
+        ) {
+          setErrorMessage(
+            "E-mail pré-cadastrado. Por favor, utilize a opção 'Cadastrar nova conta' para definir sua senha de primeiro acesso.",
+          )
+        } else {
+          setErrorMessage('Senha incorreta. Verifique suas credenciais e tente novamente.')
+        }
         setIsLoading(false)
         return
       }
-
       const userRecord = pb.authStore.record
       const isAdmin = userRecord?.isAdmin === true || userRecord?.role === 'Admin'
       setAppRole(isAdmin ? 'master' : 'stakeholder')
@@ -155,14 +161,19 @@ export default function Index() {
             </CardHeader>
             <CardContent className="space-y-6">
               {errorMessage && (
-                <Alert variant="destructive" className="animate-fade-in-down">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Falha no login</AlertTitle>
-                  <AlertDescription className="mt-1 flex flex-col gap-2">
+                <Alert className="bg-red-50 border-red-200 text-red-600 animate-fade-in-down shadow-sm">
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                  <AlertTitle className="text-red-600 font-semibold text-base">
+                    Falha no login
+                  </AlertTitle>
+                  <AlertDescription className="mt-1 flex flex-col gap-2 text-red-600/90 text-sm">
                     <span>{errorMessage}</span>
                     {errorMessage ===
                       "E-mail pré-cadastrado. Por favor, utilize a opção 'Cadastrar nova conta' para definir sua senha de primeiro acesso." && (
-                      <Link to="/register" className="font-semibold underline underline-offset-2">
+                      <Link
+                        to="/register"
+                        className="font-semibold underline underline-offset-2 text-red-700 hover:text-red-800"
+                      >
                         Ir para o cadastro
                       </Link>
                     )}

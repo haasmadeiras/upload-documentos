@@ -48,6 +48,14 @@ export default function Register() {
       const errs = extractFieldErrors(err)
       if (Object.keys(errs).length > 0) {
         setFieldErrors(errs)
+      } else if (
+        err.status === 404 ||
+        err.status === 400 ||
+        (err.message && err.message.toLowerCase().includes('not found'))
+      ) {
+        setFieldErrors({
+          email: 'E-mail não autorizado para cadastro. Entre em contato com o administrador.',
+        })
       } else {
         toast({
           variant: 'destructive',
