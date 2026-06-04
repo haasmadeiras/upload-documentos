@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-04T12:27:36.077Z",
+  "generatedAt": "2026-06-04T12:40:43.681Z",
   "collections": [
     {
       "name": "users",
@@ -541,6 +541,46 @@
         }
       ],
       "indexes": ["CREATE INDEX `idx_forest_user` ON `forest_areas` (user)"]
+    },
+    {
+      "name": "otps",
+      "type": "base",
+      "apiRules": {
+        "list": null,
+        "view": null,
+        "create": null,
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "email",
+          "type": "email",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "code",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
     }
   ]
 }

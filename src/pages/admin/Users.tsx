@@ -53,7 +53,6 @@ const formSchema = z
     phone: z.string().optional(),
     legal_name: z.string().optional(),
     address: z.string().optional(),
-    password: z.string().min(8, 'Senha deve ter no mínimo 8 caracteres'),
   })
   .superRefine((data, ctx) => {
     const taxIdClean = data.tax_id.replace(/\D/g, '')
@@ -139,7 +138,6 @@ export default function AdminUsers() {
       phone: '',
       legal_name: '',
       address: '',
-      password: '',
     },
   })
 
@@ -166,13 +164,16 @@ export default function AdminUsers() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
+      // Generate a secure random password for the pending user.
+      // They will set their own password via the verification flow.
+      const randomPassword = Math.random().toString(36).slice(-10) + 'A1!a'
       await createUser({
         ...values,
         isAdmin: values.role === 'Admin',
-        password: values.password,
-        passwordConfirm: values.password,
+        password: randomPassword,
+        passwordConfirm: randomPassword,
       })
-      toast.success('Usuário criado com sucesso')
+      toast.success('Usuário convidado com sucesso. Ele já pode se registrar.')
       setOpen(false)
       form.reset()
       fetchUsers()
@@ -391,20 +392,6 @@ export default function AdminUsers() {
                       <FormLabel>Endereço Completo</FormLabel>
                       <FormControl>
                         <Input placeholder="Rua, Número, Bairro, Cidade - Estado, CEP" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Senha</FormLabel>
-                      <FormControl>
-                        <Input placeholder="******" type="password" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

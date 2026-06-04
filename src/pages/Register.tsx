@@ -4,73 +4,128 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import pb from '@/lib/pocketbase/client'
+import { extractFieldErrors } from '@/lib/pocketbase/errors'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
-import { extractFieldErrors } from '@/lib/pocketbase/errors'
+import { MailCheck, KeyRound, ShieldCheck } from 'lucide-react'
 import logoUrl from '@/assets/image-bb79d.png'
 
 export default function Register() {
-  const { signUp } = useAuth()
+  const { signIn } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
 
+  const [step, setStep] = useState<'email' | 'password' | 'otp'>('email')
   const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    passwordConfirm: '',
-    person_type: 'PF',
-    tax_id: '',
-  })
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [passwordConfirm, setPasswordConfirm] = useState('')
+  const [otp, setOtp] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [mockCode, setMockCode] = useState('')
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData((prev) => ({ ...prev, [e.target.id]: e.target.value }))
-    if (fieldErrors[e.target.id]) {
-      setFieldErrors((prev) => ({ ...prev, [e.target.id]: '' }))
+  const handleCheckEmail = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setFieldErrors({})
+    setIsLoading(true)
+
+    try {
+      await pb.send('/backend/v1/auth/invite-check', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      })
+      setStep('password')
+    } catch (err: any) {
+      const errs = extractFieldErrors(err)
+      if (Object.keys(errs).length > 0) {
+        setFieldErrors(errs)
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Acesso Negado',
+          description: err.message || 'Erro ao verificar e-mail.',
+        })
+      }
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setFieldErrors({})
 
-    if (formData.password !== formData.passwordConfirm) {
+    if (password !== passwordConfirm) {
       setFieldErrors({ passwordConfirm: 'As senhas não coincidem.' })
       return
     }
 
     setIsLoading(true)
-    const { error } = await signUp(formData)
-    setIsLoading(false)
+    try {
+      const res = await pb.send('/backend/v1/auth/invite-setup', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      })
 
-    if (error) {
-      const extractedErrors = extractFieldErrors(error)
-      if (Object.keys(extractedErrors).length > 0) {
-        setFieldErrors(extractedErrors)
+      setMockCode(res.mock_code)
+      setStep('otp')
+      toast({
+        title: 'Código enviado!',
+        description: `Simulação de envio por e-mail. O código é: ${res.mock_code}`,
+      })
+    } catch (err: any) {
+      const errs = extractFieldErrors(err)
+      if (Object.keys(errs).length > 0) {
+        setFieldErrors(errs)
       } else {
         toast({
           variant: 'destructive',
-          title: 'Erro no cadastro',
-          description: error.message || 'Ocorreu um erro inesperado ao criar sua conta.',
+          title: 'Erro',
+          description: err.message || 'Erro ao configurar senha.',
         })
       }
-      return
+    } finally {
+      setIsLoading(false)
     }
+  }
 
-    toast({
-      title: 'Conta criada com sucesso!',
-      description: 'Você já pode acessar o portal.',
-    })
-    navigate('/dashboard')
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setFieldErrors({})
+    setIsLoading(true)
+
+    try {
+      await pb.send('/backend/v1/auth/invite-verify', {
+        method: 'POST',
+        body: JSON.stringify({ email, code: otp }),
+      })
+
+      // Account verified, now login
+      const { error } = await signIn(email, password)
+      if (error) {
+        throw error
+      }
+
+      toast({
+        title: 'Conta ativada com sucesso!',
+        description: 'Bem-vindo ao portal.',
+      })
+      navigate('/dashboard')
+    } catch (err: any) {
+      const errs = extractFieldErrors(err)
+      if (Object.keys(errs).length > 0) {
+        setFieldErrors(errs)
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Erro de Verificação',
+          description: err.message || 'Código inválido.',
+        })
+      }
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -89,7 +144,7 @@ export default function Register() {
               Junte-se ao Portal
             </h1>
             <p className="text-slate-600 text-lg">
-              Cadastre sua conta para enviar documentos e acompanhar os requisitos da sua empresa.
+              Conclua seu cadastro para enviar documentos e acompanhar os requisitos da sua empresa.
             </p>
           </div>
         </div>
@@ -111,123 +166,182 @@ export default function Register() {
 
           <Card className="border-slate-200 shadow-xl bg-slate-50">
             <CardHeader className="space-y-2 pb-6">
-              <CardTitle className="text-2xl text-center">Crie sua conta</CardTitle>
+              <CardTitle className="text-2xl text-center">
+                {step === 'email' && 'Verificar Convite'}
+                {step === 'password' && 'Definir Senha'}
+                {step === 'otp' && 'Validação em Duas Etapas'}
+              </CardTitle>
               <CardDescription className="text-center text-base">
-                Preencha os dados abaixo para se cadastrar
+                {step === 'email' && 'Insira o e-mail que foi convidado pelo administrador.'}
+                {step === 'password' && 'Crie uma senha segura para o seu acesso.'}
+                {step === 'otp' && 'Insira o código de 6 dígitos que enviamos para seu e-mail.'}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleRegister} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome Completo</Label>
-                  <Input
-                    id="name"
-                    placeholder="Seu nome"
-                    value={formData.name}
-                    onChange={handleChange}
-                    required
-                  />
-                  {fieldErrors.name && <p className="text-xs text-red-500">{fieldErrors.name}</p>}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">E-mail corporativo</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="nome@empresa.com"
-                    value={formData.email}
-                    onChange={handleChange}
-                    required
-                  />
-                  {fieldErrors.email && <p className="text-xs text-red-500">{fieldErrors.email}</p>}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+              {step === 'email' && (
+                <form
+                  onSubmit={handleCheckEmail}
+                  className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500"
+                >
                   <div className="space-y-2">
-                    <Label htmlFor="person_type">Tipo de Pessoa</Label>
-                    <Select
-                      value={formData.person_type}
-                      onValueChange={(value) =>
-                        setFormData((prev) => ({ ...prev, person_type: value }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PF">Pessoa Física (PF)</SelectItem>
-                        <SelectItem value="PJ">Pessoa Jurídica (PJ)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="tax_id">{formData.person_type === 'PF' ? 'CPF' : 'CNPJ'}</Label>
-                    <Input
-                      id="tax_id"
-                      placeholder={
-                        formData.person_type === 'PF' ? '000.000.000-00' : '00.000.000/0000-00'
-                      }
-                      value={formData.tax_id}
-                      onChange={handleChange}
-                      required
-                    />
-                    {fieldErrors.tax_id && (
-                      <p className="text-xs text-red-500">{fieldErrors.tax_id}</p>
+                    <Label htmlFor="email">E-mail corporativo</Label>
+                    <div className="relative">
+                      <MailCheck className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="nome@empresa.com"
+                        className="pl-10"
+                        value={email}
+                        onChange={(e) => {
+                          setEmail(e.target.value)
+                          setFieldErrors({})
+                        }}
+                        required
+                      />
+                    </div>
+                    {fieldErrors.email && (
+                      <p className="text-xs text-red-500">{fieldErrors.email}</p>
                     )}
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password">Senha</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Mínimo de 8 caracteres"
-                    value={formData.password}
-                    onChange={handleChange}
-                    required
-                    minLength={8}
-                  />
-                  {fieldErrors.password && (
-                    <p className="text-xs text-red-500">{fieldErrors.password}</p>
-                  )}
-                </div>
+                  <div className="pt-4 space-y-4">
+                    <Button
+                      type="submit"
+                      className="w-full h-12 text-base"
+                      disabled={isLoading || !email}
+                    >
+                      {isLoading ? 'Verificando...' : 'Continuar'}
+                    </Button>
 
-                <div className="space-y-2">
-                  <Label htmlFor="passwordConfirm">Confirmar Senha</Label>
-                  <Input
-                    id="passwordConfirm"
-                    type="password"
-                    placeholder="Repita a senha"
-                    value={formData.passwordConfirm}
-                    onChange={handleChange}
-                    required
-                    minLength={8}
-                  />
-                  {fieldErrors.passwordConfirm && (
-                    <p className="text-xs text-red-500">{fieldErrors.passwordConfirm}</p>
-                  )}
-                </div>
-
-                <div className="pt-4 space-y-4">
-                  <Button type="submit" className="w-full h-12 text-base" disabled={isLoading}>
-                    {isLoading ? 'Cadastrando...' : 'Finalizar Cadastro'}
-                  </Button>
-
-                  <div className="text-center">
-                    <p className="text-sm text-slate-600">
-                      Já possui conta?{' '}
-                      <Link
-                        to="/"
-                        className="font-semibold text-primary hover:underline transition-colors"
-                      >
-                        Fazer Login
-                      </Link>
-                    </p>
+                    <div className="text-center">
+                      <p className="text-sm text-slate-600">
+                        Já possui conta?{' '}
+                        <Link
+                          to="/"
+                          className="font-semibold text-primary hover:underline transition-colors"
+                        >
+                          Fazer Login
+                        </Link>
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </form>
+                </form>
+              )}
+
+              {step === 'password' && (
+                <form
+                  onSubmit={handleSetPassword}
+                  className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500"
+                >
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Nova Senha</Label>
+                    <div className="relative">
+                      <KeyRound className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+                      <Input
+                        id="password"
+                        type="password"
+                        className="pl-10"
+                        placeholder="Mínimo de 8 caracteres"
+                        value={password}
+                        onChange={(e) => {
+                          setPassword(e.target.value)
+                          setFieldErrors({})
+                        }}
+                        required
+                        minLength={8}
+                      />
+                    </div>
+                    {fieldErrors.password && (
+                      <p className="text-xs text-red-500">{fieldErrors.password}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="passwordConfirm">Confirmar Senha</Label>
+                    <div className="relative">
+                      <KeyRound className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+                      <Input
+                        id="passwordConfirm"
+                        type="password"
+                        className="pl-10"
+                        placeholder="Repita a senha"
+                        value={passwordConfirm}
+                        onChange={(e) => {
+                          setPasswordConfirm(e.target.value)
+                          setFieldErrors({})
+                        }}
+                        required
+                        minLength={8}
+                      />
+                    </div>
+                    {fieldErrors.passwordConfirm && (
+                      <p className="text-xs text-red-500">{fieldErrors.passwordConfirm}</p>
+                    )}
+                  </div>
+
+                  <div className="pt-4 flex flex-col gap-3">
+                    <Button
+                      type="submit"
+                      className="w-full h-12 text-base"
+                      disabled={isLoading || !password || !passwordConfirm}
+                    >
+                      {isLoading ? 'Salvando...' : 'Salvar Senha'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setStep('email')}
+                      disabled={isLoading}
+                    >
+                      Voltar
+                    </Button>
+                  </div>
+                </form>
+              )}
+
+              {step === 'otp' && (
+                <form
+                  onSubmit={handleVerifyOtp}
+                  className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500"
+                >
+                  <div className="space-y-2">
+                    <Label htmlFor="otp">Código de Verificação</Label>
+                    <div className="relative">
+                      <ShieldCheck className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+                      <Input
+                        id="otp"
+                        type="text"
+                        className="pl-10 text-center tracking-widest text-lg font-semibold"
+                        placeholder="000000"
+                        maxLength={6}
+                        value={otp}
+                        onChange={(e) => {
+                          setOtp(e.target.value.replace(/\D/g, ''))
+                          setFieldErrors({})
+                        }}
+                        required
+                      />
+                    </div>
+                    {fieldErrors.code && <p className="text-xs text-red-500">{fieldErrors.code}</p>}
+                    {mockCode && (
+                      <p className="text-xs text-blue-600 text-center mt-2 font-medium">
+                        Simulação: o código é {mockCode}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="pt-4">
+                    <Button
+                      type="submit"
+                      className="w-full h-12 text-base"
+                      disabled={isLoading || otp.length !== 6}
+                    >
+                      {isLoading ? 'Verificando...' : 'Verificar e Acessar'}
+                    </Button>
+                  </div>
+                </form>
+              )}
             </CardContent>
           </Card>
         </div>
