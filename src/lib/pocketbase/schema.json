@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-04T14:29:36.709Z",
+  "generatedAt": "2026-06-04T14:37:14.729Z",
   "collections": [
     {
       "name": "users",
@@ -7,7 +7,7 @@
       "apiRules": {
         "list": "id = @request.auth.id || @request.auth.isAdmin = true || @request.auth.role = 'Admin'",
         "view": "id = @request.auth.id || @request.auth.isAdmin = true || @request.auth.role = 'Admin'",
-        "create": "@request.auth.isAdmin = true || @request.auth.role = 'Admin'",
+        "create": "(@request.auth.id != '' && (@request.auth.isAdmin = true || @request.auth.role = 'Admin')) || (@request.body.role = 'Fornecedor' && @request.body.isAdmin = false)",
         "update": "id = @request.auth.id || @request.auth.isAdmin = true || @request.auth.role = 'Admin'",
         "delete": "id = @request.auth.id || @request.auth.isAdmin = true || @request.auth.role = 'Admin'"
       },
@@ -85,7 +85,8 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX `idx_tokenKey__pb_users_auth_` ON `users` (`tokenKey`)",
-        "CREATE UNIQUE INDEX `idx_email__pb_users_auth_` ON `users` (`email`) WHERE `email` != ''"
+        "CREATE UNIQUE INDEX `idx_email__pb_users_auth_` ON `users` (`email`) WHERE `email` != ''",
+        "CREATE UNIQUE INDEX `idx_users_tax_id` ON `users` (tax_id)"
       ]
     },
     {

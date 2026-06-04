@@ -1,30 +1,35 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import pb from '@/lib/pocketbase/client'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
+import { formatCPF, isValidCPF, formatCNPJ, isValidCNPJ } from '@/lib/utils'
 import {
-  MailCheck,
+  Mail,
   KeyRound,
-  ShieldCheck,
   Building2,
+  User as UserIcon,
+  Phone,
+  MapPin,
   CheckCircle2,
   Loader2,
   ArrowLeft,
+  IdCard,
 } from 'lucide-react'
 import logoUrl from '@/assets/image-bb79d.png'
+
+type PersonType = 'PF' | 'PJ'
 
 export default function Register() {
   const { isAuthenticated, user } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
-  const location = useLocation()
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -33,33 +38,103 @@ export default function Register() {
     }
   }, [isAuthenticated, user, navigate])
 
-  const [step, setStep] = useState<'form' | 'otp' | 'success'>('form')
+  const [step, setStep] = useState<'form' | 'success'>('form')
   const [isLoading, setIsLoading] = useState(false)
-
-  const [taxId, setTaxId] = useState(() => localStorage.getItem('reg_taxId') || '')
-  const [email, setEmail] = useState(
-    () => localStorage.getItem('reg_email') || location.state?.email || '',
-  )
-  const [password, setPassword] = useState('')
-  const [passwordConfirm, setPasswordConfirm] = useState('')
-
-  const [otp, setOtp] = useState('')
+  const [personType, setPersonType] = useState<PersonType>('PF')
+  const [formData, setFormData] = useState({
+    taxId: '',
+    email: '',
+    name: '',
+    legalName: '',
+    phone: '',
+    address: '',
+    password: '',
+    passwordConfirm: '',
+  })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
-  const [mockCode, setMockCode] = useState('')
 
+  // Load from localStorage
   useEffect(() => {
-    localStorage.setItem('reg_taxId', taxId)
-  }, [taxId])
+    const saved = localStorage.getItem('reg_draft')
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        if (parsed.personType) setPersonType(parsed.personType)
+        if (parsed.data) setFormData((prev) => ({ ...prev, ...parsed.data }))
+      } catch {
+        /* intentionally ignored */
+      }
+    }
+  }, [])
 
+  // Save to localStorage
   useEffect(() => {
-    localStorage.setItem('reg_email', email)
-  }, [email])
+    if (step === 'form') {
+      const draft = {
+        personType,
+        data: {
+          taxId: formData.taxId,
+          email: formData.email,
+          name: formData.name,
+          legalName: formData.legalName,
+          phone: formData.phone,
+          address: formData.address,
+        },
+      }
+      localStorage.setItem('reg_draft', JSON.stringify(draft))
+    }
+  }, [personType, formData, step])
+
+  const handleTaxIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setFormData((prev) => ({
+      ...prev,
+      taxId: personType === 'PF' ? formatCPF(val) : formatCNPJ(val),
+    }))
+    if (fieldErrors.taxId) setFieldErrors((prev) => ({ ...prev, taxId: '' }))
+  }
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.replace(/\D/g, '')
+    if (val.length > 11) val = val.slice(0, 11)
+    let formatted = val
+    if (val.length > 2) formatted = `(${val.slice(0, 2)}) ${val.slice(2)}`
+    if (val.length > 6) formatted = `(${val.slice(0, 2)}) ${val.slice(2, 7)}-${val.slice(7)}`
+    setFormData((prev) => ({ ...prev, phone: formatted }))
+  }
+
+  const checkDuplicate = async (field: 'tax_id' | 'email', value: string) => {
+    if (!value) return
+
+    if (field === 'tax_id') {
+      const raw = value.replace(/\D/g, '')
+      if (personType === 'PF' && raw.length !== 11) return
+      if (personType === 'PJ' && raw.length !== 14) return
+    }
+    if (field === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return
+
+    try {
+      const res = await pb.send('/backend/v1/auth/check-duplicate', {
+        method: 'GET',
+        query: { field, value },
+      })
+      if (res.exists) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          [field === 'tax_id' ? 'taxId' : 'email']:
+            `Este ${field === 'tax_id' ? (personType === 'PF' ? 'CPF' : 'CNPJ') : 'e-mail'} já está cadastrado.`,
+        }))
+      }
+    } catch (e) {
+      console.error('Error checking duplicate', e)
+    }
+  }
 
   const logAttempt = async (status: 'success' | 'failure', errorMsg: string = '') => {
     try {
       await pb.collection('registration_logs').create({
-        tax_id: taxId,
-        email,
+        tax_id: formData.taxId,
+        email: formData.email,
         status,
         error_message: errorMsg,
       })
@@ -68,26 +143,28 @@ export default function Register() {
     }
   }
 
-  const handleInitRegister = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setFieldErrors({})
 
     const errors: Record<string, string> = {}
 
-    if (!taxId || taxId.replace(/\D/g, '').length !== 14) {
-      errors.taxId = 'CNPJ inválido.'
+    if (personType === 'PF') {
+      if (!isValidCPF(formData.taxId)) errors.taxId = 'CPF inválido.'
+      if (!formData.name.trim()) errors.name = 'Nome é obrigatório.'
+    } else {
+      if (!isValidCNPJ(formData.taxId)) errors.taxId = 'CNPJ inválido.'
+      if (!formData.legalName.trim()) errors.legalName = 'Razão Social é obrigatória.'
     }
 
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errors.email = 'Por favor, insira um e-mail válido.'
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'E-mail inválido.'
     }
-
-    if (password !== passwordConfirm) {
-      errors.passwordConfirm = 'As senhas não coincidem.'
-    }
-
-    if (password.length < 8) {
+    if (formData.password.length < 8) {
       errors.password = 'A senha deve ter no mínimo 8 caracteres.'
+    }
+    if (formData.password !== formData.passwordConfirm) {
+      errors.passwordConfirm = 'As senhas não coincidem.'
     }
 
     if (Object.keys(errors).length > 0) {
@@ -95,11 +172,15 @@ export default function Register() {
       return
     }
 
+    if (fieldErrors.taxId || fieldErrors.email) {
+      return
+    }
+
     if (!navigator.onLine) {
       toast({
         variant: 'destructive',
         title: 'Erro de Conexão',
-        description: 'Erro de conexão. Verifique sua internet.',
+        description: 'Verifique sua internet.',
       })
       return
     }
@@ -107,37 +188,25 @@ export default function Register() {
     setIsLoading(true)
 
     try {
-      const existingUsers = await pb.collection('users').getList(1, 1, {
-        filter: `tax_id = "${taxId}" || tax_id = "${taxId.replace(/\D/g, '')}"`,
-      })
-
-      if (existingUsers.items.length > 0) {
-        setFieldErrors((prev) => ({ ...prev, taxId: 'Este CNPJ já possui cadastro.' }))
-        toast({
-          variant: 'destructive',
-          title: 'Cadastro Existente',
-          description: 'Este CNPJ/CPF já possui cadastro.',
-        })
-        setIsLoading(false)
-        return
+      const payload = {
+        email: formData.email,
+        password: formData.password,
+        passwordConfirm: formData.passwordConfirm,
+        person_type: personType,
+        tax_id: formData.taxId,
+        role: 'Fornecedor',
+        isAdmin: false,
+        phone: formData.phone,
+        address: formData.address,
+        name: personType === 'PF' ? formData.name : '',
+        legal_name: personType === 'PJ' ? formData.legalName : '',
       }
-    } catch (e) {
-      console.error('Error checking existing users', e)
-    }
 
-    try {
-      const res = await pb.send('/backend/v1/auth/supplier-register-init', {
-        method: 'POST',
-        body: JSON.stringify({ email, tax_id: taxId, password }),
-      })
+      await pb.collection('users').create(payload)
 
       await logAttempt('success')
-      setMockCode(res.mock_code)
-      setStep('otp')
-      toast({
-        title: 'Código enviado com sucesso!',
-        description: `Verifique sua caixa de entrada.`,
-      })
+      localStorage.removeItem('reg_draft')
+      setStep('success')
     } catch (err: any) {
       const errs = extractFieldErrors(err)
       if (Object.keys(errs).length > 0) {
@@ -146,107 +215,27 @@ export default function Register() {
         toast({
           variant: 'destructive',
           title: 'Erro no Cadastro',
-          description:
-            err.message ||
-            'Dados não encontrados na base de fornecedores. Por favor, entre em contato com o suporte.',
+          description: err.message || 'Ocorreu um erro ao criar a conta.',
         })
       }
-      await logAttempt('failure', err.message || 'Dados não encontrados na base.')
+      await logAttempt('failure', err.message)
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setFieldErrors({})
-
-    if (!navigator.onLine) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro de Conexão',
-        description: 'Erro de conexão. Verifique sua internet.',
-      })
-      return
-    }
-
-    setIsLoading(true)
-
-    try {
-      await pb.send('/backend/v1/auth/supplier-register-verify', {
-        method: 'POST',
-        body: JSON.stringify({ email, code: otp, password }),
-      })
-
-      localStorage.removeItem('reg_taxId')
-      localStorage.removeItem('reg_email')
-
-      setStep('success')
-      toast({
-        title: 'Sucesso',
-        description: 'Conta ativada com sucesso! Redirecionando para o login...',
-      })
-      setTimeout(() => navigate('/'), 3000)
-    } catch (err: any) {
-      const errs = extractFieldErrors(err)
-      if (Object.keys(errs).length > 0) {
-        setFieldErrors(errs)
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Erro de Verificação',
-          description: err.message || 'Código inválido ou expirado.',
-        })
-      }
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const formatCNPJ = (value: string) => {
-    const digits = value.replace(/\D/g, '')
-    let formatted = digits
-    if (digits.length > 2) formatted = digits.replace(/^(\d{2})(\d)/, '$1.$2')
-    if (digits.length > 5) formatted = formatted.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-    if (digits.length > 8) formatted = formatted.replace(/\.(\d{3})(\d)/, '.$1/$2')
-    if (digits.length > 12) formatted = formatted.replace(/(\d{4})(\d)/, '$1-$2')
-    return formatted.slice(0, 18)
-  }
-
-  const checkCnpjExists = async (cnpj: string) => {
-    if (cnpj.replace(/\D/g, '').length !== 14) return
-    try {
-      const existingUsers = await pb.collection('users').getList(1, 1, {
-        filter: `tax_id = "${cnpj}" || tax_id = "${cnpj.replace(/\D/g, '')}"`,
-      })
-
-      if (existingUsers.items.length > 0) {
-        setFieldErrors((prev) => ({ ...prev, taxId: 'Este CNPJ já possui cadastro.' }))
-        toast({
-          variant: 'destructive',
-          title: 'Cadastro Existente',
-          description: 'Este CNPJ já possui cadastro.',
-        })
-      }
-    } catch (e) {
-      console.error('Error checking existing users', e)
-    }
-  }
-
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  const isCnpjValid = taxId.replace(/\D/g, '').length === 14
   const isFormValid =
-    isEmailValid &&
-    isCnpjValid &&
-    password.length >= 8 &&
-    password === passwordConfirm &&
-    fieldErrors.taxId !== 'Este CNPJ já possui cadastro.'
-
-  const progressValue = step === 'form' ? 33 : step === 'otp' ? 66 : 100
+    formData.email &&
+    formData.taxId &&
+    formData.password.length >= 8 &&
+    formData.password === formData.passwordConfirm &&
+    !fieldErrors.taxId &&
+    !fieldErrors.email &&
+    (personType === 'PF' ? formData.name.trim() : formData.legalName.trim())
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4 sm:p-8">
-      <div className="w-full max-w-xl space-y-8 animate-fade-in-up">
+      <div className="w-full max-w-2xl space-y-8 animate-fade-in-up">
         <div className="flex flex-col items-center justify-center gap-4 mb-4">
           <img
             src={logoUrl}
@@ -262,33 +251,15 @@ export default function Register() {
         </div>
 
         <Card className="border-slate-200 shadow-lg bg-white relative overflow-hidden">
-          <div className="relative">
-            <Progress value={progressValue} className="h-2 rounded-none" />
-            <div className="flex justify-between px-6 pt-3 pb-1 text-xs font-medium text-slate-500">
-              <span className={step === 'form' ? 'text-primary font-bold' : 'text-slate-400'}>
-                1. Identificação
-              </span>
-              <span className={step === 'otp' ? 'text-primary font-bold' : 'text-slate-400'}>
-                2. Validação
-              </span>
-              <span className={step === 'success' ? 'text-primary font-bold' : 'text-slate-400'}>
-                3. Conclusão
-              </span>
-            </div>
-          </div>
-
-          <CardHeader className="space-y-2 pb-6 pt-4">
+          <CardHeader className="space-y-2 pb-6 pt-6">
             <div className="text-center space-y-2">
               <CardTitle className="text-2xl">
-                {step === 'form' && 'Seus Dados'}
-                {step === 'otp' && 'Verificação em Duas Etapas'}
-                {step === 'success' && 'Cadastro Concluído'}
+                {step === 'form' ? 'Seus Dados' : 'Cadastro Concluído'}
               </CardTitle>
               <CardDescription className="text-base">
-                {step === 'form' && 'Insira as informações da sua empresa para validar o acesso.'}
-                {step === 'otp' &&
-                  'Insira o código de 6 dígitos que enviamos para o e-mail cadastrado.'}
-                {step === 'success' && 'Sua conta foi ativada. Você já pode acessar o portal.'}
+                {step === 'form'
+                  ? 'Insira as informações da sua empresa ou dados pessoais para validar o acesso.'
+                  : 'Sua conta foi criada com sucesso. Você já pode acessar o portal.'}
               </CardDescription>
             </div>
           </CardHeader>
@@ -296,137 +267,208 @@ export default function Register() {
           <CardContent>
             {step === 'form' && (
               <form
-                onSubmit={handleInitRegister}
-                className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500"
+                onSubmit={handleSubmit}
+                className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500"
               >
-                <div className="space-y-2">
-                  <Label htmlFor="taxId">CNPJ</Label>
-                  <div className="relative">
-                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                    <Input
-                      id="taxId"
-                      type="text"
-                      placeholder="00.000.000/0000-00"
-                      className="pl-10 h-11"
-                      value={taxId}
-                      onChange={(e) => {
-                        setTaxId(formatCNPJ(e.target.value))
-                        if (fieldErrors.taxId) setFieldErrors({ ...fieldErrors, taxId: '' })
-                      }}
-                      onBlur={(e) => checkCnpjExists(e.target.value)}
-                      required
-                      maxLength={18}
-                      disabled={isLoading}
-                    />
-                  </div>
-                  {fieldErrors.taxId && (
-                    <p className="text-sm font-medium text-destructive animate-in fade-in">
-                      {fieldErrors.taxId}
-                    </p>
-                  )}
-                </div>
+                <Tabs
+                  value={personType}
+                  onValueChange={(v) => {
+                    setPersonType(v as PersonType)
+                    setFormData((prev) => ({ ...prev, taxId: '', name: '', legalName: '' }))
+                    setFieldErrors({})
+                  }}
+                >
+                  <TabsList className="grid w-full grid-cols-2 mb-6 h-12">
+                    <TabsTrigger value="PF" className="text-sm font-medium">
+                      Pessoa Física (PF)
+                    </TabsTrigger>
+                    <TabsTrigger value="PJ" className="text-sm font-medium">
+                      Pessoa Jurídica (PJ)
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">E-mail</Label>
-                  <div className="relative">
-                    <MailCheck className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="nome@empresa.com"
-                      className="pl-10 h-11"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value)
-                        if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: '' })
-                      }}
-                      onBlur={(e) => {
-                        if (e.target.value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.target.value)) {
-                          setFieldErrors((prev) => ({
-                            ...prev,
-                            email: 'Por favor, insira um e-mail válido.',
-                          }))
-                        }
-                      }}
-                      required
-                      disabled={isLoading}
-                    />
-                  </div>
-                  {fieldErrors.email && (
-                    <p className="text-sm font-medium text-destructive animate-in fade-in">
-                      {fieldErrors.email}
-                    </p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Nova Senha</Label>
-                    <div className="relative">
-                      <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                      <Input
-                        id="password"
-                        type="password"
-                        className="pl-10 h-11"
-                        placeholder="Mínimo de 8 caracteres"
-                        value={password}
-                        onChange={(e) => {
-                          setPassword(e.target.value)
-                          if (fieldErrors.password) setFieldErrors({ ...fieldErrors, password: '' })
-                        }}
-                        onBlur={(e) => {
-                          if (e.target.value && e.target.value.length < 8) {
-                            setFieldErrors((prev) => ({
-                              ...prev,
-                              password: 'A senha deve ter no mínimo 8 caracteres.',
-                            }))
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="taxId">{personType === 'PF' ? 'CPF' : 'CNPJ'}</Label>
+                      <div className="relative">
+                        <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                        <Input
+                          id="taxId"
+                          placeholder={
+                            personType === 'PF' ? '000.000.000-00' : '00.000.000/0000-00'
                           }
-                        }}
-                        required
-                        minLength={8}
-                        disabled={isLoading}
-                      />
+                          className="pl-10 h-11"
+                          value={formData.taxId}
+                          onChange={handleTaxIdChange}
+                          onBlur={() => checkDuplicate('tax_id', formData.taxId)}
+                          maxLength={personType === 'PF' ? 14 : 18}
+                          required
+                        />
+                      </div>
+                      {fieldErrors.taxId && (
+                        <p className="text-sm font-medium text-destructive">{fieldErrors.taxId}</p>
+                      )}
                     </div>
-                    {fieldErrors.password && (
-                      <p className="text-sm font-medium text-destructive animate-in fade-in">
-                        {fieldErrors.password}
-                      </p>
+
+                    {personType === 'PF' ? (
+                      <div className="space-y-2">
+                        <Label htmlFor="name">Nome Completo</Label>
+                        <div className="relative">
+                          <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                          <Input
+                            id="name"
+                            placeholder="Seu nome completo"
+                            className="pl-10 h-11"
+                            value={formData.name}
+                            onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
+                            required
+                          />
+                        </div>
+                        {fieldErrors.name && (
+                          <p className="text-sm font-medium text-destructive">{fieldErrors.name}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label htmlFor="legalName">Razão Social</Label>
+                        <div className="relative">
+                          <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                          <Input
+                            id="legalName"
+                            placeholder="Nome da empresa"
+                            className="pl-10 h-11"
+                            value={formData.legalName}
+                            onChange={(e) =>
+                              setFormData((p) => ({ ...p, legalName: e.target.value }))
+                            }
+                            required
+                          />
+                        </div>
+                        {fieldErrors.legalName && (
+                          <p className="text-sm font-medium text-destructive">
+                            {fieldErrors.legalName}
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
 
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="email">E-mail</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="nome@exemplo.com"
+                          className="pl-10 h-11"
+                          value={formData.email}
+                          onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))}
+                          onBlur={(e) => {
+                            if (
+                              e.target.value &&
+                              !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.target.value)
+                            ) {
+                              setFieldErrors((prev) => ({ ...prev, email: 'E-mail inválido.' }))
+                            } else {
+                              if (fieldErrors.email === 'E-mail inválido.')
+                                setFieldErrors((prev) => ({ ...prev, email: '' }))
+                              checkDuplicate('email', formData.email)
+                            }
+                          }}
+                          required
+                        />
+                      </div>
+                      {fieldErrors.email && (
+                        <p className="text-sm font-medium text-destructive">{fieldErrors.email}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Telefone</Label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                        <Input
+                          id="phone"
+                          placeholder="(00) 00000-0000"
+                          className="pl-10 h-11"
+                          value={formData.phone}
+                          onChange={handlePhoneChange}
+                          maxLength={15}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
-                    <Label htmlFor="passwordConfirm">Confirmar Senha</Label>
+                    <Label htmlFor="address">Endereço Completo</Label>
                     <div className="relative">
-                      <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                       <Input
-                        id="passwordConfirm"
-                        type="password"
+                        id="address"
+                        placeholder="Rua, Número, Bairro, Cidade - UF"
                         className="pl-10 h-11"
-                        placeholder="Repita a senha"
-                        value={passwordConfirm}
-                        onChange={(e) => {
-                          setPasswordConfirm(e.target.value)
-                          if (fieldErrors.passwordConfirm)
-                            setFieldErrors({ ...fieldErrors, passwordConfirm: '' })
-                        }}
-                        onBlur={(e) => {
-                          if (e.target.value && e.target.value !== password) {
-                            setFieldErrors((prev) => ({
-                              ...prev,
-                              passwordConfirm: 'As senhas não coincidem.',
-                            }))
-                          }
-                        }}
+                        value={formData.address}
+                        onChange={(e) => setFormData((p) => ({ ...p, address: e.target.value }))}
                         required
-                        minLength={8}
-                        disabled={isLoading}
                       />
                     </div>
-                    {fieldErrors.passwordConfirm && (
-                      <p className="text-sm font-medium text-destructive animate-in fade-in">
-                        {fieldErrors.passwordConfirm}
-                      </p>
-                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Senha</Label>
+                      <div className="relative">
+                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                        <Input
+                          id="password"
+                          type="password"
+                          placeholder="Mínimo de 8 caracteres"
+                          className="pl-10 h-11"
+                          value={formData.password}
+                          onChange={(e) => {
+                            setFormData((p) => ({ ...p, password: e.target.value }))
+                            if (fieldErrors.password)
+                              setFieldErrors((p) => ({ ...p, password: '' }))
+                          }}
+                          required
+                        />
+                      </div>
+                      {fieldErrors.password && (
+                        <p className="text-sm font-medium text-destructive">
+                          {fieldErrors.password}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="passwordConfirm">Confirmar Senha</Label>
+                      <div className="relative">
+                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                        <Input
+                          id="passwordConfirm"
+                          type="password"
+                          placeholder="Repita a senha"
+                          className="pl-10 h-11"
+                          value={formData.passwordConfirm}
+                          onChange={(e) => {
+                            setFormData((p) => ({ ...p, passwordConfirm: e.target.value }))
+                            if (fieldErrors.passwordConfirm)
+                              setFieldErrors((p) => ({ ...p, passwordConfirm: '' }))
+                          }}
+                          required
+                        />
+                      </div>
+                      {fieldErrors.passwordConfirm && (
+                        <p className="text-sm font-medium text-destructive">
+                          {fieldErrors.passwordConfirm}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -438,19 +480,15 @@ export default function Register() {
                   >
                     {isLoading ? (
                       <span className="flex items-center gap-2">
-                        <Loader2 className="w-5 h-5 animate-spin" /> Verificando...
+                        <Loader2 className="w-5 h-5 animate-spin" /> Processando...
                       </span>
                     ) : (
-                      'Continuar e Enviar Código'
+                      'Criar Conta'
                     )}
                   </Button>
 
-                  <div className="flex flex-col gap-3 text-center mt-2">
-                    <Button
-                      variant="ghost"
-                      asChild
-                      className="text-slate-600 hover:text-slate-900 mx-auto"
-                    >
+                  <div className="flex justify-center text-center mt-2">
+                    <Button variant="ghost" asChild className="text-slate-600 hover:text-slate-900">
                       <Link to="/" className="inline-flex items-center gap-2">
                         <ArrowLeft className="w-4 h-4" /> Voltar ao Login
                       </Link>
@@ -460,84 +498,23 @@ export default function Register() {
               </form>
             )}
 
-            {step === 'otp' && (
-              <form
-                onSubmit={handleVerifyOtp}
-                className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500"
-              >
-                <div className="space-y-3">
-                  <Label htmlFor="otp" className="text-center block text-sm">
-                    Código de Verificação de 6 dígitos
-                  </Label>
-                  <div className="relative mx-auto max-w-[240px]">
-                    <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                    <Input
-                      id="otp"
-                      type="text"
-                      className="pl-10 h-14 text-center tracking-[0.5em] text-2xl font-bold bg-white"
-                      placeholder="000000"
-                      maxLength={6}
-                      value={otp}
-                      onChange={(e) => {
-                        setOtp(e.target.value.replace(/\D/g, ''))
-                        if (fieldErrors.code) setFieldErrors({ ...fieldErrors, code: '' })
-                      }}
-                      required
-                      disabled={isLoading}
-                      autoFocus
-                    />
-                  </div>
-                  {fieldErrors.code && (
-                    <p className="text-sm font-medium text-destructive text-center animate-in fade-in">
-                      {fieldErrors.code}
-                    </p>
-                  )}
-                  {mockCode && (
-                    <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded-md border border-blue-100 text-center mt-4 font-medium animate-in fade-in">
-                      Ambiente de teste: o código é {mockCode}
-                    </p>
-                  )}
-                </div>
-
-                <div className="pt-4 flex flex-col gap-3">
-                  <Button
-                    type="submit"
-                    className="w-full h-12 text-base font-medium"
-                    disabled={isLoading || otp.length !== 6}
-                  >
-                    {isLoading ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="w-5 h-5 animate-spin" /> Verificando...
-                      </span>
-                    ) : (
-                      'Confirmar e Acessar'
-                    )}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setStep('form')}
-                    disabled={isLoading}
-                    className="h-12"
-                  >
-                    Voltar e corrigir dados
-                  </Button>
-                </div>
-              </form>
-            )}
-
             {step === 'success' && (
-              <div className="flex flex-col items-center justify-center py-8 space-y-6 animate-in zoom-in-95 duration-500">
-                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-2">
-                  <CheckCircle2 className="w-10 h-10 text-green-600" />
+              <div className="flex flex-col items-center justify-center py-10 space-y-8 animate-in zoom-in-95 duration-500">
+                <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-2 shadow-inner">
+                  <CheckCircle2 className="w-12 h-12 text-green-600" />
                 </div>
-                <div className="text-center space-y-2">
-                  <p className="text-slate-600">
-                    Sua senha foi configurada e seu e-mail confirmado.
+                <div className="text-center space-y-3 max-w-md">
+                  <p className="text-lg text-slate-700 font-medium">
+                    Cadastro realizado com sucesso!
                   </p>
-                  <p className="text-slate-500 text-sm">Você será redirecionado em instantes...</p>
+                  <p className="text-slate-500 text-sm">
+                    Sua conta foi criada. Você já pode fazer login para acessar o portal e enviar
+                    seus documentos.
+                  </p>
                 </div>
-                <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                <Button asChild className="h-12 px-8 font-medium">
+                  <Link to="/">Ir para Login</Link>
+                </Button>
               </div>
             )}
           </CardContent>
