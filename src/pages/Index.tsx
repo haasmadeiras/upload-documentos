@@ -172,7 +172,13 @@ export default function Index() {
                 </Alert>
               )}
 
-              <div className="space-y-4">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  handleLogin()
+                }}
+                className="space-y-4"
+              >
                 <div className="space-y-2">
                   <Label htmlFor="email">E-mail corporativo</Label>
                   <Input
@@ -181,7 +187,6 @@ export default function Index() {
                     placeholder="nome@empresa.com"
                     value={email}
                     onChange={handleEmailChange}
-                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                   />
                 </div>
                 <div className="space-y-2">
@@ -197,7 +202,6 @@ export default function Index() {
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={handlePasswordChange}
-                      onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                       className="pr-10"
                     />
                     <button
@@ -210,28 +214,41 @@ export default function Index() {
                     </button>
                   </div>
                 </div>
-              </div>
 
-              <div className="grid gap-3 pt-4 border-t">
-                <Button
-                  className="w-full h-12 text-base shadow-sm bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                  disabled={isLoading}
-                  onClick={handleLogin}
-                >
-                  {isLoading ? 'Conectando...' : 'ACESSAR'} <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </div>
+                <div className="grid gap-3 pt-4 border-t mt-4">
+                  <Button
+                    type="submit"
+                    className="w-full h-12 text-base shadow-sm bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <span className="flex items-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />{' '}
+                        Conectando...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        ACESSAR <ArrowRight className="w-4 h-4" />
+                      </span>
+                    )}
+                  </Button>
+                </div>
 
-              <div className="pt-4 text-center flex flex-col gap-2">
-                <p className="text-sm text-slate-600">Ainda não possui conta?</p>
-                <Button
-                  variant="outline"
-                  className="w-full h-12 text-base text-destructive border-destructive hover:bg-destructive/10"
-                  asChild
-                >
-                  <Link to="/cadastro">CADASTRAR NOVA CONTA</Link>
-                </Button>
-              </div>
+                <div className="pt-4 text-center flex flex-col gap-2">
+                  <p className="text-sm text-slate-600">Ainda não possui conta?</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full h-12 text-base text-destructive border-destructive hover:bg-destructive/10"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      navigate('/cadastro')
+                    }}
+                  >
+                    CADASTRAR NOVA CONTA
+                  </Button>
+                </div>
+              </form>
             </CardContent>
           </Card>
         </div>
