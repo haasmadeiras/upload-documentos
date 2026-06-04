@@ -240,12 +240,9 @@ export default function Index() {
                     type="button"
                     variant="outline"
                     className="w-full h-12 text-base text-destructive border-destructive hover:bg-destructive/10"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      navigate('/cadastro')
-                    }}
+                    asChild
                   >
-                    CADASTRAR NOVA CONTA
+                    <Link to="/cadastro">CADASTRAR NOVA CONTA</Link>
                   </Button>
                 </div>
               </form>

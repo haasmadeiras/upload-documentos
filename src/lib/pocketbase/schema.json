@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-04T14:18:59.686Z",
+  "generatedAt": "2026-06-04T14:27:28.069Z",
   "collections": [
     {
       "name": "users",
@@ -563,6 +563,59 @@
           "name": "code",
           "type": "text",
           "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "registration_logs",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.isAdmin = true || @request.auth.role = 'Admin'",
+        "view": "@request.auth.isAdmin = true || @request.auth.role = 'Admin'",
+        "create": "",
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "tax_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["success", "failure"]
+        },
+        {
+          "name": "error_message",
+          "type": "text",
+          "required": false,
           "system": false
         },
         {
