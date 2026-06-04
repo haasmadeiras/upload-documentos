@@ -73,8 +73,7 @@ export default function Register() {
           variant: 'destructive',
           title: 'Acesso Negado',
           description:
-            err.message ||
-            'Cadastro de fornecedor não encontrado. Verifique os dados ou entre em contato com o administrador.',
+            'Dados não encontrados na base de fornecedores. Entre em contato com o administrador.',
         })
       }
     } finally {
@@ -94,8 +93,8 @@ export default function Register() {
       })
 
       toast({
-        title: 'Cadastro realizado com sucesso!',
-        description: 'Agora você pode entrar no sistema.',
+        title: 'Sucesso',
+        description: 'Cadastro realizado com sucesso! Agora você pode acessar sua conta.',
       })
       navigate('/')
     } catch (err: any) {
@@ -277,7 +276,7 @@ export default function Register() {
                       {isLoading ? 'Verificando...' : 'Cadastrar'}
                     </Button>
 
-                    <div className="text-center">
+                    <div className="flex flex-col gap-3 text-center mt-2">
                       <p className="text-sm text-slate-600">
                         Já possui conta?{' '}
                         <Link
@@ -287,6 +286,15 @@ export default function Register() {
                           Fazer Login
                         </Link>
                       </p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-full h-12 text-base text-slate-600"
+                        onClick={() => navigate('/')}
+                        disabled={isLoading}
+                      >
+                        Voltar
+                      </Button>
                     </div>
                   </div>
                 </form>

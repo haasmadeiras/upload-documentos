@@ -38,7 +38,7 @@ const App = () => (
               <Route element={<Layout />}>
                 <Route path="/" element={<Index />} />
                 <Route path="/login" element={<Navigate to="/" replace />} />
-                <Route path="/register" element={<Register />} />
+                <Route path="/cadastro" element={<Register />} />
 
                 <Route element={<ProtectedRoute adminOnly />}>
                   {/* Admin Routes */}

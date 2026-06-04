@@ -162,7 +162,7 @@ export default function Index() {
                     {errorMessage ===
                       "E-mail pré-cadastrado. Por favor, utilize a opção 'Cadastrar nova conta' para definir sua senha de primeiro acesso." && (
                       <Link
-                        to="/register"
+                        to="/cadastro"
                         className="font-semibold underline underline-offset-2 text-red-700 hover:text-red-800"
                       >
                         Ir para o cadastro
@@ -226,7 +226,7 @@ export default function Index() {
                 <p className="text-sm text-slate-600">
                   Ainda não possui conta?{' '}
                   <Link
-                    to="/register"
+                    to="/cadastro"
                     className="font-semibold text-destructive hover:underline transition-colors"
                   >
                     Cadastrar nova conta
