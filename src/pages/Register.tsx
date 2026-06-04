@@ -40,13 +40,26 @@ export default function Register() {
     e.preventDefault()
     setFieldErrors({})
 
+    const errors: Record<string, string> = {}
+
+    if (!taxId || taxId.replace(/\D/g, '').length !== 14) {
+      errors.taxId = 'CNPJ inválido.'
+    }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = 'E-mail inválido.'
+    }
+
     if (password !== passwordConfirm) {
-      setFieldErrors({ passwordConfirm: 'As senhas não coincidem.' })
-      return
+      errors.passwordConfirm = 'As senhas não coincidem.'
     }
 
     if (password.length < 8) {
-      setFieldErrors({ password: 'A senha deve ter no mínimo 8 caracteres.' })
+      errors.password = 'A senha deve ter no mínimo 8 caracteres.'
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
       return
     }
 
@@ -73,7 +86,7 @@ export default function Register() {
           variant: 'destructive',
           title: 'Acesso Negado',
           description:
-            'Dados não encontrados na base de fornecedores. Entre em contato com o administrador.',
+            'Dados não encontrados na base de fornecedores. Por favor, entre em contato com o suporte.',
         })
       }
     } finally {
@@ -94,9 +107,9 @@ export default function Register() {
 
       toast({
         title: 'Sucesso',
-        description: 'Cadastro realizado com sucesso! Agora você pode acessar sua conta.',
+        description: 'Conta criada com sucesso! Redirecionando para o login...',
       })
-      navigate('/')
+      setTimeout(() => navigate('/'), 2000)
     } catch (err: any) {
       const errs = extractFieldErrors(err)
       if (Object.keys(errs).length > 0) {
@@ -163,7 +176,7 @@ export default function Register() {
             <CardHeader className="space-y-2 pb-6">
               <CardTitle className="text-2xl text-center">
                 {step === 'form' && 'Verificar Cadastro'}
-                {step === 'otp' && 'Validação em Duas Etapas'}
+                {step === 'otp' && 'Verificação de E-mail'}
               </CardTitle>
               <CardDescription className="text-center text-base">
                 {step === 'form' && 'Insira seus dados para validar o acesso da sua empresa.'}
@@ -283,18 +296,9 @@ export default function Register() {
                           to="/"
                           className="font-semibold text-primary hover:underline transition-colors"
                         >
-                          Fazer Login
+                          Voltar ao Login
                         </Link>
                       </p>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="w-full h-12 text-base text-slate-600"
-                        onClick={() => navigate('/')}
-                        disabled={isLoading}
-                      >
-                        Voltar
-                      </Button>
                     </div>
                   </div>
                 </form>

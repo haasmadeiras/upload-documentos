@@ -53,7 +53,7 @@ export default function Index() {
 
         if (errMessage.includes('não verificada') || errMessage.includes('verify')) {
           errorMsg =
-            "E-mail pré-cadastrado. Por favor, utilize a opção 'Cadastrar nova conta' para definir sua senha de primeiro acesso."
+            "E-mail pré-cadastrado. Por favor, utilize a opção 'CADASTRAR NOVA CONTA' para definir sua senha de primeiro acesso."
         } else if (error.response?.data?.identity) {
           errorMsg = 'Erro: E-mail não encontrado.'
         } else if (error.response?.data?.password) {
@@ -160,7 +160,7 @@ export default function Index() {
                   <AlertDescription className="mt-1 flex flex-col gap-2 text-red-600/90 text-sm">
                     <span>{errorMessage}</span>
                     {errorMessage ===
-                      "E-mail pré-cadastrado. Por favor, utilize a opção 'Cadastrar nova conta' para definir sua senha de primeiro acesso." && (
+                      "E-mail pré-cadastrado. Por favor, utilize a opção 'CADASTRAR NOVA CONTA' para definir sua senha de primeiro acesso." && (
                       <Link
                         to="/cadastro"
                         className="font-semibold underline underline-offset-2 text-red-700 hover:text-red-800"
@@ -222,16 +222,15 @@ export default function Index() {
                 </Button>
               </div>
 
-              <div className="pt-4 text-center">
-                <p className="text-sm text-slate-600">
-                  Ainda não possui conta?{' '}
-                  <Link
-                    to="/cadastro"
-                    className="font-semibold text-destructive hover:underline transition-colors"
-                  >
-                    Cadastrar nova conta
-                  </Link>
-                </p>
+              <div className="pt-4 text-center flex flex-col gap-2">
+                <p className="text-sm text-slate-600">Ainda não possui conta?</p>
+                <Button
+                  variant="outline"
+                  className="w-full h-12 text-base text-destructive border-destructive hover:bg-destructive/10"
+                  asChild
+                >
+                  <Link to="/cadastro">CADASTRAR NOVA CONTA</Link>
+                </Button>
               </div>
             </CardContent>
           </Card>
