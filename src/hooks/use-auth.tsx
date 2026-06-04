@@ -56,13 +56,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const authData = await pb.collection('users').authWithPassword(email, password)
-      if (!authData.record.verified) {
+      const authData = await pb
+        .collection('users')
+        .authWithPassword(email.trim().toLowerCase(), password)
+      const isAdmin = authData.record.isAdmin === true || authData.record.role === 'Admin'
+      if (!isAdmin && !authData.record.verified) {
         pb.authStore.clear()
         return { error: new Error('Conta não verificada. Por favor, conclua o cadastro primeiro.') }
       }
       return { error: null }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.status === 0) {
+        return { error: new Error('Erro de conexão. Verifique sua rede e tente novamente.') }
+      }
+      if (error?.status === 400 || error?.status === 401 || error?.status === 404) {
+        return { error: new Error('Usuário não encontrado ou senha incorreta.') }
+      }
       return { error }
     }
   }

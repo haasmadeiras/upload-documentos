@@ -26,7 +26,7 @@ export default function Index() {
   }, [isAuthenticated, user, navigate])
 
   const [email, setEmail] = useState('pamelafrantz@pamelafrantz.onmicrosoft.com')
-  const [password, setPassword] = useState('Skip@Pass')
+  const [password, setPassword] = useState('123456')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -53,6 +53,8 @@ export default function Index() {
           setErrorMessage(
             "E-mail pré-cadastrado. Por favor, utilize a opção 'Cadastrar nova conta' para definir sua senha de primeiro acesso.",
           )
+        } else if (error.message) {
+          setErrorMessage(error.message)
         } else {
           setErrorMessage('E-mail ou senha incorretos.')
         }
