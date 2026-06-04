@@ -8,7 +8,13 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
 
-import { getUsers, createUser, updateUser, deleteUser, User } from '@/services/users'
+import {
+  getSuppliers,
+  createSupplier,
+  updateSupplier,
+  deleteSupplier,
+  Supplier,
+} from '@/services/suppliers'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -45,8 +51,6 @@ const formSchema = z
     person_type: z.enum(['PF', 'PJ']),
     phone: z.string().optional(),
     legal_name: z.string().optional(),
-    address: z.string().optional(),
-    password: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     const taxIdClean = data.tax_id.replace(/\D/g, '')
@@ -103,7 +107,7 @@ function maskPhone(value: string) {
 export default function AdminSuppliers() {
   const { user, isAuthenticated } = useAuth()
   const navigate = useNavigate()
-  const [users, setUsers] = useState<User[]>([])
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
@@ -126,18 +130,16 @@ export default function AdminSuppliers() {
       person_type: 'PJ',
       phone: '',
       legal_name: '',
-      address: '',
-      password: '',
     },
   })
 
   const personTypeValue = form.watch('person_type')
 
-  const fetchUsers = async () => {
+  const fetchSuppliers = async () => {
     try {
       setLoading(true)
-      const data = await getUsers("role = 'Fornecedor'")
-      setUsers(data)
+      const data = await getSuppliers()
+      setSuppliers(data)
     } catch (error) {
       toast.error('Erro ao carregar fornecedores')
     } finally {
@@ -147,95 +149,70 @@ export default function AdminSuppliers() {
 
   useEffect(() => {
     if (isMaster) {
-      fetchUsers()
+      fetchSuppliers()
     }
   }, [isMaster])
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      const payload: any = {
+      const payload: Partial<Supplier> = {
         name: values.name,
         email: values.email,
-        tax_id: values.tax_id,
+        tax_id: values.tax_id.replace(/\D/g, ''),
         person_type: values.person_type,
         phone: values.phone,
         legal_name: values.legal_name,
-        address: values.address,
-        role: 'Fornecedor',
-        isAdmin: false,
-      }
-
-      if (values.password) {
-        payload.password = values.password
-        payload.passwordConfirm = values.password
       }
 
       if (editingId) {
-        await updateUser(editingId, payload)
+        await updateSupplier(editingId, payload)
         toast.success('Fornecedor atualizado com sucesso')
       } else {
-        if (!values.password) {
-          form.setError('password', { message: 'Senha é obrigatória para novo cadastro' })
-          return
-        }
-        await createUser(payload)
-        toast.success('Fornecedor criado com sucesso')
+        await createSupplier(payload)
+        toast.success('Fornecedor pré-cadastrado com sucesso')
       }
 
       setOpen(false)
       form.reset()
-      fetchUsers()
+      fetchSuppliers()
     } catch (error: any) {
       const errs = extractFieldErrors(error)
-      let emailErrorHandled = false
       if (Object.keys(errs).length > 0) {
         Object.entries(errs).forEach(([field, msg]) => {
-          if (field === 'email') {
-            form.setError('email', { message: 'Este e-mail já está em uso' })
-            emailErrorHandled = true
-          } else {
-            form.setError(field as any, { message: msg })
-          }
+          form.setError(field as any, { message: msg })
         })
-      }
-
-      if (!emailErrorHandled) {
-        if (
-          error?.message?.toLowerCase().includes('email') ||
-          error?.message?.toLowerCase().includes('already in use') ||
-          error?.message?.toLowerCase().includes('validation')
-        ) {
-          form.setError('email', { message: 'Este e-mail já está em uso' })
-        } else {
-          toast.error('Erro ao salvar fornecedor')
-        }
+      } else {
+        toast.error('Erro ao salvar fornecedor')
       }
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Deseja excluir este fornecedor?')) return
+    if (
+      !confirm(
+        'Deseja excluir este fornecedor? Usuários já vinculados não serão apagados, mas a relação será perdida.',
+      )
+    )
+      return
     try {
-      await deleteUser(id)
+      await deleteSupplier(id)
       toast.success('Excluído com sucesso')
-      fetchUsers()
+      fetchSuppliers()
     } catch (err) {
       toast.error('Erro ao excluir')
     }
   }
 
-  const handleOpenDialog = (u?: User) => {
-    if (u) {
-      setEditingId(u.id)
+  const handleOpenDialog = (s?: Supplier) => {
+    if (s) {
+      setEditingId(s.id)
       form.reset({
-        name: u.name || '',
-        email: u.email || '',
-        tax_id: u.tax_id || '',
-        person_type: u.person_type || 'PJ',
-        phone: u.phone || '',
-        legal_name: u.legal_name || '',
-        address: u.address || '',
-        password: '',
+        name: s.name || '',
+        email: s.email || '',
+        tax_id: s.tax_id ? maskTaxId(s.tax_id, s.person_type) : '',
+        person_type: s.person_type || 'PJ',
+        phone: s.phone || '',
+        legal_name: s.legal_name || '',
       })
     } else {
       setEditingId(null)
@@ -246,19 +223,17 @@ export default function AdminSuppliers() {
         person_type: 'PJ',
         phone: '',
         legal_name: '',
-        address: '',
-        password: '',
       })
     }
     setOpen(true)
   }
 
-  const filteredUsers = users.filter(
-    (u) =>
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
-      u.tax_id?.includes(search) ||
-      u.legal_name?.toLowerCase().includes(search.toLowerCase()),
+  const filtered = suppliers.filter(
+    (s) =>
+      s.name.toLowerCase().includes(search.toLowerCase()) ||
+      s.email.toLowerCase().includes(search.toLowerCase()) ||
+      s.tax_id?.includes(search.replace(/\D/g, '')) ||
+      s.legal_name?.toLowerCase().includes(search.toLowerCase()),
   )
 
   if (!isMaster) return null
@@ -268,7 +243,9 @@ export default function AdminSuppliers() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gestão de Fornecedores</h1>
-          <p className="text-muted-foreground">Gerencie os fornecedores cadastrados no sistema.</p>
+          <p className="text-muted-foreground">
+            Pré-cadastre os fornecedores autorizados a utilizar o portal.
+          </p>
         </div>
         <Dialog
           open={open}
@@ -287,7 +264,7 @@ export default function AdminSuppliers() {
           <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                {editingId ? 'Editar Fornecedor' : 'Cadastrar Novo Fornecedor'}
+                {editingId ? 'Editar Fornecedor' : 'Pré-cadastrar Novo Fornecedor'}
               </DialogTitle>
             </DialogHeader>
             <Form {...form}>
@@ -349,9 +326,9 @@ export default function AdminSuppliers() {
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Nome</FormLabel>
+                        <FormLabel>Nome Completo ou Fantasia</FormLabel>
                         <FormControl>
-                          <Input placeholder="Nome completo ou fantasia" {...field} />
+                          <Input placeholder="Nome" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -369,7 +346,7 @@ export default function AdminSuppliers() {
                           )}
                         </FormLabel>
                         <FormControl>
-                          <Input placeholder="Razão social (obrigatório para PJ)" {...field} />
+                          <Input placeholder="Razão social" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -383,7 +360,7 @@ export default function AdminSuppliers() {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>E-mail</FormLabel>
+                        <FormLabel>E-mail Autorizado</FormLabel>
                         <FormControl>
                           <Input placeholder="email@exemplo.com" type="email" {...field} />
                         </FormControl>
@@ -396,7 +373,7 @@ export default function AdminSuppliers() {
                     name="phone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Telefone</FormLabel>
+                        <FormLabel>Telefone (Opcional)</FormLabel>
                         <FormControl>
                           <Input
                             placeholder="(00) 00000-0000"
@@ -409,34 +386,6 @@ export default function AdminSuppliers() {
                     )}
                   />
                 </div>
-
-                <FormField
-                  control={form.control}
-                  name="address"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Endereço Completo</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Rua, Número, Bairro, Cidade - UF" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{editingId ? 'Nova Senha (Opcional)' : 'Senha'}</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Senha de acesso" type="password" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
 
                 <div className="pt-4 flex justify-end">
                   <Button type="submit">Salvar Fornecedor</Button>
@@ -462,7 +411,7 @@ export default function AdminSuppliers() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nome / Razão Social</TableHead>
-                <TableHead>Email</TableHead>
+                <TableHead>Email Autorizado</TableHead>
                 <TableHead>CPF/CNPJ</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -475,33 +424,33 @@ export default function AdminSuppliers() {
                     Carregando fornecedores...
                   </TableCell>
                 </TableRow>
-              ) : filteredUsers.length === 0 ? (
+              ) : filtered.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center h-24">
                     Nenhum fornecedor encontrado.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredUsers.map((u) => (
-                  <TableRow key={u.id}>
+                filtered.map((s) => (
+                  <TableRow key={s.id}>
                     <TableCell className="font-medium">
-                      {u.name}
-                      {u.legal_name && (
-                        <div className="text-xs text-muted-foreground mt-0.5">{u.legal_name}</div>
+                      {s.name}
+                      {s.legal_name && (
+                        <div className="text-xs text-muted-foreground mt-0.5">{s.legal_name}</div>
                       )}
                     </TableCell>
-                    <TableCell>{u.email}</TableCell>
-                    <TableCell>{u.tax_id}</TableCell>
-                    <TableCell>{u.person_type}</TableCell>
+                    <TableCell>{s.email}</TableCell>
+                    <TableCell>{maskTaxId(s.tax_id, s.person_type)}</TableCell>
+                    <TableCell>{s.person_type}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(u)}>
+                        <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(s)}>
                           <Pencil className="w-4 h-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(u.id)}
+                          onClick={() => handleDelete(s.id)}
                           className="text-destructive hover:text-destructive hover:bg-destructive/10"
                         >
                           <Trash2 className="w-4 h-4" />

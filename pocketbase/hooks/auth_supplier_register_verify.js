@@ -20,28 +20,39 @@ routerAdd('POST', '/backend/v1/auth/supplier-register-verify', (e) => {
     return e.badRequestError('Código inválido ou expirado.')
   }
 
-  let user
+  let supplier
   try {
-    user = $app.findFirstRecordByData('users', 'tax_id', taxIdClean)
+    supplier = $app.findFirstRecordByData('suppliers', 'tax_id', taxIdClean)
   } catch (_) {}
 
-  if (!user || user.getString('role') !== 'Fornecedor') {
-    return e.badRequestError('CPF/CNPJ não localizado ou não autorizado.')
+  if (!supplier || supplier.getString('email').toLowerCase() !== email) {
+    return e.badRequestError('Fornecedor não localizado ou e-mail incompatível.')
   }
 
-  if (user.getString('passwordHash') !== '') {
+  let existingUser
+  try {
+    existingUser = $app.findFirstRecordByData('users', 'tax_id', taxIdClean)
+  } catch (_) {}
+
+  if (existingUser) {
     return e.badRequestError('Documento já cadastrado.')
   }
 
-  user.setEmail(email)
-  user.setPassword(password)
-  user.setVerified(true)
-  if (body.name) user.set('name', body.name)
-  if (body.legal_name) user.set('legal_name', body.legal_name)
-  if (body.phone) user.set('phone', body.phone)
-  if (body.address) user.set('address', body.address)
-  $app.save(user)
+  const usersCollection = $app.findCollectionByNameOrId('users')
+  const newUser = new Record(usersCollection)
+  newUser.setEmail(email)
+  newUser.setPassword(password)
+  newUser.setVerified(true)
+  newUser.set('name', supplier.getString('name'))
+  newUser.set('legal_name', supplier.getString('legal_name'))
+  newUser.set('phone', supplier.getString('phone'))
+  newUser.set('person_type', supplier.getString('person_type'))
+  newUser.set('tax_id', taxIdClean)
+  newUser.set('role', 'Fornecedor')
+  newUser.set('isAdmin', false)
+  newUser.set('supplier', supplier.id)
 
+  $app.save(newUser)
   $app.delete(otpRecord)
 
   return e.json(200, { message: 'Cadastro finalizado com sucesso.' })

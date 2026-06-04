@@ -13,22 +13,25 @@ routerAdd('POST', '/backend/v1/auth/supplier-register-init', (e) => {
 
   const taxIdClean = taxIdRaw.replace(/\D/g, '')
 
-  let user
+  let supplier
   try {
-    user = $app.findFirstRecordByData('users', 'tax_id', taxIdClean)
+    supplier = $app.findFirstRecordByData('suppliers', 'tax_id', taxIdClean)
   } catch (_) {}
 
-  if (!user) {
-    return e.badRequestError(
-      'CPF/CNPJ não localizado. Entre em contato com a administração para seu pré-cadastro.',
-    )
+  if (!supplier) {
+    return e.badRequestError('Fornecedor não pré-cadastrado. Entre em contato com o suporte.')
   }
 
-  if (user.getString('role') !== 'Fornecedor') {
-    return e.badRequestError('O documento informado não pertence a um Fornecedor.')
+  if (supplier.getString('email').toLowerCase() !== email) {
+    return e.badRequestError('O e-mail informado não coincide com os dados de pré-cadastro.')
   }
 
-  if (user.getString('passwordHash') !== '') {
+  let existingUser
+  try {
+    existingUser = $app.findFirstRecordByData('users', 'tax_id', taxIdClean)
+  } catch (_) {}
+
+  if (existingUser) {
     return e.badRequestError(
       'Documento já cadastrado. Por favor, realize o login ou recupere sua senha.',
     )
@@ -38,7 +41,8 @@ routerAdd('POST', '/backend/v1/auth/supplier-register-init', (e) => {
   try {
     emailUser = $app.findAuthRecordByEmail('users', email)
   } catch (_) {}
-  if (emailUser && emailUser.id !== user.id) {
+
+  if (emailUser) {
     return e.badRequestError('Este e-mail já está em uso por outro usuário.')
   }
 

@@ -1,285 +1,295 @@
 import { useState, useEffect } from 'react'
-import { ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { useNavigate, Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import useAppStore from '@/stores/use-app-store'
-import { useToast } from '@/hooks/use-toast'
-import { Link, useNavigate } from 'react-router-dom'
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
+import { Loader2, ArrowLeft, Mail, KeyRound, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import logoUrl from '@/assets/image-bb79d.png'
 import pb from '@/lib/pocketbase/client'
+import { toast } from 'sonner'
 
 export default function Index() {
-  const { login: setAppRole } = useAppStore()
-  const { signIn, isAuthenticated, user } = useAuth()
-  const { toast } = useToast()
+  const { signIn, isAuthenticated, user, loading } = useAuth()
   const navigate = useNavigate()
 
+  const [view, setView] = useState<'login' | 'forgot_init' | 'forgot_verify' | 'forgot_success'>(
+    'login',
+  )
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+
+  const [resetCode, setResetCode] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [mockCode, setMockCode] = useState('')
+
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if (isAuthenticated && user && !loading) {
       const isAdmin = user.isAdmin === true || user.role === 'Admin'
       navigate(isAdmin ? '/admin' : '/dashboard')
     }
-  }, [isAuthenticated, user, navigate])
+  }, [isAuthenticated, user, loading, navigate])
 
-  const [email, setEmail] = useState('pamelafrantz@pamelafrantz.onmicrosoft.com')
-  const [password, setPassword] = useState('Skip@2026')
-  const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  if (loading)
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    )
 
-  const handleLogin = async () => {
-    const normalizedEmail = email.trim().toLowerCase()
-
-    if (!normalizedEmail || !password) {
-      setErrorMessage('Por favor, preencha todos os campos.')
-      return
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setIsSubmitting(true)
+    const { error: signInError } = await signIn(email, password)
+    if (signInError) {
+      setError('Credenciais inválidas. Verifique seu e-mail e senha.')
+      setIsSubmitting(false)
     }
+  }
 
-    setIsLoading(true)
-    setErrorMessage(null)
-
+  const handleForgotInit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email) return setError('Informe seu e-mail.')
+    setError('')
+    setIsSubmitting(true)
     try {
-      const { error } = await signIn(normalizedEmail, password)
-
-      if (error) {
-        console.error('[Auth Error]:', error)
-
-        let errorMsg = 'Erro: E-mail não encontrado ou Senha incorreta.'
-        const errMessage = error.message?.toLowerCase() || ''
-
-        if (errMessage.includes('não verificada') || errMessage.includes('verify')) {
-          errorMsg =
-            "E-mail pré-cadastrado. Por favor, utilize a opção 'CADASTRAR NOVA CONTA' para definir sua senha de primeiro acesso."
-        } else if (error.response?.data?.identity) {
-          errorMsg = 'Erro: E-mail não encontrado.'
-        } else if (error.response?.data?.password) {
-          errorMsg = 'Erro: Senha incorreta.'
-        } else {
-          // Fallback if pocketbase just gives a generic 400 without specific fields
-          errorMsg = 'Erro: E-mail não encontrado ou Senha incorreta.'
-        }
-
-        setErrorMessage(errorMsg)
-        toast({
-          title: 'Falha no login',
-          description: errorMsg,
-          variant: 'destructive',
-        })
-
-        setIsLoading(false)
-        return
-      }
-
-      const userRecord = pb.authStore.record
-      const isAdmin = userRecord?.isAdmin === true || userRecord?.role === 'Admin'
-      setAppRole(isAdmin ? 'master' : 'stakeholder')
-
-      toast({
-        description: 'Bem-vindo(a)! Login realizado com sucesso.',
+      const res = await pb.send('/backend/v1/auth/reset-password-init', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
       })
-
-      navigate(isAdmin ? '/admin' : '/dashboard', { replace: true })
-    } catch (err) {
-      console.error('[Auth Error] Unexpected failure:', err)
-      setErrorMessage('Ocorreu um erro ao tentar fazer login. Tente novamente.')
+      setMockCode(res.mock_code)
+      setView('forgot_verify')
+      toast.success(res.message)
+    } catch (err: any) {
+      setError(err.message || 'Erro ao solicitar recuperação.')
     } finally {
-      setIsLoading(false)
+      setIsSubmitting(false)
     }
   }
 
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(e.target.value)
-    if (errorMessage) setErrorMessage(null)
-  }
-
-  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPassword(e.target.value)
-    if (errorMessage) setErrorMessage(null)
-  }
-
-  const handleForgotPassword = async () => {
-    const normalizedEmail = email.trim().toLowerCase()
-    if (!normalizedEmail) {
-      toast({
-        title: 'E-mail necessário',
-        description: 'Preencha o campo de e-mail para recuperar a senha.',
-        variant: 'destructive',
-      })
-      return
-    }
-
+  const handleForgotVerify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!resetCode || resetCode.length !== 6 || !newPassword) return setError('Dados incompletos.')
+    if (newPassword.length < 8) return setError('A senha deve ter no mínimo 8 caracteres.')
+    setError('')
+    setIsSubmitting(true)
     try {
-      await pb.collection('users').requestPasswordReset(normalizedEmail)
-      toast({
-        title: 'Recuperação de Senha',
-        description:
-          'Se o e-mail estiver em nossa base, você receberá instruções para redefinir sua senha.',
+      const res = await pb.send('/backend/v1/auth/reset-password-verify', {
+        method: 'POST',
+        body: JSON.stringify({ email, code: resetCode, password: newPassword }),
       })
-    } catch (err) {
-      toast({
-        title: 'Recuperação de Senha',
-        description:
-          'Se o e-mail estiver em nossa base, você receberá instruções para redefinir sua senha.',
-      })
+      toast.success(res.message)
+      setView('forgot_success')
+      setPassword('')
+    } catch (err: any) {
+      setError(err.message || 'Erro ao redefinir senha.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex w-full max-w-full overflow-x-hidden bg-white">
-      {/* Left Pane - Image & Brand */}
-      <div className="hidden lg:flex flex-1 relative bg-white flex-col justify-center items-center p-12 overflow-hidden border-r border-slate-100 max-w-full">
-        <div className="relative z-20 flex flex-col items-center gap-8 max-w-lg text-center">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4 sm:p-8">
+      <div className="w-full max-w-md space-y-8 animate-fade-in-up">
+        <div className="flex flex-col items-center justify-center gap-4 mb-4">
           <img
             src={logoUrl}
-            alt="Haas Madeiras"
-            className="w-80 object-contain mix-blend-multiply bg-transparent"
+            alt="Logo"
+            className="h-20 object-contain mix-blend-multiply bg-transparent"
           />
-
-          <div className="space-y-4">
-            <h1 className="text-4xl font-bold text-slate-900 leading-tight tracking-tight">
-              Portal de Documentos
-            </h1>
-            <p className="text-slate-600 text-lg">
-              Ambiente para envio, validação e acompanhamento de documentos e requisitos de
-              fornecedores e stakeholders.
-            </p>
-          </div>
-        </div>
-        <div className="absolute bottom-8 z-20">
-          <p className="text-sm text-slate-500">
-            &copy; {new Date().getFullYear()} Haas Madeiras. Todos os direitos reservados.
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight text-center">
+            {view === 'login' ? 'Bem-vindo(a)!' : 'Recuperar Senha'}
+          </h1>
+          <p className="text-slate-600 text-center max-w-sm">
+            {view === 'login'
+              ? 'Faça login para acessar o portal de fornecedores.'
+              : 'Siga os passos para redefinir seu acesso.'}
           </p>
         </div>
-      </div>
 
-      {/* Right Pane - Login */}
-      <div className="flex-1 flex items-center justify-center p-4 sm:p-8 animate-fade-in bg-white max-w-full">
-        <div className="w-full max-w-md space-y-8 max-w-full">
-          <div className="lg:hidden flex flex-col items-center justify-center gap-4 mb-8 max-w-full">
-            <img
-              src={logoUrl}
-              alt="Haas Madeiras"
-              className="h-32 max-w-full object-contain mix-blend-multiply bg-transparent"
-            />
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight text-center px-4">
-              Portal de Documentos
-            </h1>
-          </div>
-
-          <Card className="border-slate-200 shadow-xl bg-slate-50">
-            <CardHeader className="space-y-2 pb-6">
-              <CardTitle className="text-2xl text-center">Acesse sua conta</CardTitle>
-              <CardDescription className="text-center text-base">
-                Selecione seu perfil de acesso para continuar
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {errorMessage && (
-                <Alert className="bg-red-50 border-red-200 text-red-600 animate-fade-in-down shadow-sm">
-                  <AlertCircle className="h-4 w-4 text-red-600" />
-                  <AlertTitle className="text-red-600 font-semibold text-base">
-                    Falha no login
-                  </AlertTitle>
-                  <AlertDescription className="mt-1 flex flex-col gap-2 text-red-600/90 text-sm">
-                    <span>{errorMessage}</span>
-                    {errorMessage ===
-                      "E-mail pré-cadastrado. Por favor, utilize a opção 'CADASTRAR NOVA CONTA' para definir sua senha de primeiro acesso." && (
-                      <Link
-                        to="/cadastro"
-                        className="font-semibold underline underline-offset-2 text-red-700 hover:text-red-800"
-                      >
-                        Ir para o cadastro
-                      </Link>
-                    )}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  handleLogin()
-                }}
-                className="space-y-4"
-              >
-                <div className="space-y-2">
-                  <Label htmlFor="email">E-mail corporativo</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="nome@empresa.com"
-                    value={email}
-                    onChange={handleEmailChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password">Senha</Label>
-                    <button
-                      type="button"
-                      onClick={handleForgotPassword}
-                      className="text-sm font-medium text-destructive hover:underline"
-                    >
-                      Esqueci minha senha
-                    </button>
+        <Card className="border-slate-200 shadow-lg bg-white">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl text-center">
+              {view === 'login' && 'Login'}
+              {view === 'forgot_init' && 'Esqueci minha senha'}
+              {view === 'forgot_verify' && 'Redefinir Senha'}
+              {view === 'forgot_success' && 'Senha Alterada'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {view === 'login' && (
+              <form onSubmit={handleLogin} className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">E-mail</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="Seu e-mail"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
                   </div>
-                  <div className="relative">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password">Senha</Label>
+                      <Button
+                        variant="link"
+                        type="button"
+                        className="p-0 h-auto font-normal text-xs text-muted-foreground hover:text-primary"
+                        onClick={() => {
+                          setView('forgot_init')
+                          setError('')
+                        }}
+                      >
+                        Esqueci minha senha
+                      </Button>
+                    </div>
                     <Input
                       id="password"
-                      type={showPassword ? 'text' : 'password'}
+                      type="password"
+                      placeholder="Sua senha"
                       value={password}
-                      onChange={handlePasswordChange}
-                      className="pr-10"
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
                     />
-                    <button
-                      type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
                   </div>
                 </div>
-
-                <div className="grid gap-3 pt-4 border-t mt-4">
-                  <Button
-                    type="submit"
-                    className="w-full h-12 text-base shadow-sm bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <span className="flex items-center gap-2">
-                        <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />{' '}
-                        Conectando...
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        ACESSAR <ArrowRight className="w-4 h-4" />
-                      </span>
-                    )}
-                  </Button>
+                {error && <p className="text-sm text-destructive font-medium">{error}</p>}
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Entrar'}
+                </Button>
+                <div className="text-center text-sm pt-4 border-t">
+                  <span className="text-muted-foreground">Primeiro acesso? </span>
+                  <Link to="/cadastro" className="font-medium text-primary hover:underline">
+                    Faça seu cadastro
+                  </Link>
                 </div>
+              </form>
+            )}
 
-                <div className="pt-4 text-center flex flex-col gap-2">
-                  <p className="text-sm text-slate-600">Ainda não possui conta?</p>
+            {view === 'forgot_init' && (
+              <form onSubmit={handleForgotInit} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="reset-email">E-mail Cadastrado</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                    <Input
+                      id="reset-email"
+                      type="email"
+                      placeholder="nome@exemplo.com"
+                      className="pl-10"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+                {error && <p className="text-sm text-destructive font-medium">{error}</p>}
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Enviar Código'}
+                </Button>
+                <div className="flex justify-center text-center mt-2">
                   <Button
+                    variant="ghost"
                     type="button"
-                    variant="outline"
-                    className="w-full h-12 text-base text-destructive border-destructive hover:bg-destructive/10"
-                    asChild
+                    onClick={() => {
+                      setView('login')
+                      setError('')
+                    }}
+                    className="text-slate-600 hover:text-slate-900"
                   >
-                    <Link to="/cadastro">CADASTRAR NOVA CONTA</Link>
+                    <ArrowLeft className="w-4 h-4 mr-2" /> Voltar ao Login
                   </Button>
                 </div>
               </form>
-            </CardContent>
-          </Card>
-        </div>
+            )}
+
+            {view === 'forgot_verify' && (
+              <form onSubmit={handleForgotVerify} className="space-y-6">
+                <div className="text-center">
+                  <p className="text-sm text-slate-600">
+                    Código enviado para <strong>{email}</strong>.
+                  </p>
+                  {mockCode && (
+                    <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded mt-2">
+                      Ambiente de teste. Código: <strong>{mockCode}</strong>
+                    </p>
+                  )}
+                </div>
+                <div className="flex justify-center">
+                  <InputOTP
+                    maxLength={6}
+                    value={resetCode}
+                    onChange={(val: string) => setResetCode(val)}
+                  >
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} />
+                      <InputOTPSlot index={1} />
+                      <InputOTPSlot index={2} />
+                      <InputOTPSlot index={3} />
+                      <InputOTPSlot index={4} />
+                      <InputOTPSlot index={5} />
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">Nova Senha</Label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                    <Input
+                      id="new-password"
+                      type="password"
+                      placeholder="Mínimo 8 caracteres"
+                      className="pl-10"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+                {error && <p className="text-sm text-destructive font-medium">{error}</p>}
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isSubmitting || resetCode.length !== 6}
+                >
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Redefinir Senha'}
+                </Button>
+                <div className="flex justify-center">
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    onClick={() => setView('forgot_init')}
+                    className="text-slate-600"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {view === 'forgot_success' && (
+              <div className="flex flex-col items-center justify-center py-6 space-y-6">
+                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+                </div>
+                <p className="text-center text-slate-600">
+                  Sua senha foi redefinida com sucesso. Você já pode acessar a plataforma.
+                </p>
+                <Button onClick={() => setView('login')} className="w-full">
+                  Fazer Login
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
