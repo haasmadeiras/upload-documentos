@@ -112,6 +112,7 @@ export default function Register() {
       })
 
       if (existingUsers.items.length > 0) {
+        setFieldErrors((prev) => ({ ...prev, taxId: 'Este CNPJ já possui cadastro.' }))
         toast({
           variant: 'destructive',
           title: 'Cadastro Existente',
@@ -144,8 +145,9 @@ export default function Register() {
       } else {
         toast({
           variant: 'destructive',
-          title: 'Cadastro não localizado',
+          title: 'Erro no Cadastro',
           description:
+            err.message ||
             'Dados não encontrados na base de fornecedores. Por favor, entre em contato com o suporte.',
         })
       }
@@ -211,10 +213,34 @@ export default function Register() {
     return formatted.slice(0, 18)
   }
 
+  const checkCnpjExists = async (cnpj: string) => {
+    if (cnpj.replace(/\D/g, '').length !== 14) return
+    try {
+      const existingUsers = await pb.collection('users').getList(1, 1, {
+        filter: `tax_id = "${cnpj}" || tax_id = "${cnpj.replace(/\D/g, '')}"`,
+      })
+
+      if (existingUsers.items.length > 0) {
+        setFieldErrors((prev) => ({ ...prev, taxId: 'Este CNPJ já possui cadastro.' }))
+        toast({
+          variant: 'destructive',
+          title: 'Cadastro Existente',
+          description: 'Este CNPJ já possui cadastro.',
+        })
+      }
+    } catch (e) {
+      console.error('Error checking existing users', e)
+    }
+  }
+
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
   const isCnpjValid = taxId.replace(/\D/g, '').length === 14
   const isFormValid =
-    isEmailValid && isCnpjValid && password.length >= 8 && password === passwordConfirm
+    isEmailValid &&
+    isCnpjValid &&
+    password.length >= 8 &&
+    password === passwordConfirm &&
+    fieldErrors.taxId !== 'Este CNPJ já possui cadastro.'
 
   const progressValue = step === 'form' ? 33 : step === 'otp' ? 66 : 100
 
@@ -236,9 +262,22 @@ export default function Register() {
         </div>
 
         <Card className="border-slate-200 shadow-lg bg-white relative overflow-hidden">
-          <Progress value={progressValue} className="h-2 rounded-none" />
+          <div className="relative">
+            <Progress value={progressValue} className="h-2 rounded-none" />
+            <div className="flex justify-between px-6 pt-3 pb-1 text-xs font-medium text-slate-500">
+              <span className={step === 'form' ? 'text-primary font-bold' : 'text-slate-400'}>
+                1. Identificação
+              </span>
+              <span className={step === 'otp' ? 'text-primary font-bold' : 'text-slate-400'}>
+                2. Validação
+              </span>
+              <span className={step === 'success' ? 'text-primary font-bold' : 'text-slate-400'}>
+                3. Conclusão
+              </span>
+            </div>
+          </div>
 
-          <CardHeader className="space-y-2 pb-6 pt-8">
+          <CardHeader className="space-y-2 pb-6 pt-4">
             <div className="text-center space-y-2">
               <CardTitle className="text-2xl">
                 {step === 'form' && 'Seus Dados'}
@@ -274,6 +313,7 @@ export default function Register() {
                         setTaxId(formatCNPJ(e.target.value))
                         if (fieldErrors.taxId) setFieldErrors({ ...fieldErrors, taxId: '' })
                       }}
+                      onBlur={(e) => checkCnpjExists(e.target.value)}
                       required
                       maxLength={18}
                       disabled={isLoading}
@@ -299,6 +339,14 @@ export default function Register() {
                       onChange={(e) => {
                         setEmail(e.target.value)
                         if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: '' })
+                      }}
+                      onBlur={(e) => {
+                        if (e.target.value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.target.value)) {
+                          setFieldErrors((prev) => ({
+                            ...prev,
+                            email: 'Por favor, insira um e-mail válido.',
+                          }))
+                        }
                       }}
                       required
                       disabled={isLoading}
@@ -326,6 +374,14 @@ export default function Register() {
                           setPassword(e.target.value)
                           if (fieldErrors.password) setFieldErrors({ ...fieldErrors, password: '' })
                         }}
+                        onBlur={(e) => {
+                          if (e.target.value && e.target.value.length < 8) {
+                            setFieldErrors((prev) => ({
+                              ...prev,
+                              password: 'A senha deve ter no mínimo 8 caracteres.',
+                            }))
+                          }
+                        }}
                         required
                         minLength={8}
                         disabled={isLoading}
@@ -352,6 +408,14 @@ export default function Register() {
                           setPasswordConfirm(e.target.value)
                           if (fieldErrors.passwordConfirm)
                             setFieldErrors({ ...fieldErrors, passwordConfirm: '' })
+                        }}
+                        onBlur={(e) => {
+                          if (e.target.value && e.target.value !== password) {
+                            setFieldErrors((prev) => ({
+                              ...prev,
+                              passwordConfirm: 'As senhas não coincidem.',
+                            }))
+                          }
                         }}
                         required
                         minLength={8}

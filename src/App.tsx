@@ -35,11 +35,11 @@ const App = () => (
             <Sonner />
             <SessionManager />
             <Routes>
-              <Route element={<Layout />}>
-                <Route path="/" element={<Index />} />
-                <Route path="/login" element={<Navigate to="/" replace />} />
-                <Route path="/cadastro" element={<Register />} />
+              <Route path="/" element={<Index />} />
+              <Route path="/login" element={<Navigate to="/" replace />} />
+              <Route path="/cadastro" element={<Register />} />
 
+              <Route element={<Layout />}>
                 <Route element={<ProtectedRoute adminOnly />}>
                   {/* Admin Routes */}
                   <Route path="/admin" element={<AdminDashboard />} />
