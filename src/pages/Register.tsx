@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,9 +12,16 @@ import { MailCheck, KeyRound, ShieldCheck } from 'lucide-react'
 import logoUrl from '@/assets/image-bb79d.png'
 
 export default function Register() {
-  const { signIn } = useAuth()
+  const { signIn, isAuthenticated, user } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const isAdmin = user.isAdmin === true || user.role === 'Admin'
+      navigate(isAdmin ? '/admin/config' : '/dashboard')
+    }
+  }, [isAuthenticated, user, navigate])
 
   const [step, setStep] = useState<'email' | 'password' | 'otp'>('email')
   const [isLoading, setIsLoading] = useState(false)
@@ -98,7 +105,7 @@ export default function Register() {
     try {
       await pb.send('/backend/v1/auth/invite-verify', {
         method: 'POST',
-        body: JSON.stringify({ email, code: otp }),
+        body: JSON.stringify({ email, code: otp, password }),
       })
 
       // Account verified, now login

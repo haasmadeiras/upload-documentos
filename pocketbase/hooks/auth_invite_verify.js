@@ -2,25 +2,31 @@ routerAdd('POST', '/backend/v1/auth/invite-verify', (e) => {
   const body = e.requestInfo().body || {}
   const email = (body.email || '').trim()
   const code = (body.code || '').trim()
+  const password = body.password || ''
 
-  if (!email || !code) return e.badRequestError('E-mail e código são obrigatórios.')
+  if (!email || !code || !password) {
+    return e.badRequestError('Email, código e senha são obrigatórios')
+  }
+
+  if (password.length < 8) {
+    return e.badRequestError('A senha deve ter no mínimo 8 caracteres')
+  }
 
   try {
-    const otpRecord = $app.findFirstRecordByFilter('otps', 'email = {:email} && code = {:code}', {
-      email,
-      code,
-    })
+    const otpRecord = $app.findFirstRecordByData('otps', 'email', email)
+    if (otpRecord.getString('code') !== code) {
+      return e.badRequestError('Código inválido.')
+    }
 
-    const user = $app.findAuthRecordByEmail('users', email)
-    user.setVerified(true)
-    $app.save(user)
+    const userRecord = $app.findAuthRecordByEmail('users', email)
+    userRecord.setPassword(password)
+    userRecord.setVerified(true)
+    $app.save(userRecord)
 
     $app.delete(otpRecord)
 
-    return e.json(200, { message: 'Conta verificada com sucesso.' })
+    return e.json(200, { success: true })
   } catch (err) {
-    return e.badRequestError('Código de verificação inválido.', {
-      code: 'Código de verificação inválido.',
-    })
+    return e.badRequestError('Falha na verificação. Código inválido ou expirado.')
   }
 })

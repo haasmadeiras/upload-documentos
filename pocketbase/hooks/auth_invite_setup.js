@@ -1,42 +1,32 @@
 routerAdd('POST', '/backend/v1/auth/invite-setup', (e) => {
   const body = e.requestInfo().body || {}
   const email = (body.email || '').trim()
-  const password = body.password
 
-  if (!email || !password) return e.badRequestError('E-mail e senha são obrigatórios.')
-  if (password.length < 8)
-    return e.badRequestError('A senha deve ter no mínimo 8 caracteres.', {
-      password: 'A senha deve ter no mínimo 8 caracteres.',
-    })
+  if (!email) return e.badRequestError('Email is required')
 
   try {
-    const user = $app.findAuthRecordByEmail('users', email)
-    if (user.getBool('verified')) {
-      return e.badRequestError('Usuário já registrado.')
+    const record = $app.findAuthRecordByEmail('users', email)
+    if (record.passwordHash() !== '') {
+      return e.badRequestError('Usuário já possui senha.')
     }
-
-    user.setPassword(password)
-    $app.save(user)
 
     const code = $security.randomStringWithAlphabet(6, '0123456789')
 
+    let otpRecord
     try {
-      const existing = $app.findRecordsByFilter('otps', 'email = {:email}', '-created', 100, 0, {
-        email,
-      })
-      for (const record of existing) {
-        $app.delete(record)
-      }
-    } catch (_) {}
+      otpRecord = $app.findFirstRecordByData('otps', 'email', email)
+      otpRecord.set('code', code)
+    } catch (_) {
+      const collection = $app.findCollectionByNameOrId('otps')
+      otpRecord = new Record(collection)
+      otpRecord.set('email', email)
+      otpRecord.set('code', code)
+    }
 
-    const otpsCol = $app.findCollectionByNameOrId('otps')
-    const otpRecord = new Record(otpsCol)
-    otpRecord.set('email', email)
-    otpRecord.set('code', code)
     $app.save(otpRecord)
 
-    return e.json(200, { message: 'Senha configurada. Código enviado.', mock_code: code })
-  } catch (err) {
-    return e.badRequestError('Erro ao configurar senha. Verifique os dados.')
+    return e.json(200, { success: true, mock_code: code })
+  } catch (_) {
+    return e.badRequestError('E-mail não encontrado.')
   }
 })

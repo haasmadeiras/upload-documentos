@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,9 +14,16 @@ import pb from '@/lib/pocketbase/client'
 
 export default function Index() {
   const { login: setAppRole } = useAppStore()
-  const { signIn } = useAuth()
+  const { signIn, isAuthenticated, user } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const isAdmin = user.isAdmin === true || user.role === 'Admin'
+      navigate(isAdmin ? '/admin/config' : '/dashboard')
+    }
+  }, [isAuthenticated, user, navigate])
 
   const [email, setEmail] = useState('pamelafrantz@pamelafrantz.onmicrosoft.com')
   const [password, setPassword] = useState('Skip@2026')
@@ -42,6 +49,14 @@ export default function Index() {
 
       if (!checkRes.exists) {
         setErrorMessage('O e-mail informado não possui cadastro')
+        setIsLoading(false)
+        return
+      }
+
+      if (!checkRes.hasPassword) {
+        setErrorMessage(
+          "E-mail pré-cadastrado. Por favor, utilize a opção 'Cadastrar nova conta' para definir sua senha de primeiro acesso.",
+        )
         setIsLoading(false)
         return
       }
@@ -134,7 +149,9 @@ export default function Index() {
                   <AlertTitle>Falha no login</AlertTitle>
                   <AlertDescription className="mt-1 flex flex-col gap-2">
                     <span>{errorMessage}</span>
-                    {errorMessage === 'O e-mail informado não possui cadastro' && (
+                    {(errorMessage === 'O e-mail informado não possui cadastro' ||
+                      errorMessage ===
+                        "E-mail pré-cadastrado. Por favor, utilize a opção 'Cadastrar nova conta' para definir sua senha de primeiro acesso.") && (
                       <Link to="/register" className="font-semibold underline underline-offset-2">
                         Ir para o cadastro
                       </Link>
@@ -200,7 +217,7 @@ export default function Index() {
                     to="/register"
                     className="font-semibold text-destructive hover:underline transition-colors"
                   >
-                    CADASTRAR MINHA CONTA
+                    Cadastrar nova conta
                   </Link>
                 </p>
               </div>

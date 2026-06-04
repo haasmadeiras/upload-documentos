@@ -14,7 +14,7 @@ import {
   TreePine,
   Folder,
 } from 'lucide-react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import {
@@ -38,6 +38,7 @@ import logoUrl from '@/assets/image-bb79d.png'
 
 export function AppSidebar() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { user, signOut } = useAuth()
   const [categories, setCategories] = useState<any[]>([])
 
@@ -195,6 +196,7 @@ export function AppSidebar() {
         <SidebarMenuButton
           onClick={() => {
             signOut()
+            navigate('/')
           }}
           variant="outline"
           className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
