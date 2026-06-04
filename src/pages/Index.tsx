@@ -26,7 +26,7 @@ export default function Index() {
   }, [isAuthenticated, user, navigate])
 
   const [email, setEmail] = useState('pamelafrantz@pamelafrantz.onmicrosoft.com')
-  const [password, setPassword] = useState('123456')
+  const [password, setPassword] = useState('Skip@2026')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
