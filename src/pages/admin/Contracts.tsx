@@ -113,9 +113,6 @@ export default function AdminContracts() {
           <h1 className="text-3xl font-bold tracking-tight">Gestão de Contratados</h1>
           <p className="text-muted-foreground">Gerencie os contratos de prestação de serviços.</p>
         </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="w-4 h-4 mr-2" /> Novo Contrato
-        </Button>
       </div>
 
       <Card>

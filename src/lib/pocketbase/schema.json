@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-10T13:55:04.817Z",
+  "generatedAt": "2026-06-10T14:04:04.877Z",
   "collections": [
     {
       "name": "users",
@@ -8,8 +8,8 @@
         "list": "@request.auth.isAdmin = true || @request.auth.role = 'Admin' || @request.auth.role = 'Colaborador' || id = @request.auth.id",
         "view": "@request.auth.isAdmin = true || @request.auth.role = 'Admin' || @request.auth.role = 'Colaborador' || id = @request.auth.id",
         "create": "(@request.auth.id != '' && (@request.auth.isAdmin = true || @request.auth.role = 'Admin')) || (@request.body.role = 'Fornecedor' && @request.body.isAdmin = false)",
-        "update": "id = @request.auth.id || @request.auth.isAdmin = true || @request.auth.role = 'Admin'",
-        "delete": "id = @request.auth.id || @request.auth.isAdmin = true || @request.auth.role = 'Admin'"
+        "update": "id = @request.auth.id || @request.auth.isAdmin = true || @request.auth.role = 'Admin' || (@request.auth.role = 'Colaborador' && role = 'Fornecedor')",
+        "delete": "id = @request.auth.id || @request.auth.isAdmin = true || @request.auth.role = 'Admin' || (@request.auth.role = 'Colaborador' && role = 'Fornecedor')"
       },
       "fields": [
         {

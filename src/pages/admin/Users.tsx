@@ -9,8 +9,19 @@ import { toast } from 'sonner'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
 import { useRealtime } from '@/hooks/use-realtime'
 
-import { getUsers, createUser, User } from '@/services/users'
+import { getUsers, createUser, updateUser, deleteUser, User } from '@/services/users'
 import { Button } from '@/components/ui/button'
+import { Pencil, Trash2 } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import {
   Table,
@@ -119,14 +130,18 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null)
 
   const isMaster = user?.isAdmin === true || user?.role === 'Admin'
+  const isColaborador = user?.role === 'Colaborador'
+  const canManageUsers = isMaster || isColaborador
 
   useEffect(() => {
-    if (isAuthenticated && !isMaster) {
+    if (isAuthenticated && !canManageUsers) {
       navigate('/dashboard')
     }
-  }, [isAuthenticated, isMaster, navigate])
+  }, [isAuthenticated, canManageUsers, navigate])
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -158,10 +173,10 @@ export default function AdminUsers() {
   }
 
   useEffect(() => {
-    if (isMaster) {
+    if (canManageUsers) {
       fetchUsers()
     }
-  }, [isMaster])
+  }, [canManageUsers])
 
   useRealtime(
     'users',
@@ -176,22 +191,31 @@ export default function AdminUsers() {
         setUsers((prev) => prev.filter((u) => u.id !== e.record.id))
       }
     },
-    isMaster,
+    canManageUsers,
   )
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      // Generate a secure random password for the pending user.
-      // They will set their own password via the verification flow.
-      const randomPassword = Math.random().toString(36).slice(-10) + 'A1!a'
-      await createUser({
-        ...values,
-        isAdmin: values.role === 'Admin',
-        password: randomPassword,
-        passwordConfirm: randomPassword,
-      })
-      toast.success('Usuário convidado com sucesso. Ele já pode se registrar.')
+      if (editingId) {
+        await updateUser(editingId, {
+          ...values,
+          isAdmin: values.role === 'Admin',
+        })
+        toast.success('Usuário atualizado com sucesso.')
+      } else {
+        // Generate a secure random password for the pending user.
+        // They will set their own password via the verification flow.
+        const randomPassword = Math.random().toString(36).slice(-10) + 'A1!a'
+        await createUser({
+          ...values,
+          isAdmin: values.role === 'Admin',
+          password: randomPassword,
+          passwordConfirm: randomPassword,
+        })
+        toast.success('Usuário convidado com sucesso. Ele já pode se registrar.')
+      }
       setOpen(false)
+      setEditingId(null)
       form.reset()
       fetchUsers()
     } catch (error: any) {
@@ -230,7 +254,41 @@ export default function AdminUsers() {
       u.legal_name?.toLowerCase().includes(search.toLowerCase()),
   )
 
-  if (!isMaster) return null
+  const handleDeleteUser = async () => {
+    if (!deleteUserId) return
+    try {
+      await deleteUser(deleteUserId)
+      toast.success('Usuário excluído com sucesso.')
+      fetchUsers()
+    } catch (error) {
+      toast.error('Erro ao excluir usuário.')
+    } finally {
+      setDeleteUserId(null)
+    }
+  }
+
+  const handleEditClick = (u: User) => {
+    setEditingId(u.id)
+    form.reset({
+      name: u.name,
+      email: u.email,
+      tax_id: u.tax_id,
+      role: u.role,
+      person_type: u.person_type,
+      phone: u.phone || '',
+      legal_name: u.legal_name || '',
+      address: u.address || '',
+    })
+    setOpen(true)
+  }
+
+  if (!canManageUsers) return null
+
+  const canEditOrDelete = (u: User) => {
+    if (isMaster) return u.role === 'Colaborador' || u.role === 'Fornecedor'
+    if (isColaborador) return u.role === 'Fornecedor'
+    return false
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -244,19 +302,29 @@ export default function AdminUsers() {
         <Dialog
           open={open}
           onOpenChange={(o) => {
-            if (!o) form.reset()
+            if (!o) {
+              form.reset({
+                name: '',
+                email: '',
+                tax_id: '',
+                role: 'Colaborador',
+                person_type: 'PJ',
+                phone: '',
+                legal_name: '',
+                address: '',
+              })
+              setEditingId(null)
+            }
             setOpen(o)
           }}
         >
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Novo Usuário
-            </Button>
-          </DialogTrigger>
+          <Button onClick={() => setOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Usuário
+          </Button>
           <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Cadastrar Novo Usuário</DialogTitle>
+              <DialogTitle>{editingId ? 'Editar Usuário' : 'Cadastrar Novo Usuário'}</DialogTitle>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -416,7 +484,9 @@ export default function AdminUsers() {
                 />
 
                 <div className="pt-4 flex justify-end">
-                  <Button type="submit">Salvar Usuário</Button>
+                  <Button type="submit">
+                    {editingId ? 'Atualizar Usuário' : 'Salvar Usuário'}
+                  </Button>
                 </div>
               </form>
             </Form>
@@ -441,6 +511,7 @@ export default function AdminUsers() {
               <TableHead>E-mail</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>CNPJ/CPF</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -480,12 +551,55 @@ export default function AdminUsers() {
                     </Badge>
                   </TableCell>
                   <TableCell>{u.tax_id}</TableCell>
+                  <TableCell className="text-right">
+                    {canEditOrDelete(u) && (
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditClick(u)}
+                          title="Editar"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setDeleteUserId(u.id)}
+                          className="text-destructive"
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
       </div>
+
+      <AlertDialog open={!!deleteUserId} onOpenChange={(o) => !o && setDeleteUserId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Usuário</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
