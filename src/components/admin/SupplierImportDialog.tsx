@@ -57,20 +57,52 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
     setStats(null)
 
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
+      const text = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
-        reader.onload = (e) => resolve((e.target?.result as string).split(',')[1])
+        reader.onload = (e) => {
+          const result = e.target?.result
+          if (typeof result === 'string') {
+            resolve(result)
+          } else {
+            reject(new Error('Falha ao ler o arquivo'))
+          }
+        }
         reader.onerror = reject
-        reader.readAsDataURL(file)
+        reader.readAsText(file)
       })
 
-      const parseRes = await pb.send('/backend/v1/suppliers/parse-excel', {
-        method: 'POST',
-        body: JSON.stringify({ data: base64 }),
+      const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '')
+      if (lines.length < 2) throw new Error('O arquivo está vazio ou sem dados válidos')
+
+      let headerIdx = 0
+      for (let i = 0; i < lines.length; i++) {
+        if (
+          lines[i].includes('Código') &&
+          (lines[i].includes('CNPJ/CPF') || lines[i].includes('E-mail'))
+        ) {
+          headerIdx = i
+          break
+        }
+      }
+
+      const delimiter = lines[headerIdx].includes(';') ? ';' : ','
+      const headers = lines[headerIdx].split(delimiter).map((h) => {
+        let clean = h.trim().replace(/^[\uFEFF"']+|["']+$/g, '')
+        clean = clean.replace(/^Relatório de colaboradores:\s*/i, '').trim()
+        return clean
       })
 
-      const rows = parseRes.rows
-      if (!rows || rows.length === 0) throw new Error('A planilha está vazia')
+      const rows: Record<string, string>[] = []
+      for (let i = headerIdx + 1; i < lines.length; i++) {
+        const values = lines[i].split(delimiter).map((v) => v.trim().replace(/^["']+|["']+$/g, ''))
+        const row: Record<string, string> = {}
+        headers.forEach((h, idx) => {
+          row[h] = values[idx] || ''
+        })
+        rows.push(row)
+      }
+
+      if (rows.length === 0) throw new Error('O arquivo não contém dados de fornecedores')
 
       const reqCols = [
         'Código',
@@ -179,9 +211,7 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
           <DialogTitle>Importar Fornecedores</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="text-sm text-muted-foreground">
-            Importe fornecedores via Excel (.xlsx, .xls) ou CSV.
-          </div>
+          <div className="text-sm text-muted-foreground">Importe fornecedores via arquivo CSV.</div>
           <Button variant="link" className="p-0 h-auto" onClick={downloadTemplate}>
             <Download className="mr-2 w-4 h-4" /> Baixar modelo
           </Button>
@@ -189,7 +219,7 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
           {!importing && !stats && (
             <Input
               type="file"
-              accept=".xlsx,.xls,.csv"
+              accept=".csv"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
             />
           )}
