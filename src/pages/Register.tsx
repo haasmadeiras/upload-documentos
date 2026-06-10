@@ -151,10 +151,14 @@ export default function Register() {
       })
       setStep('success')
     } catch (err: any) {
+      const data = err.response?.data || {}
+      const msgs = Object.values(data).map((d: any) => d.message)
+      const errorMsg = msgs.length > 0 ? msgs.join(' ') : err.message || 'Erro ao criar conta'
+
       toast({
         variant: 'destructive',
         title: 'Erro',
-        description: err.message || 'Erro ao criar conta',
+        description: errorMsg,
       })
     } finally {
       setIsLoading(false)
