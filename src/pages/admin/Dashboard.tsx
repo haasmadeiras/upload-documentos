@@ -22,6 +22,7 @@ export default function Dashboard() {
     collaborators: 0,
     pendingDocs: 0,
     forestAreas: 0,
+    expiringDocs: 0,
   })
 
   const [recentDocs, setRecentDocs] = useState<any[]>([])
@@ -30,17 +31,36 @@ export default function Dashboard() {
 
   const loadMetrics = useCallback(async () => {
     try {
-      const [suppliersRes, collabRes, pendingDocsRes, forestRes] = await Promise.all([
+      const [suppliersRes, collabRes, pendingDocsRes, forestRes, docsAllRes] = await Promise.all([
         pb.collection('suppliers').getList(1, 1),
         pb.collection('users').getList(1, 1, { filter: "role = 'Colaborador'" }),
         pb.collection('documents').getList(1, 1, { filter: "status = 'Pending'" }),
         pb.collection('forest_areas').getList(1, 1),
+        pb.collection('documents').getFullList({ expand: 'definition' }),
       ])
+
+      const now = new Date()
+      const next30Days = new Date()
+      next30Days.setDate(now.getDate() + 30)
+
+      let expiringDocsCount = 0
+      docsAllRes.forEach((doc) => {
+        const validityDays = doc.expand?.definition?.validity_days
+        if (validityDays) {
+          const expiryDate = new Date(doc.created)
+          expiryDate.setDate(expiryDate.getDate() + validityDays)
+          if (expiryDate >= now && expiryDate <= next30Days) {
+            expiringDocsCount++
+          }
+        }
+      })
+
       setMetrics({
         suppliers: suppliersRes.totalItems || 0,
         collaborators: collabRes.totalItems || 0,
         pendingDocs: pendingDocsRes.totalItems || 0,
         forestAreas: forestRes.totalItems || 0,
+        expiringDocs: expiringDocsCount,
       })
     } catch (error) {
       console.error('Error loading metrics', error)
@@ -49,6 +69,7 @@ export default function Dashboard() {
         collaborators: 0,
         pendingDocs: 0,
         forestAreas: 0,
+        expiringDocs: 0,
       })
     }
   }, [])
@@ -137,7 +158,7 @@ export default function Dashboard() {
         <p className="text-muted-foreground mt-2">Visão geral do sistema e atividades recentes.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -182,6 +203,17 @@ export default function Dashboard() {
             <div className="text-2xl font-bold text-emerald-600">{metrics.forestAreas}</div>
           </CardContent>
         </Card>
+        <Card className="border-none shadow-sm bg-white">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Docs a Vencer
+            </CardTitle>
+            <FileWarning className="w-4 h-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">{metrics.expiringDocs}</div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -209,9 +241,7 @@ export default function Dashboard() {
                     {recentDocs.map((doc) => (
                       <TableRow key={doc.id}>
                         <TableCell className="font-medium">{doc.title}</TableCell>
-                        <TableCell>
-                          {doc.expand?.user?.name || doc.expand?.user?.email || 'N/A'}
-                        </TableCell>
+                        <TableCell>{doc.expand?.user?.name || 'N/A'}</TableCell>
                         <TableCell className="text-muted-foreground text-sm">
                           {format(new Date(doc.created), 'dd/MM/yyyy HH:mm')}
                         </TableCell>
@@ -243,7 +273,7 @@ export default function Dashboard() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Ação</TableHead>
-                      <TableHead>Admin</TableHead>
+                      <TableHead>Usuário</TableHead>
                       <TableHead>Data</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -253,11 +283,7 @@ export default function Dashboard() {
                         <TableCell className="font-medium">
                           <Badge variant="outline">{log.action}</Badge>
                         </TableCell>
-                        <TableCell>
-                          {log.expand?.admin_user?.name ||
-                            log.expand?.admin_user?.email ||
-                            'Sistema'}
-                        </TableCell>
+                        <TableCell>{log.expand?.admin_user?.name || 'Sistema'}</TableCell>
                         <TableCell className="text-muted-foreground text-sm">
                           {format(new Date(log.created), 'dd/MM/yyyy HH:mm')}
                         </TableCell>

@@ -94,7 +94,7 @@ export default function AdminAuditLogs() {
             <TableHeader>
               <TableRow>
                 <TableHead>Data / Hora</TableHead>
-                <TableHead>Administrador</TableHead>
+                <TableHead>Usuário</TableHead>
                 <TableHead>Ação</TableHead>
                 <TableHead>Usuário Afetado</TableHead>
                 <TableHead>Detalhes</TableHead>
@@ -120,10 +120,12 @@ export default function AdminAuditLogs() {
                       {format(new Date(log.created), 'dd/MM/yyyy HH:mm:ss')}
                     </TableCell>
                     <TableCell>
-                      {log.expand?.admin_user?.name || log.admin_user}
-                      <div className="text-xs text-muted-foreground">
-                        {log.expand?.admin_user?.email}
-                      </div>
+                      {log.expand?.admin_user?.name || 'Sistema'}
+                      {log.expand?.admin_user?.email && (
+                        <div className="text-xs text-muted-foreground">
+                          {log.expand?.admin_user?.email}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>{getActionBadge(log.action)}</TableCell>
                     <TableCell>
