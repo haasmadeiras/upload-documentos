@@ -121,10 +121,10 @@ export default function AdminPendingDocuments() {
     }
     try {
       await pb.collection('documents').update(selectedDoc.id, {
-        status: 'Solicitar Correção',
+        status: 'Aguardando Aprovação',
         rejection_reason: rejectionReason,
       })
-      toast.success('Correção solicitada com sucesso!')
+      toast.success('Status atualizado para Aguardando Aprovação!')
       setIsRejectOpen(false)
       setSelectedDoc(null)
       setRejectionReason('')
@@ -275,21 +275,19 @@ export default function AdminPendingDocuments() {
                     <ZoomIn className="w-4 h-4" />
                   </Button>
                 </div>
-                <div className="flex-1 overflow-auto p-4 flex">
-                  <img
-                    src={pb.files.getUrl(selectedDoc, selectedDoc.file, { thumb: '1000x0' })}
-                    alt="Document Preview"
-                    style={{
-                      margin: 'auto',
-                      width: `${zoom * 100}%`,
-                      maxWidth: zoom <= 1 ? '100%' : 'none',
-                      maxHeight: zoom <= 1 ? '100%' : 'none',
-                      height: 'auto',
-                      objectFit: 'contain',
-                      transition: 'width 0.2s ease-in-out',
-                    }}
-                    className="bg-white rounded shadow-md"
-                  />
+                <div className="flex-1 overflow-auto p-4 flex relative bg-slate-200/50">
+                  <div className="m-auto flex items-center justify-center min-h-full min-w-full">
+                    <img
+                      src={pb.files.getUrl(selectedDoc, selectedDoc.file, { thumb: '1000x0' })}
+                      alt="Document Preview"
+                      style={{
+                        transform: `scale(${zoom})`,
+                        transformOrigin: 'center',
+                        transition: 'transform 0.2s ease-in-out',
+                      }}
+                      className="bg-white rounded shadow-md max-w-full max-h-full object-contain"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -333,7 +331,7 @@ export default function AdminPendingDocuments() {
               </Button>
               <div className="flex gap-2">
                 <Button variant="destructive" onClick={() => setIsRejectOpen(true)}>
-                  <X className="w-4 h-4 mr-2" /> Solicitar Correção
+                  <X className="w-4 h-4 mr-2" /> Aguardando Aprovação
                 </Button>
                 <Button
                   onClick={() => handleApprove(selectedDoc)}
@@ -350,10 +348,8 @@ export default function AdminPendingDocuments() {
       <Dialog open={isRejectOpen} onOpenChange={setIsRejectOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Solicitar Correção</DialogTitle>
-            <DialogDescription>
-              Informe o motivo para que o fornecedor corrija o documento.
-            </DialogDescription>
+            <DialogTitle>Aguardando Aprovação</DialogTitle>
+            <DialogDescription>Informe o motivo ou orientação para o documento.</DialogDescription>
           </DialogHeader>
           <Textarea
             placeholder="Ex: CNPJ Divergente, Documento Ilegível..."
@@ -366,7 +362,7 @@ export default function AdminPendingDocuments() {
               Cancelar
             </Button>
             <Button variant="destructive" onClick={handleReject}>
-              Confirmar Solicitação
+              Confirmar
             </Button>
           </DialogFooter>
         </DialogContent>

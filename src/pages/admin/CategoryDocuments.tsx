@@ -26,6 +26,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString()
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { getForestAreas, ForestArea } from '@/services/forest_areas'
 import {
@@ -86,7 +87,7 @@ function PdfViewer({ url, scale }: { url: string; scale: number }) {
     let renderTask: any = null
     const render = async () => {
       try {
-        const viewport = pdfPage.getViewport({ scale: 1.5 * scale })
+        const viewport = pdfPage.getViewport({ scale: 1.5 })
         const canvas = canvasRef.current
         const context = canvas?.getContext('2d')
         if (!canvas || !context) return
@@ -111,8 +112,7 @@ function PdfViewer({ url, scale }: { url: string; scale: number }) {
     return () => {
       if (renderTask) renderTask.cancel()
     }
-  }, [pdfPage, scale])
-
+  }, [pdfPage])
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-4 text-center">
@@ -127,11 +127,10 @@ function PdfViewer({ url, scale }: { url: string; scale: number }) {
   return (
     <canvas
       ref={canvasRef}
-      className="shadow-md bg-white transition-all duration-200 ease-in-out"
+      className="shadow-md bg-white transition-transform duration-200 ease-in-out"
       style={{
-        maxWidth: scale <= 1 ? '100%' : 'none',
-        maxHeight: scale <= 1 ? '100%' : 'none',
-        objectFit: 'contain',
+        transform: `scale(${scale})`,
+        transformOrigin: 'center',
       }}
     />
   )
@@ -199,33 +198,31 @@ function FileViewer({ doc }: { doc: any }) {
         </div>
       )}
 
-      <div className="flex-1 overflow-auto p-4 flex">
-        {isImage ? (
-          <img
-            src={url}
-            alt="Documento"
-            className="shadow-md bg-white transition-all duration-200 ease-in-out"
-            style={{
-              margin: 'auto',
-              width: `${scale * 100}%`,
-              maxWidth: scale <= 1 ? '100%' : 'none',
-              maxHeight: scale <= 1 ? '100%' : 'none',
-              height: 'auto',
-              objectFit: 'contain',
-            }}
-          />
-        ) : isPdf ? (
-          <div className="m-auto">
+      <div className="flex-1 overflow-auto p-4 flex items-center justify-center relative bg-slate-100">
+        <div className="min-h-full min-w-full flex items-center justify-center">
+          {isImage ? (
+            <img
+              src={url}
+              alt="Documento"
+              className="shadow-md bg-white transition-transform duration-200 ease-in-out max-w-full max-h-full object-contain"
+              style={{
+                transform: `scale(${scale})`,
+                transformOrigin: 'center',
+              }}
+            />
+          ) : isPdf ? (
             <PdfViewer url={url} scale={scale} />
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full p-4 text-center m-auto">
-            <p className="text-sm text-destructive mb-2 font-medium">Erro ao renderizar prévia.</p>
-            <p className="text-xs text-muted-foreground">
-              Por favor, utilize o botão de Download abaixo.
-            </p>
-          </div>
-        )}
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full p-4 text-center m-auto">
+              <p className="text-sm text-destructive mb-2 font-medium">
+                Erro ao renderizar prévia.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Por favor, utilize o botão de Download abaixo.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -247,6 +244,11 @@ export default function AdminCategoryDocuments() {
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const [rejectionReason, setRejectionReason] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
+  const [manualData, setManualData] = useState({
+    cnpj: '',
+    razao_social: '',
+    issuance_date: '',
+  })
 
   const canReview = user?.role === 'Admin' || user?.role === 'Colaborador'
 
@@ -279,6 +281,12 @@ export default function AdminCategoryDocuments() {
     if (selectedDoc) {
       setRejectionReason(selectedDoc.rejection_reason || '')
       setSelectedStatus(selectedDoc.status || 'Pending')
+      const ex = selectedDoc.analysis_log?.extracted || {}
+      setManualData({
+        cnpj: ex.cnpj || '',
+        razao_social: ex.razao_social || ex.razaoSocial || '',
+        issuance_date: ex.issuance_date || ex.data_emissao || ex.dataEmissao || '',
+      })
     }
   }, [selectedDoc])
 
@@ -295,7 +303,8 @@ export default function AdminCategoryDocuments() {
 
   const handleUpdateStatus = async () => {
     if (!selectedDoc) return
-    const requiresReason = selectedStatus === 'Rejected' || selectedStatus === 'Solicitar Correção'
+    const requiresReason =
+      selectedStatus === 'Rejected' || selectedStatus === 'Aguardando Aprovação'
     if (requiresReason && !rejectionReason.trim()) {
       toast.error('Por favor, informe o motivo.')
       return
@@ -303,9 +312,20 @@ export default function AdminCategoryDocuments() {
 
     try {
       setActionLoading(true)
+
+      const currentLog = selectedDoc.analysis_log || {}
+      const updatedLog = {
+        ...currentLog,
+        extracted: {
+          ...currentLog.extracted,
+          ...manualData,
+        },
+      }
+
       await updateDocument(selectedDoc.id, {
         status: selectedStatus,
         rejection_reason: requiresReason ? rejectionReason : '',
+        analysis_log: updatedLog,
       })
       toast.success('Status do documento atualizado com sucesso!')
       setSelectedDoc(null)
@@ -586,40 +606,53 @@ export default function AdminCategoryDocuments() {
                               </span>
                               <ul className="space-y-0 text-sm border rounded-lg bg-white dark:bg-slate-950 divide-y">
                                 {[
-                                  { label: 'CNPJ', value: extracted.cnpj },
-                                  {
-                                    label: 'Razão Social',
-                                    value: extracted.razao_social || extracted.razaoSocial,
-                                  },
-                                  {
-                                    label: 'Data de Emissão',
-                                    value:
-                                      extracted.issuance_date ||
-                                      extracted.data_emissao ||
-                                      extracted.dataEmissao,
-                                  },
+                                  { label: 'CNPJ', field: 'cnpj' as const },
+                                  { label: 'Razão Social', field: 'razao_social' as const },
+                                  { label: 'Data de Emissão', field: 'issuance_date' as const },
                                 ].map((item) => {
+                                  const originalValue =
+                                    extracted[item.field] ||
+                                    (item.field === 'razao_social'
+                                      ? extracted.razaoSocial
+                                      : item.field === 'issuance_date'
+                                        ? extracted.data_emissao || extracted.dataEmissao
+                                        : null)
                                   const isPresent =
-                                    item.value !== null &&
-                                    item.value !== undefined &&
-                                    item.value !== '' &&
-                                    String(item.value).toUpperCase() !== 'NÃO IDENTIFICADO'
+                                    originalValue !== null &&
+                                    originalValue !== undefined &&
+                                    originalValue !== '' &&
+                                    String(originalValue).toUpperCase() !== 'NÃO IDENTIFICADO' &&
+                                    String(originalValue).toUpperCase() !== 'NULL'
+
                                   return (
                                     <li key={item.label} className="flex flex-col px-4 py-3">
                                       <span className="text-muted-foreground text-xs mb-1">
                                         {item.label}
                                       </span>
-                                      <div className="flex items-center gap-2">
+                                      <div className="flex flex-col gap-2">
                                         {isPresent ? (
                                           <span className="font-medium text-sm text-foreground">
-                                            {String(item.value)}
+                                            {String(originalValue)}
                                           </span>
                                         ) : (
-                                          <div className="flex items-center text-amber-500">
-                                            <AlertTriangle className="w-4 h-4 mr-1.5 shrink-0" />
-                                            <span className="text-sm italic font-medium">
-                                              Não identificado
-                                            </span>
+                                          <div className="flex flex-col gap-1.5">
+                                            <div className="flex items-center text-amber-500">
+                                              <AlertTriangle className="w-4 h-4 mr-1.5 shrink-0" />
+                                              <span className="text-xs italic font-medium">
+                                                Não identificado (Preenchimento Manual)
+                                              </span>
+                                            </div>
+                                            <Input
+                                              value={manualData[item.field]}
+                                              onChange={(e) =>
+                                                setManualData((prev) => ({
+                                                  ...prev,
+                                                  [item.field]: e.target.value,
+                                                }))
+                                              }
+                                              placeholder={`Digite ${item.label}`}
+                                              className="h-8 text-sm"
+                                            />
                                           </div>
                                         )}
                                       </div>
@@ -650,13 +683,13 @@ export default function AdminCategoryDocuments() {
                         <SelectItem value="Pending">Pendente</SelectItem>
                         <SelectItem value="Approved">Aprovado</SelectItem>
                         <SelectItem value="Rejected">Rejeitado</SelectItem>
-                        <SelectItem value="Solicitar Correção">Solicitar Correção</SelectItem>
+                        <SelectItem value="Aguardando Aprovação">Aguardando Aprovação</SelectItem>
                         <SelectItem value="Vencido">Vencido</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
-                  {(selectedStatus === 'Rejected' || selectedStatus === 'Solicitar Correção') && (
+                  {(selectedStatus === 'Rejected' || selectedStatus === 'Aguardando Aprovação') && (
                     <div className="space-y-2 animate-fade-in-up">
                       <Label className="text-destructive font-medium">Motivo</Label>
                       <textarea

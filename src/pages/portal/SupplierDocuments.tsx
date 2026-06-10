@@ -153,7 +153,7 @@ export default function SupplierDocuments() {
                         ? 'Visualizar ou Reenviar'
                         : status === 'missing' ||
                             status === 'rejected' ||
-                            status === 'solicitar correção' ||
+                            status === 'aguardando aprovação' ||
                             status === 'vencido'
                           ? 'Fazer Upload'
                           : 'Visualizar'}

@@ -132,10 +132,10 @@ export default function Dashboard() {
             Pendente
           </Badge>
         )
-      case 'Solicitar Correção':
+      case 'Aguardando Aprovação':
         return (
           <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100/80 border-none">
-            Solicitar Correção
+            Aguardando Aprovação
           </Badge>
         )
       case 'Vencido':

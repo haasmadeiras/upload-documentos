@@ -23,14 +23,16 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     norm === 'correction required' ||
     norm === 'aguardando correção' ||
     norm === 'solicitar correção' ||
-    norm === 'solicitar_correcao'
+    norm === 'solicitar_correcao' ||
+    norm === 'aguardando aprovação' ||
+    norm === 'aguardando_aprovacao'
   ) {
     return (
       <Badge
         variant="outline"
         className="bg-amber-50 text-amber-600 border-amber-200 gap-1.5 font-medium"
       >
-        <RefreshCw className="w-3.5 h-3.5" /> Aguardando Correção
+        <RefreshCw className="w-3.5 h-3.5" /> Aguardando Aprovação
       </Badge>
     )
   }
