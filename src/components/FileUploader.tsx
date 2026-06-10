@@ -38,9 +38,29 @@ export function FileUploader({ onFileSelect, file, accept = '.pdf,.jpg,.png' }: 
   }
 
   const handleFileSelection = (selectedFile: File) => {
-    const extension = selectedFile.name.substring(selectedFile.name.lastIndexOf('.')).toLowerCase()
-    if (!accept.includes(extension)) {
-      alert('Formato de arquivo inválido.')
+    const extension = `.${selectedFile.name.split('.').pop()?.toLowerCase()}`
+    const mime = selectedFile.type.toLowerCase()
+
+    const acceptedTypes = accept.split(',').map((t) => t.trim().toLowerCase())
+    let isValid = false
+
+    for (const type of acceptedTypes) {
+      if (type.startsWith('.')) {
+        if (extension === type) isValid = true
+      } else {
+        if (mime === type) isValid = true
+        // Handle generic mime types like image/*
+        if (type.endsWith('/*') && mime.startsWith(type.replace('/*', ''))) isValid = true
+      }
+    }
+
+    // specific check for PDF which is often required
+    if (acceptedTypes.includes('.pdf') || acceptedTypes.includes('application/pdf')) {
+      if (extension === '.pdf' || mime === 'application/pdf') isValid = true
+    }
+
+    if (!isValid) {
+      alert(`Formato de arquivo inválido. Aceitos: ${accept}`)
       return
     }
     onFileSelect(selectedFile)
@@ -67,7 +87,7 @@ export function FileUploader({ onFileSelect, file, accept = '.pdf,.jpg,.png' }: 
               <span className="font-semibold text-foreground">Clique para fazer upload</span> ou
               arraste o arquivo
             </p>
-            <p className="text-xs text-muted-foreground">PDF, PNG, JPG (Max 10MB)</p>
+            <p className="text-xs text-muted-foreground">Formatos aceitos: {accept} (Max 10MB)</p>
           </div>
           <input
             type="file"
