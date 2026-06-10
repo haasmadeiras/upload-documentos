@@ -100,19 +100,6 @@ const formSchema = z
         path: ['tax_id'],
       })
     }
-
-    if (
-      data.active &&
-      data.role === 'Fornecedor' &&
-      data.person_type === 'PJ' &&
-      (!data.legal_name || data.legal_name.trim().length === 0)
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Razão Social é obrigatória para Fornecedor PJ',
-        path: ['legal_name'],
-      })
-    }
   })
 
 function maskPhone(value: string) {
@@ -545,10 +532,8 @@ export default function AdminUsers() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          Razão Social{' '}
-                          {roleValue !== 'Fornecedor' || personTypeValue === 'PF' ? (
-                            <span className="text-muted-foreground font-normal">(Opcional)</span>
-                          ) : null}
+                          Razão Social
+                          <span className="text-muted-foreground font-normal ml-1">(Opcional)</span>
                         </FormLabel>
                         <FormControl>
                           <Input

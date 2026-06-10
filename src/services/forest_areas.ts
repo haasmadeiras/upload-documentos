@@ -6,12 +6,19 @@ export interface ForestArea {
   registration_number: string
   location: string
   user: string
+  supplier?: string
+  start_date?: string
+  end_date?: string
+  is_active?: boolean
   created: string
   updated: string
   expand?: {
     user?: {
       name: string
       email: string
+    }
+    supplier?: {
+      name: string
     }
   }
 }

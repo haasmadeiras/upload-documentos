@@ -19,6 +19,7 @@ import {
 } from '@/services/suppliers'
 import { getForestAreas, ForestArea } from '@/services/forest_areas'
 import { useRealtime } from '@/hooks/use-realtime'
+import pb from '@/lib/pocketbase/client'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -120,6 +121,7 @@ export default function AdminSuppliers() {
   const [importOpen, setImportOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [deleteSupplierId, setDeleteSupplierId] = useState<string | null>(null)
+  const [forestHistory, setForestHistory] = useState<ForestArea[]>([])
 
   const uniqueUfs = Array.from(new Set(suppliers.map((s) => s.uf).filter(Boolean))).sort()
 
@@ -238,9 +240,22 @@ export default function AdminSuppliers() {
     }
   }
 
+  const fetchForestHistory = async (supplierId: string) => {
+    try {
+      const history = await pb.collection('forest_areas').getFullList<ForestArea>({
+        filter: `supplier="${supplierId}"`,
+        sort: '-start_date',
+      })
+      setForestHistory(history)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   const handleOpenDialog = (s?: Supplier) => {
     if (s) {
       setEditingId(s.id)
+      fetchForestHistory(s.id)
       form.reset({
         name: s.name || '',
         email: s.email || '',
@@ -262,6 +277,7 @@ export default function AdminSuppliers() {
       })
     } else {
       setEditingId(null)
+      setForestHistory([])
       form.reset({
         name: '',
         email: '',
@@ -620,6 +636,42 @@ export default function AdminSuppliers() {
                 </div>
               </form>
             </Form>
+
+            {editingId && forestHistory.length > 0 && (
+              <div className="mt-8 border-t pt-6">
+                <h3 className="text-lg font-semibold mb-4">Histórico de Florestas</h3>
+                <div className="space-y-3">
+                  {forestHistory.map((fh) => (
+                    <div key={fh.id} className="p-3 border rounded-md bg-muted/20">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium">{fh.name}</span>
+                        {fh.is_active ? (
+                          <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-medium">
+                            Ativo
+                          </span>
+                        ) : (
+                          <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">
+                            Inativo
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        <p>
+                          <span className="font-medium">Período:</span>{' '}
+                          {fh.start_date ? new Date(fh.start_date).toLocaleDateString() : 'N/A'} -{' '}
+                          {fh.end_date ? new Date(fh.end_date).toLocaleDateString() : 'Atual'}
+                        </p>
+                        {fh.location && (
+                          <p>
+                            <span className="font-medium">Localização:</span> {fh.location}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>

@@ -127,10 +127,6 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
       if (colMap.email === -1)
         throw new Error(`Erro: Coluna E-mail não localizada no arquivo ${extStr}`)
 
-      const allForests = await pb.collection('forest_areas').getFullList({ fields: 'id,name' })
-      const forestMap = new Map<string, string>()
-      allForests.forEach((f) => forestMap.set(f.name.toLowerCase().trim(), f.id))
-
       const rows: Record<string, string>[] = []
       for (let i = headerIdx + 1; i < rowsRaw.length; i++) {
         const row = rowsRaw[i]
@@ -195,48 +191,7 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
               if (cep) fullAddressArr.push(`CEP: ${cep}`)
               const locationStr = fullAddressArr.join(', ')
 
-              let forestId = forestName ? forestMap.get(forestName.toLowerCase()) : undefined
-
-              if (forestName) {
-                let userIdForForest = null
-                try {
-                  const userRecord = await pb
-                    .collection('users')
-                    .getFirstListItem(`tax_id="${taxId}"`)
-                  userIdForForest = userRecord.id
-                } catch {
-                  /* intentionally ignored */
-                }
-
-                if (!forestId) {
-                  try {
-                    const newForest = await pb.collection('forest_areas').create({
-                      name: forestName,
-                      location: locationStr,
-                      user: userIdForForest || null,
-                    })
-                    forestId = newForest.id
-                    forestMap.set(forestName.toLowerCase(), forestId)
-                    forestsCreated++
-                    forestsLinked++
-                  } catch (err: any) {
-                    errors.push(`Linha ${i + 2}: Erro ao criar Floresta - ${err.message}`)
-                  }
-                } else {
-                  forestsLinked++
-                  if (userIdForForest) {
-                    try {
-                      await pb
-                        .collection('forest_areas')
-                        .update(forestId, { user: userIdForForest })
-                    } catch {
-                      /* intentionally ignored */
-                    }
-                  }
-                }
-              }
-
-              const payload = {
+              const payload: any = {
                 tax_id: taxId,
                 person_type: personType,
                 email,
@@ -246,21 +201,74 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
                 cep,
                 municipio,
                 uf,
-                forest_area: forestId || null,
-                floresta_info: forestId ? '' : forestName,
+                floresta_info: forestName,
                 controle_florestal: String(row.controle || '').trim(),
                 external_code: String(row.codigo || '').trim(),
               }
 
+              let supplierId = ''
               try {
                 const existing = await pb
                   .collection('suppliers')
                   .getFirstListItem(`tax_id="${taxId}"`)
                 await pb.collection('suppliers').update(existing.id, payload)
+                supplierId = existing.id
                 updated++
               } catch {
-                await pb.collection('suppliers').create(payload)
+                const newSupplier = await pb.collection('suppliers').create(payload)
+                supplierId = newSupplier.id
                 created++
+              }
+
+              if (forestName && supplierId) {
+                try {
+                  const activeForests = await pb.collection('forest_areas').getFullList({
+                    filter: `supplier="${supplierId}" && is_active=true`,
+                  })
+                  const currentActive = activeForests[0]
+
+                  let newActiveId = currentActive?.id
+
+                  if (currentActive) {
+                    if (currentActive.name.toLowerCase().trim() !== forestName.toLowerCase()) {
+                      await pb.collection('forest_areas').update(currentActive.id, {
+                        is_active: false,
+                        end_date: new Date().toISOString(),
+                      })
+                      const newForest = await pb.collection('forest_areas').create({
+                        name: forestName,
+                        location: locationStr,
+                        supplier: supplierId,
+                        start_date: new Date().toISOString(),
+                        is_active: true,
+                      })
+                      newActiveId = newForest.id
+                      forestsCreated++
+                      forestsLinked++
+                    }
+                  } else {
+                    const newForest = await pb.collection('forest_areas').create({
+                      name: forestName,
+                      location: locationStr,
+                      supplier: supplierId,
+                      start_date: new Date().toISOString(),
+                      is_active: true,
+                    })
+                    newActiveId = newForest.id
+                    forestsCreated++
+                    forestsLinked++
+                  }
+
+                  if (newActiveId) {
+                    await pb
+                      .collection('suppliers')
+                      .update(supplierId, { forest_area: newActiveId })
+                  }
+                } catch (err: any) {
+                  errors.push(`Linha ${i + 2}: Erro ao vincular Floresta - ${err.message}`)
+                }
+              } else if (!forestName && supplierId) {
+                errors.push(`Linha ${i + 2}: Aviso - Nenhuma floresta informada para ${taxId}`)
               }
             } catch (err: any) {
               errors.push(`Linha ${i + 2}: Erro ao salvar - ${err.message || 'Erro interno'}`)
