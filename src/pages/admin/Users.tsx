@@ -11,6 +11,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { format } from 'date-fns'
 
 import { getUsers, createUser, updateUser, deleteUser, User } from '@/services/users'
+import { getSuppliers } from '@/services/suppliers'
 import { formatCPF, formatCNPJ, isValidCPF, isValidCNPJ } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -313,8 +314,23 @@ export default function AdminUsers() {
     }
   }
 
-  const handleEditClick = (u: User) => {
+  const handleEditClick = async (u: User) => {
     setEditingId(u.id)
+
+    let supplierData: any = u.expand?.supplier
+
+    if (!supplierData && u.role === 'Fornecedor' && u.tax_id) {
+      try {
+        const cleanTaxId = u.tax_id.replace(/\D/g, '')
+        const suppliers = await getSuppliers(`tax_id = '${cleanTaxId}' || tax_id = '${u.tax_id}'`)
+        if (suppliers.length > 0) {
+          supplierData = suppliers[0]
+        }
+      } catch (e) {
+        console.error('Failed to fetch supplier by tax_id', e)
+      }
+    }
+
     form.reset({
       name: u.name || '',
       email: u.email || '',
@@ -322,8 +338,8 @@ export default function AdminUsers() {
       role: u.role,
       person_type: u.person_type,
       phone: u.phone || '',
-      legal_name: u.legal_name || u.expand?.supplier?.legal_name || '',
-      address: u.address || '',
+      legal_name: u.legal_name || supplierData?.legal_name || '',
+      address: u.address || supplierData?.address || '',
       active: u.active ?? true,
     })
     setOpen(true)
