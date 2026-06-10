@@ -15,6 +15,9 @@ import {
   AlertTriangle,
   ExternalLink,
   Download,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
 } from 'lucide-react'
 import * as pdfjsLib from 'pdfjs-dist'
 
@@ -53,26 +56,40 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
-function PdfViewer({ url }: { url: string }) {
+function PdfViewer({ url, scale }: { url: string; scale: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [error, setError] = useState(false)
+  const [pdfPage, setPdfPage] = useState<any>(null)
 
   useEffect(() => {
-    let renderTask: any = null
-
-    async function renderPdf() {
+    let active = true
+    async function loadPdf() {
       try {
         setError(false)
         const loadingTask = pdfjsLib.getDocument(url)
         const pdf = await loadingTask.promise
         const page = await pdf.getPage(1)
+        if (active) setPdfPage(page)
+      } catch (err) {
+        console.error('Error rendering PDF:', err)
+        if (active) setError(true)
+      }
+    }
+    loadPdf()
+    return () => {
+      active = false
+    }
+  }, [url])
 
-        const viewport = page.getViewport({ scale: 1.5 })
+  useEffect(() => {
+    if (!pdfPage || !canvasRef.current) return
+    let renderTask: any = null
+    const render = async () => {
+      try {
+        const viewport = pdfPage.getViewport({ scale: 1.5 * scale })
         const canvas = canvasRef.current
-        if (!canvas) return
-
-        const context = canvas.getContext('2d')
-        if (!context) return
+        const context = canvas?.getContext('2d')
+        if (!canvas || !context) return
 
         canvas.height = viewport.height
         canvas.width = viewport.width
@@ -82,20 +99,19 @@ function PdfViewer({ url }: { url: string }) {
           viewport: viewport,
         }
 
-        renderTask = page.render(renderContext)
+        renderTask = pdfPage.render(renderContext)
         await renderTask.promise
-      } catch (err) {
-        console.error('Error rendering PDF:', err)
-        setError(true)
+      } catch (err: any) {
+        if (err.name !== 'RenderingCancelledException') {
+          console.error(err)
+        }
       }
     }
-
-    renderPdf()
-
+    render()
     return () => {
       if (renderTask) renderTask.cancel()
     }
-  }, [url])
+  }, [pdfPage, scale])
 
   if (error) {
     return (
@@ -109,20 +125,28 @@ function PdfViewer({ url }: { url: string }) {
   }
 
   return (
-    <div className="w-full h-full overflow-auto flex justify-center bg-gray-100 p-4">
-      <canvas ref={canvasRef} className="max-w-full h-auto object-contain shadow-md" />
-    </div>
+    <canvas
+      ref={canvasRef}
+      className="shadow-md bg-white transition-all"
+      style={{
+        maxWidth: scale <= 1 ? '100%' : 'none',
+        maxHeight: scale <= 1 ? '100%' : 'none',
+        objectFit: 'contain',
+      }}
+    />
   )
 }
 
 function FileViewer({ doc }: { doc: any }) {
   const [url, setUrl] = useState<string>('')
   const [loading, setLoading] = useState(true)
+  const [scale, setScale] = useState(1)
 
   useEffect(() => {
     async function loadUrl() {
       if (!doc) return
       setLoading(true)
+      setScale(1)
       try {
         const token = await pb.files.getToken()
         setUrl(pb.files.getUrl(doc, doc.file, { token }))
@@ -147,21 +171,59 @@ function FileViewer({ doc }: { doc: any }) {
 
   const isImage = !!doc?.file?.match(/\.(jpg|jpeg|png|gif|webp)$/i)
   const isPdf = !!doc?.file?.match(/\.(pdf)$/i)
-
-  if (isImage) {
-    return <img src={url} alt="Documento" className="w-full h-full object-contain" />
-  }
-
-  if (isPdf) {
-    return <PdfViewer url={url} />
-  }
+  const canZoom = isImage || isPdf
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-      <p className="text-sm text-destructive mb-2 font-medium">Erro ao renderizar prévia.</p>
-      <p className="text-xs text-muted-foreground">
-        Por favor, utilize o botão de Download abaixo.
-      </p>
+    <div className="relative w-full h-full flex flex-col bg-slate-100 overflow-hidden">
+      {canZoom && (
+        <div className="absolute top-2 right-2 z-10 flex gap-1 bg-background/90 p-1 rounded-md shadow-sm border backdrop-blur-sm">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-8 h-8"
+            onClick={() => setScale((s) => Math.max(s - 0.25, 0.25))}
+          >
+            <ZoomOut className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => setScale(1)}>
+            <Maximize className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-8 h-8"
+            onClick={() => setScale((s) => Math.min(s + 0.5, 5))}
+          >
+            <ZoomIn className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-auto flex items-center justify-center p-4">
+        {isImage ? (
+          <img
+            src={url}
+            alt="Documento"
+            className="shadow-md bg-white transition-all"
+            style={{
+              width: scale <= 1 ? '100%' : `${scale * 100}%`,
+              height: scale <= 1 ? '100%' : 'auto',
+              objectFit: scale <= 1 ? 'contain' : 'initial',
+              maxWidth: scale <= 1 ? '100%' : 'none',
+              maxHeight: scale <= 1 ? '100%' : 'none',
+            }}
+          />
+        ) : isPdf ? (
+          <PdfViewer url={url} scale={scale} />
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+            <p className="text-sm text-destructive mb-2 font-medium">Erro ao renderizar prévia.</p>
+            <p className="text-xs text-muted-foreground">
+              Por favor, utilize o botão de Download abaixo.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -522,14 +584,23 @@ export default function AdminCategoryDocuments() {
                               <ul className="space-y-0 text-sm border rounded-lg bg-white dark:bg-slate-950 divide-y">
                                 {[
                                   { label: 'CNPJ', value: extracted.cnpj },
-                                  { label: 'Razão Social', value: extracted.razao_social },
-                                  { label: 'Data de Emissão', value: extracted.issuance_date },
-                                  { label: 'Valor', value: extracted.valor || extracted.value },
+                                  {
+                                    label: 'Razão Social',
+                                    value: extracted.razao_social || extracted.razaoSocial,
+                                  },
+                                  {
+                                    label: 'Data de Emissão',
+                                    value:
+                                      extracted.issuance_date ||
+                                      extracted.data_emissao ||
+                                      extracted.dataEmissao,
+                                  },
                                 ].map((item) => {
                                   const isPresent =
                                     item.value !== null &&
                                     item.value !== undefined &&
-                                    item.value !== ''
+                                    item.value !== '' &&
+                                    String(item.value).toUpperCase() !== 'NÃO IDENTIFICADO'
                                   return (
                                     <li key={item.label} className="flex flex-col px-4 py-3">
                                       <span className="text-muted-foreground text-xs mb-1">
