@@ -7,8 +7,11 @@ export function ProtectedRoute({ adminOnly = false }: { adminOnly?: boolean }) {
 
   if (loading) {
     return (
-      <div className="flex h-[50vh] w-full items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex h-screen w-full items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+          <p className="text-sm text-slate-500">Verificando sessão...</p>
+        </div>
       </div>
     )
   }
@@ -21,7 +24,7 @@ export function ProtectedRoute({ adminOnly = false }: { adminOnly?: boolean }) {
     const isAdminOrColab =
       user.isAdmin === true || user.role === 'Admin' || user.role === 'Colaborador'
     if (!isAdminOrColab) {
-      return <Navigate to="/portal" replace />
+      return <Navigate to="/dashboard" replace />
     }
   }
 

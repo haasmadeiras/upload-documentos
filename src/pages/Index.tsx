@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/use-auth'
 import logoUrl from '@/assets/image-bb79d.png'
 import pb from '@/lib/pocketbase/client'
 import { toast } from 'sonner'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export default function Index() {
   const { signIn, isAuthenticated, user, loading } = useAuth()
@@ -31,7 +32,7 @@ export default function Index() {
     if (isAuthenticated && user && !loading) {
       const isAdminOrColab =
         user.isAdmin === true || user.role === 'Admin' || user.role === 'Colaborador'
-      navigate(isAdminOrColab ? '/admin' : '/dashboard')
+      navigate(isAdminOrColab ? '/admin' : '/dashboard', { replace: true })
     }
   }, [isAuthenticated, user, loading, navigate])
 
@@ -57,12 +58,22 @@ export default function Index() {
       const { error: signInError } = await signIn(email.trim(), password)
 
       if (signInError) {
-        if (signInError.status === 0) {
+        const errorMsg = getErrorMessage(signInError)
+        if (signInError.status === 0 || errorMsg.toLowerCase().includes('failed to fetch')) {
           setError('Erro de conexão. Verifique sua internet e tente novamente.')
         } else {
           setError('Credenciais inválidas. Verifique seu e-mail e senha.')
         }
+      } else {
+        const record = pb.authStore.record
+        if (record) {
+          const isAdminOrColab =
+            record.isAdmin === true || record.role === 'Admin' || record.role === 'Colaborador'
+          navigate(isAdminOrColab ? '/admin' : '/dashboard', { replace: true })
+        }
       }
+    } catch (err: any) {
+      setError('Erro inesperado ao realizar login.')
     } finally {
       setIsSubmitting(false)
     }
