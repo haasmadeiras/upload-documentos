@@ -17,6 +17,7 @@ import {
   Supplier,
 } from '@/services/suppliers'
 import { getForestAreas, ForestArea } from '@/services/forest_areas'
+import { useRealtime } from '@/hooks/use-realtime'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -57,6 +58,9 @@ const formSchema = z
     external_code: z.string().optional(),
     forest_area: z.string().optional(),
     controle_florestal: z.string().optional(),
+    cep: z.string().optional(),
+    municipio: z.string().optional(),
+    uf: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     const taxIdClean = data.tax_id.replace(/\D/g, '')
@@ -120,6 +124,7 @@ export default function AdminSuppliers() {
   const [open, setOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   const isMaster = user?.isAdmin === true || user?.role === 'Admin' || user?.role === 'Colaborador'
 
@@ -138,6 +143,9 @@ export default function AdminSuppliers() {
       person_type: 'PJ',
       phone: '',
       legal_name: '',
+      cep: '',
+      municipio: '',
+      uf: '',
     },
   })
 
@@ -162,8 +170,17 @@ export default function AdminSuppliers() {
     }
   }, [isMaster])
 
+  useRealtime(
+    'suppliers',
+    () => {
+      if (isMaster) fetchSuppliers()
+    },
+    isMaster,
+  )
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
+      setIsSaving(true)
       const payload: Partial<Supplier> = {
         name: values.name,
         email: values.email,
@@ -175,11 +192,14 @@ export default function AdminSuppliers() {
         external_code: values.external_code,
         forest_area: values.forest_area === 'none' ? null : values.forest_area || null,
         controle_florestal: values.controle_florestal,
+        cep: values.cep,
+        municipio: values.municipio,
+        uf: values.uf,
       }
 
       if (editingId) {
         await updateSupplier(editingId, payload)
-        toast.success('Fornecedor atualizado com sucesso')
+        toast.success('Fornecedor atualizado com sucesso!')
       } else {
         await createSupplier(payload)
         toast.success('Fornecedor pré-cadastrado com sucesso')
@@ -197,6 +217,8 @@ export default function AdminSuppliers() {
       } else {
         toast.error('Erro ao salvar fornecedor')
       }
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -230,6 +252,9 @@ export default function AdminSuppliers() {
         external_code: s.external_code || '',
         forest_area: s.forest_area || '',
         controle_florestal: s.controle_florestal || '',
+        cep: s.cep || '',
+        municipio: s.municipio || '',
+        uf: s.uf || '',
       })
     } else {
       setEditingId(null)
@@ -244,6 +269,9 @@ export default function AdminSuppliers() {
         external_code: '',
         forest_area: '',
         controle_florestal: '',
+        cep: '',
+        municipio: '',
+        uf: '',
       })
     }
     setOpen(true)
@@ -415,6 +443,60 @@ export default function AdminSuppliers() {
                   />
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="cep"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>CEP</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="00000-000"
+                            {...field}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/\D/g, '')
+                              field.onChange(raw.replace(/^(\d{5})(\d)/, '$1-$2').slice(0, 9))
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="municipio"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Município</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Cidade" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="uf"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>UF</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="SP"
+                            maxLength={2}
+                            {...field}
+                            onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -490,7 +572,9 @@ export default function AdminSuppliers() {
                 </div>
 
                 <div className="pt-4 flex justify-end">
-                  <Button type="submit">Salvar Fornecedor</Button>
+                  <Button type="submit" disabled={isSaving}>
+                    {isSaving ? 'Salvando...' : 'Salvar Fornecedor'}
+                  </Button>
                 </div>
               </form>
             </Form>
