@@ -18,6 +18,16 @@ import {
 } from '@/services/suppliers'
 import { getForestAreas, ForestArea } from '@/services/forest_areas'
 import { useRealtime } from '@/hooks/use-realtime'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -121,10 +131,15 @@ export default function AdminSuppliers() {
   const [forests, setForests] = useState<ForestArea[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [ufFilter, setUfFilter] = useState('all')
+  const [forestFilter, setForestFilter] = useState('all')
   const [open, setOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [deleteSupplierId, setDeleteSupplierId] = useState<string | null>(null)
+
+  const uniqueUfs = Array.from(new Set(suppliers.map((s) => s.uf).filter(Boolean))).sort()
 
   const isMaster = user?.isAdmin === true || user?.role === 'Admin' || user?.role === 'Colaborador'
 
@@ -222,19 +237,16 @@ export default function AdminSuppliers() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (
-      !confirm(
-        'Deseja excluir este fornecedor? Usuários já vinculados não serão apagados, mas a relação será perdida.',
-      )
-    )
-      return
+  const handleDelete = async () => {
+    if (!deleteSupplierId) return
     try {
-      await deleteSupplier(id)
+      await deleteSupplier(deleteSupplierId)
       toast.success('Excluído com sucesso')
       fetchSuppliers()
     } catch (err) {
       toast.error('Erro ao excluir')
+    } finally {
+      setDeleteSupplierId(null)
     }
   }
 
@@ -277,13 +289,21 @@ export default function AdminSuppliers() {
     setOpen(true)
   }
 
-  const filtered = suppliers.filter(
-    (s) =>
+  const filtered = suppliers.filter((s) => {
+    const matchSearch =
       s.name.toLowerCase().includes(search.toLowerCase()) ||
       s.email.toLowerCase().includes(search.toLowerCase()) ||
       s.tax_id?.includes(search.replace(/\D/g, '')) ||
-      s.legal_name?.toLowerCase().includes(search.toLowerCase()),
-  )
+      s.legal_name?.toLowerCase().includes(search.toLowerCase())
+
+    const matchUf = ufFilter === 'all' || s.uf === ufFilter
+    const matchForest =
+      forestFilter === 'all' ||
+      s.forest_area === forestFilter ||
+      (forestFilter === 'none' && !s.forest_area)
+
+    return matchSearch && matchUf && matchForest
+  })
 
   if (!isMaster) return null
 
@@ -582,13 +602,44 @@ export default function AdminSuppliers() {
         </Dialog>
       </div>
 
-      <div className="flex items-center gap-2 max-w-md">
-        <Search className="w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por nome, e-mail ou documento..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="flex flex-col md:flex-row gap-4 items-end">
+        <div className="flex-1 flex items-center gap-2 max-w-md w-full">
+          <Search className="w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome, e-mail ou documento..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-2 w-full md:w-auto">
+          <Select value={ufFilter} onValueChange={setUfFilter}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Estado (UF)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Estados</SelectItem>
+              {uniqueUfs.map((uf) => (
+                <SelectItem key={uf} value={uf}>
+                  {uf}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={forestFilter} onValueChange={setForestFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Área Florestal" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as Florestas</SelectItem>
+              <SelectItem value="none">Nenhuma</SelectItem>
+              {forests.map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  {f.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <Card>
@@ -638,7 +689,7 @@ export default function AdminSuppliers() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(s.id)}
+                          onClick={() => setDeleteSupplierId(s.id)}
                           className="text-destructive hover:text-destructive hover:bg-destructive/10"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -652,6 +703,26 @@ export default function AdminSuppliers() {
           </Table>
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!deleteSupplierId} onOpenChange={(o) => !o && setDeleteSupplierId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Fornecedor</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este fornecedor? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

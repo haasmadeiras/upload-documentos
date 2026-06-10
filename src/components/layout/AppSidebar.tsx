@@ -7,6 +7,7 @@ import {
   Users,
   UserCog,
   LogOut,
+  History,
   ChevronRight,
   FileText,
   Truck,
@@ -73,6 +74,7 @@ export function AppSidebar() {
   const masterItems = [
     { title: 'Dashboard', url: '/admin', icon: LayoutDashboard },
     { title: 'Usuários', url: '/admin/users', icon: UserCog },
+    { title: 'Auditoria', url: '/admin/audit-logs', icon: History },
     { title: 'Regras de Documentos', url: '/admin/config', icon: Settings },
     {
       title: 'Documentos por Categoria',

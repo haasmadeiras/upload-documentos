@@ -11,7 +11,8 @@ import { useRealtime } from '@/hooks/use-realtime'
 
 import { getUsers, createUser, updateUser, deleteUser, User } from '@/services/users'
 import { Button } from '@/components/ui/button'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, ShieldAlert } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,6 +66,7 @@ const formSchema = z
     phone: z.string().optional(),
     legal_name: z.string().optional(),
     address: z.string().optional(),
+    active: z.boolean().default(true),
   })
   .superRefine((data, ctx) => {
     const taxIdClean = data.tax_id.replace(/\D/g, '')
@@ -154,6 +156,7 @@ export default function AdminUsers() {
       phone: '',
       legal_name: '',
       address: '',
+      active: true,
     },
   })
 
@@ -278,6 +281,7 @@ export default function AdminUsers() {
       phone: u.phone || '',
       legal_name: u.legal_name || '',
       address: u.address || '',
+      active: u.active ?? true,
     })
     setOpen(true)
   }
@@ -312,6 +316,7 @@ export default function AdminUsers() {
                 phone: '',
                 legal_name: '',
                 address: '',
+                active: true,
               })
               setEditingId(null)
             }
@@ -483,6 +488,27 @@ export default function AdminUsers() {
                   )}
                 />
 
+                <FormField
+                  control={form.control}
+                  name="active"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 mt-2">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base flex items-center gap-2">
+                          <ShieldAlert className="w-4 h-4 text-muted-foreground" />
+                          Conta Ativa
+                        </FormLabel>
+                        <p className="text-sm text-muted-foreground">
+                          Desative esta opção para bloquear o acesso do usuário ao sistema.
+                        </p>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
                 <div className="pt-4 flex justify-end">
                   <Button type="submit">
                     {editingId ? 'Atualizar Usuário' : 'Salvar Usuário'}
@@ -510,6 +536,7 @@ export default function AdminUsers() {
               <TableHead>Nome</TableHead>
               <TableHead>E-mail</TableHead>
               <TableHead>Role</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>CNPJ/CPF</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
@@ -548,6 +575,14 @@ export default function AdminUsers() {
                       }
                     >
                       {u.role || (u.isAdmin ? 'Admin' : 'N/A')}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={u.active !== false ? 'default' : 'secondary'}
+                      className={u.active !== false ? 'bg-emerald-500 hover:bg-emerald-600' : ''}
+                    >
+                      {u.active !== false ? 'Ativo' : 'Inativo'}
                     </Badge>
                   </TableCell>
                   <TableCell>{u.tax_id}</TableCell>

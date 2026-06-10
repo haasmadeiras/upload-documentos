@@ -11,6 +11,7 @@ export interface User {
   phone?: string
   legal_name?: string
   address?: string
+  active: boolean
   created: string
   updated: string
 }

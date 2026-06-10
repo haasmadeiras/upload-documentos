@@ -20,7 +20,8 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
   const [importing, setImporting] = useState(false)
   const [progress, setProgress] = useState(0)
   const [stats, setStats] = useState<{
-    success: number
+    created: number
+    updated: number
     skipped: number
     total: number
     errors: string[]
@@ -148,7 +149,8 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
         })
       }
 
-      let success = 0
+      let created = 0
+      let updated = 0
       let skipped = 0
       const errors: string[] = []
 
@@ -199,10 +201,11 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
                   .collection('suppliers')
                   .getFirstListItem(`tax_id="${taxId}"`)
                 await pb.collection('suppliers').update(existing.id, payload)
+                updated++
               } catch {
                 await pb.collection('suppliers').create(payload)
+                created++
               }
-              success++
             } catch (err: any) {
               errors.push(`Linha ${i + 2}: Erro ao salvar - ${err.message || 'Erro interno'}`)
               skipped++
@@ -215,8 +218,8 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
         }
       }
 
-      setStats({ success, skipped, total: rows.length, errors })
-      toast.success(`Importação concluída: ${success} fornecedores adicionados com sucesso.`)
+      setStats({ created, updated, skipped, total: rows.length, errors })
+      toast.success(`Importação concluída: ${created} criados, ${updated} atualizados.`)
       onSuccess()
     } catch (error: any) {
       toast.error(error.message || 'Erro ao processar o arquivo')
@@ -276,7 +279,8 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
                 <AlertTitle>Importação Concluída</AlertTitle>
                 <AlertDescription>
                   <ul className="mt-2 text-sm list-disc list-inside">
-                    <li>Sucesso: {stats.success} (atualizados/criados)</li>
+                    <li>Criados: {stats.created}</li>
+                    <li>Atualizados: {stats.updated}</li>
                     <li>Ignorados/Erros: {stats.skipped}</li>
                   </ul>
                 </AlertDescription>
