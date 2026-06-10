@@ -19,3 +19,7 @@ export const createDocument = async (formData: FormData) => {
 export const updateDocument = async (id: string, formData: FormData) => {
   return await pb.collection('documents').update(id, formData)
 }
+
+export const deleteDocument = async (id: string) => {
+  return await pb.collection('documents').delete(id)
+}

@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
-import { FileWarning, Loader2, ArrowLeft } from 'lucide-react'
+import { FileWarning, Loader2, ArrowLeft, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import pb from '@/lib/pocketbase/client'
+import { toast } from 'sonner'
+import { useRealtime } from '@/hooks/use-realtime'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
   Table,
@@ -32,26 +34,44 @@ export default function AdminPendingDocuments() {
     }
   }, [isAuthenticated, isMaster, navigate])
 
-  useEffect(() => {
-    const fetchPendingDocs = async () => {
-      try {
-        const records = await pb.collection('documents').getFullList({
-          filter: "status = 'Pending'",
-          expand: 'supplier,definition,user',
-          sort: '-created',
-        })
-        setDocuments(records)
-      } catch (error) {
-        console.error('Error fetching pending documents:', error)
-      } finally {
-        setLoading(false)
-      }
+  const fetchPendingDocs = async () => {
+    try {
+      const records = await pb.collection('documents').getFullList({
+        filter: "status = 'Pending'",
+        expand: 'supplier,definition,user',
+        sort: '-created',
+      })
+      setDocuments(records)
+    } catch (error) {
+      console.error('Error fetching pending documents:', error)
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     if (isMaster) {
       fetchPendingDocs()
     }
   }, [isMaster])
+
+  useRealtime('documents', () => {
+    if (isMaster) {
+      fetchPendingDocs()
+    }
+  })
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este documento?')) return
+    try {
+      await pb.collection('documents').delete(id)
+      setDocuments((prev) => prev.filter((doc) => doc.id !== id))
+      toast.success('Documento excluído com sucesso')
+    } catch (error) {
+      console.error(error)
+      toast.error('Erro ao excluir documento')
+    }
+  }
 
   if (!isMaster) return null
 
@@ -88,12 +108,13 @@ export default function AdminPendingDocuments() {
                 <TableHead>Enviado por</TableHead>
                 <TableHead>Data de Criação</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="w-[80px]">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center h-32">
+                  <TableCell colSpan={6} className="text-center h-32">
                     <div className="flex items-center justify-center">
                       <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
                       <span>Carregando documentos...</span>
@@ -102,7 +123,7 @@ export default function AdminPendingDocuments() {
                 </TableRow>
               ) : documents.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center h-32 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center h-32 text-muted-foreground">
                     Nenhum documento pendente encontrado.
                   </TableCell>
                 </TableRow>
@@ -123,6 +144,16 @@ export default function AdminPendingDocuments() {
                       <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100/80 border-none">
                         Pendente
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDelete(doc.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))

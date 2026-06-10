@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
-import { getDocuments } from '@/services/documents'
+import { getDocuments, deleteDocument } from '@/services/documents'
+import { Trash2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 import { getForestAreas, ForestArea } from '@/services/forest_areas'
 import {
   Table,
@@ -55,6 +58,17 @@ export default function AdminCategoryDocuments() {
   }, [loadData])
 
   useRealtime('documents', loadData)
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este documento?')) return
+    try {
+      await deleteDocument(id)
+      toast.success('Documento excluído com sucesso')
+    } catch (error) {
+      console.error(error)
+      toast.error('Erro ao excluir documento')
+    }
+  }
 
   const filteredDocs = documents.filter((d) => {
     const matchSupplier = selectedSupplier === 'all' || d.user === selectedSupplier
@@ -116,19 +130,20 @@ export default function AdminCategoryDocuments() {
               <TableHead>Fornecedor</TableHead>
               <TableHead>Área Florestal</TableHead>
               <TableHead>Data de Envio</TableHead>
+              <TableHead className="w-[80px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   Carregando...
                 </TableCell>
               </TableRow>
             )}
             {!loading && filteredDocs.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   Nenhum registro encontrado
                 </TableCell>
               </TableRow>
@@ -154,6 +169,16 @@ export default function AdminCategoryDocuments() {
                 <TableCell>{doc.expand?.user?.name || doc.expand?.user?.email || '-'}</TableCell>
                 <TableCell>{doc.expand?.forest_area?.name || '-'}</TableCell>
                 <TableCell>{new Date(doc.created).toLocaleDateString()}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => handleDelete(doc.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
