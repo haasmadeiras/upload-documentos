@@ -61,8 +61,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       await pb.collection('users').authWithPassword(email, password)
       return { error: null }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Auth Error] SignIn failed:', error)
+      pb.authStore.clear()
       return { error }
     }
   }

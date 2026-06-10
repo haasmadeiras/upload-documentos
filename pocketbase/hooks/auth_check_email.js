@@ -5,7 +5,7 @@ routerAdd('POST', '/backend/v1/auth/check-email', (e) => {
 
   try {
     const record = $app.findAuthRecordByEmail('users', email)
-    const hasPassword = record.passwordHash() !== ''
+    const hasPassword = record.getString('passwordHash') !== ''
     const isAdmin = record.getBool('isAdmin') || record.getString('role') === 'Admin'
     return e.json(200, { exists: true, hasPassword, isAdmin })
   } catch (_) {

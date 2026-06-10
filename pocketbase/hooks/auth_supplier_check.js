@@ -4,19 +4,7 @@ routerAdd('GET', '/backend/v1/auth/supplier-check', (e) => {
 
   if (!taxIdClean) return e.badRequestError('Documento inválido.')
 
-  let supplier
-  try {
-    supplier = $app.findFirstRecordByData('suppliers', 'tax_id', taxIdClean)
-  } catch (_) {}
-
-  if (!supplier) {
-    return e.json(200, {
-      exists: false,
-      message: 'Fornecedor não pré-cadastrado. Entre em contato com o suporte.',
-    })
-  }
-
-  let user
+  let user = null
   try {
     user = $app.findFirstRecordByData('users', 'tax_id', taxIdClean)
   } catch (_) {}
@@ -26,6 +14,19 @@ routerAdd('GET', '/backend/v1/auth/supplier-check', (e) => {
       exists: true,
       hasUser: true,
       message: 'Usuário já cadastrado com este documento.',
+    })
+  }
+
+  let supplier = null
+  try {
+    supplier = $app.findFirstRecordByData('suppliers', 'tax_id', taxIdClean)
+  } catch (_) {}
+
+  if (!supplier) {
+    return e.json(200, {
+      exists: false,
+      hasUser: false,
+      message: 'Fornecedor não pré-cadastrado. Entre em contato com o suporte.',
     })
   }
 

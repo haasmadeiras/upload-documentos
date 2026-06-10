@@ -44,18 +44,33 @@ export default function Index() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!email.trim() || !password.trim()) {
+      setError('Por favor, preencha todos os campos.')
+      return
+    }
+
     setError('')
     setIsSubmitting(true)
-    const { error: signInError } = await signIn(email, password)
-    if (signInError) {
-      setError('Credenciais inválidas. Verifique seu e-mail e senha.')
+
+    try {
+      const { error: signInError } = await signIn(email.trim(), password)
+
+      if (signInError) {
+        if (signInError.status === 0) {
+          setError('Erro de conexão. Verifique sua internet e tente novamente.')
+        } else {
+          setError('Credenciais inválidas. Verifique seu e-mail e senha.')
+        }
+      }
+    } finally {
       setIsSubmitting(false)
     }
   }
 
   const handleForgotInit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email) return setError('Informe seu e-mail.')
+    if (!email.trim()) return setError('Informe seu e-mail.')
     setError('')
     setIsSubmitting(true)
     try {
