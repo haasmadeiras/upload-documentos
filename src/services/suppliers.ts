@@ -13,14 +13,23 @@ export interface Supplier {
   cep?: string
   municipio?: string
   uf?: string
+  forest_area?: string
   floresta_info?: string
   controle_florestal?: string
   created: string
   updated: string
+  expand?: {
+    forest_area?: {
+      id: string
+      name: string
+    }
+  }
 }
 
 export const getSuppliers = (filter?: string) =>
-  pb.collection('suppliers').getFullList<Supplier>({ sort: '-created', filter })
+  pb
+    .collection('suppliers')
+    .getFullList<Supplier>({ sort: '-created', expand: 'forest_area', filter })
 
 export const createSupplier = (data: Partial<Supplier>) =>
   pb.collection('suppliers').create<Supplier>(data)

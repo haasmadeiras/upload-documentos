@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-10T13:42:52.849Z",
+  "generatedAt": "2026-06-10T13:53:05.331Z",
   "collections": [
     {
       "name": "users",
@@ -753,6 +753,13 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "forest_area",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "forest_areas"
         }
       ],
       "indexes": []

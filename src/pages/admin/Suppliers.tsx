@@ -16,6 +16,7 @@ import {
   deleteSupplier,
   Supplier,
 } from '@/services/suppliers'
+import { getForestAreas, ForestArea } from '@/services/forest_areas'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -54,6 +55,8 @@ const formSchema = z
     legal_name: z.string().optional(),
     address: z.string().optional(),
     external_code: z.string().optional(),
+    forest_area: z.string().optional(),
+    controle_florestal: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     const taxIdClean = data.tax_id.replace(/\D/g, '')
@@ -111,6 +114,7 @@ export default function AdminSuppliers() {
   const { user, isAuthenticated } = useAuth()
   const navigate = useNavigate()
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [forests, setForests] = useState<ForestArea[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
@@ -142,8 +146,9 @@ export default function AdminSuppliers() {
   const fetchSuppliers = async () => {
     try {
       setLoading(true)
-      const data = await getSuppliers()
+      const [data, fData] = await Promise.all([getSuppliers(), getForestAreas()])
       setSuppliers(data)
+      setForests(fData)
     } catch (error) {
       toast.error('Erro ao carregar fornecedores')
     } finally {
@@ -168,6 +173,8 @@ export default function AdminSuppliers() {
         legal_name: values.legal_name,
         address: values.address,
         external_code: values.external_code,
+        forest_area: values.forest_area === 'none' ? null : values.forest_area || null,
+        controle_florestal: values.controle_florestal,
       }
 
       if (editingId) {
@@ -221,6 +228,8 @@ export default function AdminSuppliers() {
         legal_name: s.legal_name || '',
         address: s.address || '',
         external_code: s.external_code || '',
+        forest_area: s.forest_area || '',
+        controle_florestal: s.controle_florestal || '',
       })
     } else {
       setEditingId(null)
@@ -233,6 +242,8 @@ export default function AdminSuppliers() {
         legal_name: '',
         address: '',
         external_code: '',
+        forest_area: '',
+        controle_florestal: '',
       })
     }
     setOpen(true)
@@ -437,6 +448,47 @@ export default function AdminSuppliers() {
                   />
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="forest_area"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Floresta (Opcional)</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || undefined}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione a floresta" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">Nenhuma</SelectItem>
+                            {forests.map((f) => (
+                              <SelectItem key={f.id} value={f.id}>
+                                {f.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="controle_florestal"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Controle Florestal (Opcional)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Código de controle" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
                 <div className="pt-4 flex justify-end">
                   <Button type="submit">Salvar Fornecedor</Button>
                 </div>
@@ -463,7 +515,7 @@ export default function AdminSuppliers() {
                 <TableHead>Nome / Razão Social</TableHead>
                 <TableHead>Email Autorizado</TableHead>
                 <TableHead>CPF/CNPJ</TableHead>
-                <TableHead>Tipo</TableHead>
+                <TableHead>Floresta</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -491,7 +543,9 @@ export default function AdminSuppliers() {
                     </TableCell>
                     <TableCell>{s.email}</TableCell>
                     <TableCell>{maskTaxId(s.tax_id, s.person_type)}</TableCell>
-                    <TableCell>{s.person_type}</TableCell>
+                    <TableCell>
+                      {s.expand?.forest_area ? s.expand.forest_area.name : s.floresta_info || '-'}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(s)}>

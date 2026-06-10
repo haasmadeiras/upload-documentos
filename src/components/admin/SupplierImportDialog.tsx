@@ -99,7 +99,7 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
 
       const colMap = {
         codigo: headers.findIndex((h) => h === 'codigo'),
-        razao: headers.findIndex((h) => h.includes('razao')),
+        razao: headers.findIndex((h) => h.includes('razao') || h.includes('nome')),
         fantasia: headers.findIndex((h) => h.includes('fantasia') || h.includes('apelido')),
         endereco: headers.findIndex((h) => h === 'endereco'),
         cep: headers.findIndex((h) => h === 'cep'),
@@ -117,12 +117,16 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
 
       if (colMap.codigo === -1)
         throw new Error(`Erro: Coluna Código não localizada no arquivo ${extStr}`)
-      if (colMap.fantasia === -1)
-        throw new Error(`Erro: Coluna Fantasia/Apelido não localizada no arquivo ${extStr}`)
+      if (colMap.razao === -1 && colMap.fantasia === -1)
+        throw new Error(`Erro: Colunas de Nome/Razão não localizadas no arquivo ${extStr}`)
       if (colMap.doc === -1)
         throw new Error(`Erro: Coluna CNPJ/CPF não localizada no arquivo ${extStr}`)
       if (colMap.email === -1)
         throw new Error(`Erro: Coluna E-mail não localizada no arquivo ${extStr}`)
+
+      const allForests = await pb.collection('forest_areas').getFullList({ fields: 'id,name' })
+      const forestMap = new Map<string, string>()
+      allForests.forEach((f) => forestMap.set(f.name.toLowerCase().trim(), f.id))
 
       const rows: Record<string, string>[] = []
       for (let i = headerIdx + 1; i < rowsRaw.length; i++) {
@@ -169,20 +173,23 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
           } else {
             try {
               const personType = taxId.length === 14 ? 'PJ' : 'PF'
-              const name = String(row.fantasia || '').trim()
-              const legalName = String(row.razao || '').trim()
+              const razao = String(row.razao || '').trim()
+              const fantasia = String(row.fantasia || '').trim()
+              const forestName = String(row.floresta || '').trim()
+              const forestId = forestName ? forestMap.get(forestName.toLowerCase()) : undefined
 
               const payload = {
                 tax_id: taxId,
                 person_type: personType,
                 email,
-                name: name || legalName || 'Sem Nome',
-                legal_name: legalName,
+                name: razao || fantasia || 'Sem Nome',
+                legal_name: fantasia,
                 address: String(row.endereco || '').trim(),
                 cep: String(row.cep || '').trim(),
                 municipio: String(row.municipio || '').trim(),
                 uf: String(row.uf || '').trim(),
-                floresta_info: String(row.floresta || '').trim(),
+                forest_area: forestId || null,
+                floresta_info: forestId ? '' : forestName,
                 controle_florestal: String(row.controle || '').trim(),
                 external_code: String(row.codigo || '').trim(),
               }
