@@ -37,8 +37,17 @@ function FileViewer({ doc }: { doc: any }) {
   const [url, setUrl] = useState<string>('')
 
   useEffect(() => {
-    if (!doc) return
-    setUrl(pb.files.getUrl(doc, doc.file))
+    async function loadUrl() {
+      if (!doc) return
+      try {
+        const token = await pb.files.getToken()
+        setUrl(pb.files.getUrl(doc, doc.file, { token }))
+      } catch (err) {
+        console.error('Error getting file token', err)
+        setUrl(pb.files.getUrl(doc, doc.file))
+      }
+    }
+    loadUrl()
   }, [doc])
 
   if (!url) {
@@ -285,9 +294,9 @@ export default function AdminCategoryDocuments() {
       <Dialog open={!!selectedDoc} onOpenChange={(open) => !open && setSelectedDoc(null)}>
         <DialogContent className="max-w-6xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
           <DialogHeader className="p-6 pb-4 border-b shrink-0">
-            <DialogTitle className="text-xl">Revisão de Documento</DialogTitle>
-            <DialogDescription className="text-base font-medium text-foreground">
-              {selectedDoc?.title || selectedDoc?.expand?.definition?.name}
+            <DialogTitle className="text-xl font-bold">Revisão de Documento</DialogTitle>
+            <DialogDescription className="text-base text-foreground mt-1">
+              Upload: {selectedDoc?.title || selectedDoc?.expand?.definition?.name}
             </DialogDescription>
           </DialogHeader>
 
@@ -321,8 +330,9 @@ export default function AdminCategoryDocuments() {
 
                   <div>
                     <h4 className="text-sm text-muted-foreground mb-1">Fornecedor Responsável</h4>
-                    <p className="text-sm font-medium">
-                      {selectedDoc?.expand?.supplier?.name ||
+                    <p className="text-sm font-bold uppercase">
+                      {selectedDoc?.expand?.supplier?.legal_name ||
+                        selectedDoc?.expand?.supplier?.name ||
                         selectedDoc?.expand?.user?.name ||
                         selectedDoc?.expand?.user?.email ||
                         '-'}
@@ -331,8 +341,10 @@ export default function AdminCategoryDocuments() {
                 </div>
 
                 <div className="flex-1 flex flex-col min-h-[200px]">
-                  <h4 className="text-sm font-medium mb-2 shrink-0">Análise da IA de Validação</h4>
-                  <div className="flex-1 bg-slate-50 dark:bg-slate-900 p-4 rounded-md border overflow-y-auto">
+                  <h4 className="text-base font-semibold mb-2 shrink-0">
+                    Análise da IA de Validação
+                  </h4>
+                  <div className="flex-1 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border overflow-y-auto">
                     {selectedDoc?.analysis_log ? (
                       (() => {
                         const log = selectedDoc.analysis_log
@@ -346,104 +358,64 @@ export default function AdminCategoryDocuments() {
                         const extracted = log.extracted || {}
 
                         return (
-                          <div className="space-y-4">
+                          <div className="space-y-5">
                             <div>
                               <span className="text-muted-foreground text-xs block mb-1">
                                 Status da Validação
                               </span>
                               <div className="flex items-center gap-2">
                                 <span
-                                  className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border ${
+                                  className={`inline-flex items-center rounded-full px-3 py-0.5 text-xs font-medium border ${
                                     status === 'Válido'
                                       ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
                                       : status === 'Inválido'
                                         ? 'bg-rose-50 text-rose-600 border-rose-200'
-                                        : 'bg-slate-50 text-slate-600 border-slate-200'
+                                        : 'bg-amber-50 text-amber-600 border-amber-200'
                                   }`}
                                 >
                                   {status}
                                 </span>
                               </div>
                               {log.reason && (
-                                <p className="text-xs text-muted-foreground mt-2 bg-muted p-2 rounded-md border">
+                                <p className="text-xs text-muted-foreground mt-2 bg-white/50 p-2 rounded-md border">
                                   {log.reason}
                                 </p>
                               )}
                             </div>
 
                             <div className="space-y-2">
-                              <span className="text-sm font-medium text-muted-foreground">
+                              <span className="text-sm text-muted-foreground">
                                 Resumo da Análise
                               </span>
-                              <ul className="space-y-0 text-sm border rounded-md bg-white dark:bg-slate-950">
+                              <ul className="space-y-0 text-sm border rounded-lg bg-white dark:bg-slate-950 divide-y">
                                 {[
                                   { label: 'CNPJ', value: extracted.cnpj },
                                   { label: 'Razão Social', value: extracted.razao_social },
                                   { label: 'Data de Emissão', value: extracted.issuance_date },
                                   { label: 'Valor', value: extracted.valor || extracted.value },
-                                ].map((item, idx) => {
+                                ].map((item) => {
                                   const isPresent =
                                     item.value !== null &&
                                     item.value !== undefined &&
                                     item.value !== ''
                                   return (
-                                    <li
-                                      key={item.label}
-                                      className="flex flex-col border-b last:border-b-0 px-3 py-2.5"
-                                    >
-                                      <span className="text-muted-foreground text-xs">
+                                    <li key={item.label} className="flex flex-col px-4 py-3">
+                                      <span className="text-muted-foreground text-xs mb-1">
                                         {item.label}
                                       </span>
-                                      <div className="flex items-center gap-2 mt-1">
+                                      <div className="flex items-center gap-2">
                                         {isPresent ? (
-                                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                                          <span className="font-medium text-sm text-foreground">
+                                            {String(item.value)}
+                                          </span>
                                         ) : (
-                                          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                                          <div className="flex items-center text-amber-500">
+                                            <AlertTriangle className="w-4 h-4 mr-1.5 shrink-0" />
+                                            <span className="text-sm italic font-medium">
+                                              Não identificado
+                                            </span>
+                                          </div>
                                         )}
-                                        <span
-                                          className={`font-medium text-sm ${!isPresent ? 'text-muted-foreground italic' : ''}`}
-                                        >
-                                          {isPresent ? String(item.value) : 'Não identificado'}
-                                        </span>
-                                      </div>
-                                    </li>
-                                  )
-                                })}
-                                {Object.entries(extracted).map(([key, value]) => {
-                                  if (
-                                    [
-                                      'cnpj',
-                                      'issuance_date',
-                                      'razao_social',
-                                      'valor',
-                                      'value',
-                                    ].includes(key.toLowerCase())
-                                  )
-                                    return null
-                                  const formattedKey = key
-                                    .replace(/_/g, ' ')
-                                    .replace(/\b\w/g, (l) => l.toUpperCase())
-                                  const isPresent =
-                                    value !== null && value !== undefined && value !== ''
-                                  return (
-                                    <li
-                                      key={key}
-                                      className="flex flex-col border-b last:border-b-0 px-3 py-2.5"
-                                    >
-                                      <span className="text-muted-foreground text-xs">
-                                        {formattedKey}
-                                      </span>
-                                      <div className="flex items-center gap-2 mt-1">
-                                        {isPresent ? (
-                                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                                        ) : (
-                                          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-                                        )}
-                                        <span
-                                          className={`font-medium text-sm ${!isPresent ? 'text-muted-foreground italic' : ''}`}
-                                        >
-                                          {isPresent ? String(value) : 'Não identificado'}
-                                        </span>
                                       </div>
                                     </li>
                                   )
@@ -494,7 +466,7 @@ export default function AdminCategoryDocuments() {
                     <div className="grid grid-cols-2 gap-3">
                       <Button
                         variant="outline"
-                        className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"
+                        className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950"
                         onClick={() => setShowRejectReason(true)}
                         disabled={actionLoading}
                       >
