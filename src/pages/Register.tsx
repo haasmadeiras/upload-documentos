@@ -8,8 +8,17 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
-import { formatCPF, isValidCPF, formatCNPJ, isValidCNPJ } from '@/lib/utils'
-import { Mail, KeyRound, IdCard, CheckCircle2, Loader2, ArrowLeft, ArrowRight } from 'lucide-react'
+import { formatCPF, isValidCPF, formatCNPJ, isValidCNPJ, cn } from '@/lib/utils'
+import {
+  Mail,
+  KeyRound,
+  IdCard,
+  CheckCircle2,
+  Loader2,
+  ArrowLeft,
+  ArrowRight,
+  AlertCircle,
+} from 'lucide-react'
 import logoUrl from '@/assets/image-bb79d.png'
 
 type PersonType = 'PF' | 'PJ'
@@ -32,6 +41,11 @@ export default function Register() {
   const [personType, setPersonType] = useState<PersonType>('PJ')
   const [supplierId, setSupplierId] = useState('')
   const [supplierName, setSupplierName] = useState('')
+
+  const isTaxIdComplete =
+    personType === 'PF' ? formData.taxId.length === 14 : formData.taxId.length === 18
+  const isTaxIdValid =
+    personType === 'PF' ? isValidCPF(formData.taxId) : isValidCNPJ(formData.taxId)
 
   const [formData, setFormData] = useState({
     taxId: '',
@@ -212,13 +226,31 @@ export default function Register() {
                       <Input
                         id="taxId"
                         placeholder={personType === 'PF' ? '000.000.000-00' : '00.000.000/0000-00'}
-                        className="pl-10 h-11"
+                        className={cn(
+                          'pl-10 h-11 pr-10',
+                          formData.taxId &&
+                            isTaxIdComplete &&
+                            !isTaxIdValid &&
+                            'border-destructive focus-visible:ring-destructive',
+                          formData.taxId &&
+                            isTaxIdValid &&
+                            'border-emerald-500 focus-visible:ring-emerald-500',
+                        )}
                         value={formData.taxId}
                         onChange={handleTaxIdChange}
                         maxLength={personType === 'PF' ? 14 : 18}
                         required
                       />
+                      {formData.taxId && isTaxIdValid && (
+                        <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-emerald-500" />
+                      )}
+                      {formData.taxId && isTaxIdComplete && !isTaxIdValid && (
+                        <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-destructive" />
+                      )}
                     </div>
+                    {formData.taxId && isTaxIdComplete && !isTaxIdValid && !fieldErrors.taxId && (
+                      <p className="text-sm font-medium text-destructive">Documento Inválido</p>
+                    )}
                     {fieldErrors.taxId && (
                       <p className="text-sm font-medium text-destructive">{fieldErrors.taxId}</p>
                     )}

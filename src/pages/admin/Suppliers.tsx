@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Plus, Search, Pencil, Trash2, Upload } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Upload, CheckCircle2, AlertCircle } from 'lucide-react'
+import { cn, formatCPF, formatCNPJ, isValidCPF, isValidCNPJ } from '@/lib/utils'
 import { SupplierImportDialog } from '@/components/admin/SupplierImportDialog'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
@@ -73,18 +74,17 @@ const formSchema = z
     uf: z.string().optional(),
   })
   .superRefine((data, ctx) => {
-    const taxIdClean = data.tax_id.replace(/\D/g, '')
-    if (data.person_type === 'PF' && taxIdClean.length !== 11) {
+    if (data.person_type === 'PF' && !isValidCPF(data.tax_id)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'CPF inválido',
+        message: 'Por favor, insira um CPF válido com a formatação correta.',
         path: ['tax_id'],
       })
     }
-    if (data.person_type === 'PJ' && taxIdClean.length !== 14) {
+    if (data.person_type === 'PJ' && !isValidCNPJ(data.tax_id)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'CNPJ inválido',
+        message: 'Por favor, insira um CNPJ válido com a formatação correta.',
         path: ['tax_id'],
       })
     }
@@ -96,24 +96,6 @@ const formSchema = z
       })
     }
   })
-
-function maskTaxId(value: string, personType: 'PF' | 'PJ') {
-  const raw = value.replace(/\D/g, '')
-  if (personType === 'PF') {
-    return raw
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
-      .slice(0, 14)
-  } else {
-    return raw
-      .replace(/^(\d{2})(\d)/, '$1.$2')
-      .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-      .replace(/\.(\d{3})(\d)/, '.$1/$2')
-      .replace(/(\d{4})(\d{1,2})$/, '$1-$2')
-      .slice(0, 18)
-  }
-}
 
 function maskPhone(value: string) {
   const raw = value.replace(/\D/g, '')
@@ -165,6 +147,12 @@ export default function AdminSuppliers() {
   })
 
   const personTypeValue = form.watch('person_type')
+  const taxIdValue = form.watch('tax_id')
+
+  const isTaxIdComplete =
+    personTypeValue === 'PF' ? taxIdValue?.length === 14 : taxIdValue?.length === 18
+  const isTaxIdValid =
+    personTypeValue === 'PF' ? isValidCPF(taxIdValue || '') : isValidCNPJ(taxIdValue || '')
 
   const fetchSuppliers = async () => {
     try {
@@ -199,7 +187,7 @@ export default function AdminSuppliers() {
       const payload: Partial<Supplier> = {
         name: values.name,
         email: values.email,
-        tax_id: values.tax_id.replace(/\D/g, ''),
+        tax_id: values.tax_id,
         person_type: values.person_type,
         phone: values.phone,
         legal_name: values.legal_name,
@@ -256,7 +244,11 @@ export default function AdminSuppliers() {
       form.reset({
         name: s.name || '',
         email: s.email || '',
-        tax_id: s.tax_id ? maskTaxId(s.tax_id, s.person_type) : '',
+        tax_id: s.tax_id
+          ? s.person_type === 'PF'
+            ? formatCPF(s.tax_id)
+            : formatCNPJ(s.tax_id)
+          : '',
         person_type: s.person_type || 'PJ',
         phone: s.phone || '',
         legal_name: s.legal_name || '',
@@ -289,11 +281,13 @@ export default function AdminSuppliers() {
     setOpen(true)
   }
 
+  const searchClean = search.replace(/\D/g, '')
+
   const filtered = suppliers.filter((s) => {
     const matchSearch =
       s.name.toLowerCase().includes(search.toLowerCase()) ||
       s.email.toLowerCase().includes(search.toLowerCase()) ||
-      s.tax_id?.includes(search.replace(/\D/g, '')) ||
+      (searchClean !== '' && s.tax_id?.replace(/\D/g, '').includes(searchClean)) ||
       s.legal_name?.toLowerCase().includes(search.toLowerCase())
 
     const matchUf = ufFilter === 'all' || s.uf === ufFilter
@@ -384,16 +378,44 @@ export default function AdminSuppliers() {
                       <FormItem>
                         <FormLabel>CNPJ/CPF</FormLabel>
                         <FormControl>
-                          <Input
-                            placeholder={
-                              personTypeValue === 'PF' ? '000.000.000-00' : '00.000.000/0000-00'
-                            }
-                            {...field}
-                            onChange={(e) =>
-                              field.onChange(maskTaxId(e.target.value, personTypeValue))
-                            }
-                          />
+                          <div className="relative">
+                            <Input
+                              placeholder={
+                                personTypeValue === 'PF' ? '000.000.000-00' : '00.000.000/0000-00'
+                              }
+                              className={cn(
+                                'pr-10',
+                                taxIdValue &&
+                                  isTaxIdComplete &&
+                                  !isTaxIdValid &&
+                                  'border-destructive focus-visible:ring-destructive',
+                                taxIdValue &&
+                                  isTaxIdValid &&
+                                  'border-emerald-500 focus-visible:ring-emerald-500',
+                              )}
+                              {...field}
+                              maxLength={personTypeValue === 'PF' ? 14 : 18}
+                              onChange={(e) =>
+                                field.onChange(
+                                  personTypeValue === 'PF'
+                                    ? formatCPF(e.target.value)
+                                    : formatCNPJ(e.target.value),
+                                )
+                              }
+                            />
+                            {taxIdValue && isTaxIdValid && (
+                              <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
+                            )}
+                            {taxIdValue && isTaxIdComplete && !isTaxIdValid && (
+                              <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-destructive" />
+                            )}
+                          </div>
                         </FormControl>
+                        {taxIdValue && isTaxIdComplete && !isTaxIdValid && (
+                          <p className="text-sm font-medium text-destructive mt-1">
+                            Documento Inválido
+                          </p>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -677,7 +699,11 @@ export default function AdminSuppliers() {
                       )}
                     </TableCell>
                     <TableCell>{s.email}</TableCell>
-                    <TableCell>{maskTaxId(s.tax_id, s.person_type)}</TableCell>
+                    <TableCell>
+                      {s.person_type === 'PF'
+                        ? formatCPF(s.tax_id || '')
+                        : formatCNPJ(s.tax_id || '')}
+                    </TableCell>
                     <TableCell>
                       {s.expand?.forest_area ? s.expand.forest_area.name : s.floresta_info || '-'}
                     </TableCell>

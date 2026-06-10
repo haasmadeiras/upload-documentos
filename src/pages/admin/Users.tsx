@@ -13,7 +13,17 @@ import { format } from 'date-fns'
 import { getUsers, createUser, updateUser, deleteUser, User } from '@/services/users'
 import { formatCPF, formatCNPJ, isValidCPF, isValidCNPJ } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Pencil, Trash2, ShieldAlert, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import {
+  Pencil,
+  Trash2,
+  ShieldAlert,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 type SortField = 'name' | 'email' | 'role' | 'active' | 'tax_id' | 'last_login'
 type SortOrder = 'asc' | 'desc'
@@ -151,6 +161,12 @@ export default function AdminUsers() {
 
   const roleValue = form.watch('role')
   const personTypeValue = form.watch('person_type')
+  const taxIdValue = form.watch('tax_id')
+
+  const isTaxIdComplete =
+    personTypeValue === 'PF' ? taxIdValue?.length === 14 : taxIdValue?.length === 18
+  const isTaxIdValid =
+    personTypeValue === 'PF' ? isValidCPF(taxIdValue || '') : isValidCNPJ(taxIdValue || '')
 
   const fetchUsers = async () => {
     try {
@@ -238,11 +254,13 @@ export default function AdminUsers() {
     }
   }
 
+  const searchClean = search.replace(/\D/g, '')
+
   const filteredUsers = (users as ExtendedUser[]).filter(
     (u) =>
       u.name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase()) ||
-      u.tax_id?.includes(search) ||
+      (searchClean !== '' && u.tax_id?.replace(/\D/g, '').includes(searchClean)) ||
       u.legal_name?.toLowerCase().includes(search.toLowerCase()),
   )
 
@@ -409,20 +427,44 @@ export default function AdminUsers() {
                       <FormItem>
                         <FormLabel>CNPJ/CPF</FormLabel>
                         <FormControl>
-                          <Input
-                            placeholder={
-                              personTypeValue === 'PF' ? '000.000.000-00' : '00.000.000/0000-00'
-                            }
-                            {...field}
-                            onChange={(e) =>
-                              field.onChange(
-                                personTypeValue === 'PF'
-                                  ? formatCPF(e.target.value)
-                                  : formatCNPJ(e.target.value),
-                              )
-                            }
-                          />{' '}
+                          <div className="relative">
+                            <Input
+                              placeholder={
+                                personTypeValue === 'PF' ? '000.000.000-00' : '00.000.000/0000-00'
+                              }
+                              className={cn(
+                                'pr-10',
+                                taxIdValue &&
+                                  isTaxIdComplete &&
+                                  !isTaxIdValid &&
+                                  'border-destructive focus-visible:ring-destructive',
+                                taxIdValue &&
+                                  isTaxIdValid &&
+                                  'border-emerald-500 focus-visible:ring-emerald-500',
+                              )}
+                              {...field}
+                              maxLength={personTypeValue === 'PF' ? 14 : 18}
+                              onChange={(e) =>
+                                field.onChange(
+                                  personTypeValue === 'PF'
+                                    ? formatCPF(e.target.value)
+                                    : formatCNPJ(e.target.value),
+                                )
+                              }
+                            />
+                            {taxIdValue && isTaxIdValid && (
+                              <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
+                            )}
+                            {taxIdValue && isTaxIdComplete && !isTaxIdValid && (
+                              <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-destructive" />
+                            )}
+                          </div>
                         </FormControl>
+                        {taxIdValue && isTaxIdComplete && !isTaxIdValid && (
+                          <p className="text-sm font-medium text-destructive mt-1">
+                            Documento Inválido
+                          </p>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}

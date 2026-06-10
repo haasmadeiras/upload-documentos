@@ -60,8 +60,17 @@ export default function Index() {
 
       if (signInError) {
         const errorMsg = getErrorMessage(signInError)
+        const rawMsg = signInError.response?.message || signInError.message || errorMsg
+
         if (signInError.status === 0 || errorMsg.toLowerCase().includes('failed to fetch')) {
           setError('Erro de conexão. Verifique sua internet e tente novamente.')
+        } else if (
+          rawMsg.toLowerCase().includes('inativ') ||
+          rawMsg.toLowerCase().includes('inactive')
+        ) {
+          setError(
+            'USUÁRIO INATIVO. Por favor, entre em contato com a Madeireira Haas para verificar sua situação.',
+          )
         } else {
           setError('Credenciais inválidas. Verifique seu e-mail e senha.')
         }
