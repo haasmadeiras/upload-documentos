@@ -35,8 +35,8 @@ const App = () => (
             <Sonner />
             <SessionManager />
             <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Navigate to="/" replace />} />
+              <Route path="/" element={<Navigate to="/login" replace />} />
+              <Route path="/login" element={<Index />} />
               <Route path="/cadastro" element={<Register />} />
 
               <Route element={<Layout />}>

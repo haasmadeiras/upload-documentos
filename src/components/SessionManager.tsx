@@ -18,7 +18,7 @@ export function SessionManager() {
     (reason: 'inactivity' | 'manual') => {
       signOut()
       clearAppStore()
-      navigate('/', { replace: true })
+      navigate('/login', { replace: true })
 
       if (reason === 'inactivity') {
         toast({
