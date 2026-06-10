@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
-import { getDocuments, deleteDocument } from '@/services/documents'
-import { Trash2 } from 'lucide-react'
+import { getDocuments, deleteDocument, updateDocument } from '@/services/documents'
+import { Trash2, FileText, CheckCircle2, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { getForestAreas, ForestArea } from '@/services/forest_areas'
@@ -22,11 +22,20 @@ import {
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import pb from '@/lib/pocketbase/client'
-import { Badge } from '@/components/ui/badge'
 import { useRealtime } from '@/hooks/use-realtime'
+import { useAuth } from '@/hooks/use-auth'
+import { StatusBadge } from '@/components/StatusBadge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 export default function AdminCategoryDocuments() {
   const { categoryId } = useParams()
+  const { user } = useAuth()
   const [documents, setDocuments] = useState<any[]>([])
   const [suppliers, setSuppliers] = useState<any[]>([])
   const [forestAreas, setForestAreas] = useState<ForestArea[]>([])
@@ -34,6 +43,14 @@ export default function AdminCategoryDocuments() {
   const [selectedSupplier, setSelectedSupplier] = useState<string>('all')
   const [selectedForest, setSelectedForest] = useState<string>('all')
   const [loading, setLoading] = useState(true)
+
+  // Review Modal State
+  const [selectedDoc, setSelectedDoc] = useState<any>(null)
+  const [rejectionReason, setRejectionReason] = useState('')
+  const [showRejectReason, setShowRejectReason] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false)
+
+  const canReview = user?.role === 'Admin' || user?.role === 'Colaborador'
 
   const loadData = useCallback(async () => {
     try {
@@ -59,6 +76,14 @@ export default function AdminCategoryDocuments() {
 
   useRealtime('documents', loadData)
 
+  // Reset modal state on select
+  useEffect(() => {
+    if (selectedDoc) {
+      setRejectionReason('')
+      setShowRejectReason(false)
+    }
+  }, [selectedDoc])
+
   const handleDelete = async (id: string) => {
     if (!window.confirm('Tem certeza que deseja excluir este documento?')) return
     try {
@@ -67,6 +92,43 @@ export default function AdminCategoryDocuments() {
     } catch (error) {
       console.error(error)
       toast.error('Erro ao excluir documento')
+    }
+  }
+
+  const handleApprove = async () => {
+    if (!selectedDoc) return
+    try {
+      setActionLoading(true)
+      await updateDocument(selectedDoc.id, { status: 'Approved' })
+      toast.success('Documento aprovado com sucesso!')
+      setSelectedDoc(null)
+    } catch (err) {
+      console.error(err)
+      toast.error('Erro ao aprovar documento')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleReject = async () => {
+    if (!selectedDoc) return
+    if (!rejectionReason.trim()) {
+      toast.error('Por favor, informe o motivo da rejeição')
+      return
+    }
+    try {
+      setActionLoading(true)
+      await updateDocument(selectedDoc.id, {
+        status: 'Rejected',
+        rejection_reason: rejectionReason,
+      })
+      toast.success('Documento rejeitado com sucesso!')
+      setSelectedDoc(null)
+    } catch (err) {
+      console.error(err)
+      toast.error('Erro ao rejeitar documento')
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -80,8 +142,8 @@ export default function AdminCategoryDocuments() {
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Documentos (Admin)</h1>
-          <p className="text-muted-foreground">Filtro avançado por origem e localidade</p>
+          <h1 className="text-3xl font-bold">Gestão de Documentos</h1>
+          <p className="text-muted-foreground">Análise, aprovação e controle de requisitos</p>
         </div>
 
         <div className="flex gap-4 items-center bg-muted/50 p-3 rounded-lg border">
@@ -130,7 +192,7 @@ export default function AdminCategoryDocuments() {
               <TableHead>Fornecedor</TableHead>
               <TableHead>Área Florestal</TableHead>
               <TableHead>Data de Envio</TableHead>
-              <TableHead className="w-[80px]">Ações</TableHead>
+              <TableHead className="w-[180px] text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -154,36 +216,150 @@ export default function AdminCategoryDocuments() {
                   {doc.title || doc.expand?.definition?.name}
                 </TableCell>
                 <TableCell>
-                  <Badge
-                    variant={
-                      doc.status === 'Approved'
-                        ? 'default'
-                        : doc.status === 'Rejected'
-                          ? 'destructive'
-                          : 'secondary'
-                    }
-                  >
-                    {doc.status}
-                  </Badge>
+                  <StatusBadge status={doc.status} />
                 </TableCell>
                 <TableCell>{doc.expand?.user?.name || doc.expand?.user?.email || '-'}</TableCell>
                 <TableCell>{doc.expand?.forest_area?.name || '-'}</TableCell>
                 <TableCell>{new Date(doc.created).toLocaleDateString()}</TableCell>
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => handleDelete(doc.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center justify-end gap-2">
+                    {canReview && (
+                      <Button variant="outline" size="sm" onClick={() => setSelectedDoc(doc)}>
+                        <FileText className="w-4 h-4 mr-2" />
+                        Revisar
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => handleDelete(doc.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
+
+      {/* Review Dialog */}
+      <Dialog open={!!selectedDoc} onOpenChange={(open) => !open && setSelectedDoc(null)}>
+        <DialogContent className="max-w-6xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-4 border-b shrink-0">
+            <DialogTitle className="text-xl">Revisão de Documento</DialogTitle>
+            <DialogDescription className="text-base font-medium text-foreground">
+              {selectedDoc?.title || selectedDoc?.expand?.definition?.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+            {/* Preview Panel */}
+            <div className="flex-1 bg-muted/30 border-r relative p-4 h-full flex flex-col">
+              <h3 className="text-sm font-medium mb-2 shrink-0">Visualização do Arquivo</h3>
+              {selectedDoc && (
+                <div className="flex-1 border rounded-md overflow-hidden bg-white">
+                  <iframe
+                    src={pb.files.getUrl(selectedDoc, selectedDoc.file)}
+                    className="w-full h-full"
+                    title="Visualização do Documento"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Actions & AI Analysis Panel */}
+            <div className="w-full md:w-[450px] flex flex-col h-full overflow-y-auto bg-background">
+              <div className="p-6 flex-1 space-y-6 flex flex-col">
+                <div className="space-y-4 shrink-0">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="text-sm text-muted-foreground mb-1">Status Atual</h4>
+                      <StatusBadge status={selectedDoc?.status || ''} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm text-muted-foreground mb-1">Data de Envio</h4>
+                      <p className="text-sm font-medium">
+                        {selectedDoc ? new Date(selectedDoc.created).toLocaleDateString() : '-'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm text-muted-foreground mb-1">Fornecedor Responsável</h4>
+                    <p className="text-sm font-medium">
+                      {selectedDoc?.expand?.user?.name || selectedDoc?.expand?.user?.email}
+                    </p>
+                  </div>
+                </div>
+
+                {selectedDoc?.analysis_log && (
+                  <div className="flex-1 flex flex-col min-h-[150px]">
+                    <h4 className="text-sm font-medium mb-2 shrink-0">
+                      Análise da IA de Validação
+                    </h4>
+                    <div className="flex-1 bg-slate-50 dark:bg-slate-900 p-4 rounded-md text-xs font-mono overflow-auto border whitespace-pre-wrap">
+                      {JSON.stringify(selectedDoc.analysis_log, null, 2)}
+                    </div>
+                  </div>
+                )}
+
+                <div className="pt-4 border-t shrink-0 mt-auto">
+                  {showRejectReason ? (
+                    <div className="space-y-3 animate-fade-in-up">
+                      <Label className="text-destructive font-medium">Motivo da Rejeição</Label>
+                      <textarea
+                        placeholder="Descreva claramente o motivo da rejeição para orientar o fornecedor..."
+                        value={rejectionReason}
+                        onChange={(e) => setRejectionReason(e.target.value)}
+                        className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => setShowRejectReason(false)}
+                          disabled={actionLoading}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          className="w-full"
+                          onClick={handleReject}
+                          disabled={actionLoading}
+                        >
+                          Confirmar Rejeição
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button
+                        variant="outline"
+                        className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"
+                        onClick={() => setShowRejectReason(true)}
+                        disabled={actionLoading}
+                      >
+                        <XCircle className="w-4 h-4 mr-2" /> Rejeitar
+                      </Button>
+                      <Button
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                        onClick={handleApprove}
+                        disabled={actionLoading}
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-2" /> Aprovar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

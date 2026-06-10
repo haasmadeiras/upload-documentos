@@ -68,8 +68,8 @@ export const downloadDocument = async (doc: any) => {
   }
 }
 
-export const updateDocument = async (id: string, formData: FormData) => {
-  return await pb.collection('documents').update(id, formData)
+export const updateDocument = async (id: string, data: any) => {
+  return await pb.collection('documents').update(id, data)
 }
 
 export const deleteDocument = async (id: string) => {
