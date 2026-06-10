@@ -25,6 +25,7 @@ import PortalEmployees from './pages/portal/Employees'
 import AdminCategoryDocuments from './pages/admin/CategoryDocuments'
 import AdminPendingDocuments from './pages/admin/PendingDocuments'
 import AdminExpiringDocuments from './pages/admin/ExpiringDocuments'
+import AdminCompliance from './pages/admin/Compliance'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -58,6 +59,7 @@ const App = () => (
                 />
                 <Route path="/admin/documents/pending" element={<AdminPendingDocuments />} />
                 <Route path="/admin/documents/expiring" element={<AdminExpiringDocuments />} />
+                <Route path="/admin/compliance" element={<AdminCompliance />} />
               </Route>
 
               <Route element={<ProtectedRoute />}>

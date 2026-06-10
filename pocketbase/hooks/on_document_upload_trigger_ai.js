@@ -10,7 +10,7 @@ onRecordAfterCreateSuccess((e) => {
 
     $ai.agent('legal-document-analyst').chat({
       user_id: userId,
-      message: `A new document was just uploaded. Document ID: ${docId}. The file can be accessed at: ${fileUrl}. Please analyze it according to your system prompt instructions. Verify the CNPJ match, recency for Cartão CNPJ (within 30 days), and document type. Determine its status (Approved or Rejected), set the rejection_reason if applicable ("CNPJ Divergente", "Documento Expirado", or "Tipo de Documento Inválido"), and update the document's analysis_log.`,
+      message: `A new document was just uploaded. Document ID: ${docId}. The file can be accessed at: ${fileUrl}. Please analyze it according to your system prompt instructions. Verify the CNPJ match, recency for Cartão CNPJ (within 30 days), and document type. Determine its status ("Pending Final Approval" if it seems correct, or "Rejected" if it fails checks), set the rejection_reason if applicable ("CNPJ Divergente", "Documento Expirado", or "Tipo de Documento Inválido"), and update the document's analysis_log.`,
     })
   } catch (err) {
     console.log('Failed to trigger AI analyst:', err.message)

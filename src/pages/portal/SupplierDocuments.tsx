@@ -107,15 +107,7 @@ export default function SupplierDocuments() {
                         <AlertCircle className="w-3.5 h-3.5" /> Não Enviado
                       </Badge>
                     ) : (
-                      <StatusBadge
-                        status={
-                          status === 'pending'
-                            ? 'pendente'
-                            : status === 'approved'
-                              ? 'aprovado'
-                              : 'rejeitado'
-                        }
-                      />
+                      <StatusBadge status={doc.status} />
                     )}
                   </div>
 
@@ -129,12 +121,24 @@ export default function SupplierDocuments() {
 
                 <Button
                   asChild
-                  variant={status === 'approved' ? 'outline' : 'default'}
+                  variant={
+                    status === 'approved' ||
+                    status === 'pending final approval' ||
+                    status === 'pending'
+                      ? 'outline'
+                      : 'default'
+                  }
                   className="w-full justify-between group mt-2"
                 >
                   <Link to={`/portal/upload/${def.id}`}>
-                    {status === 'approved' ? 'Visualizar ou Reenviar' : 'Fazer Upload'}
-                    {status === 'approved' ? (
+                    {status === 'approved'
+                      ? 'Visualizar ou Reenviar'
+                      : status === 'missing' || status === 'rejected'
+                        ? 'Fazer Upload'
+                        : 'Visualizar'}
+                    {status === 'approved' ||
+                    status === 'pending final approval' ||
+                    status === 'pending' ? (
                       <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                     ) : (
                       <FileUp className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" />

@@ -18,6 +18,7 @@ import { getDocumentDefinitions, DocumentDefinition } from '@/services/document_
 import { getDocuments } from '@/services/documents'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useRealtime } from '@/hooks/use-realtime'
+import { StatusBadge } from '@/components/StatusBadge'
 
 export default function PortalDashboard() {
   const { user } = useAuth()
@@ -113,7 +114,9 @@ export default function PortalDashboard() {
 
   if (!activeName) {
     const totalDocs = userDocs.length
-    const pendingDocs = userDocs.filter((d) => d.status === 'Pending').length
+    const pendingDocs = userDocs.filter(
+      (d) => d.status === 'Pending' || d.status === 'Pending Final Approval',
+    ).length
     const approvedDocs = userDocs.filter((d) => d.status === 'Approved').length
     const rejectedDocs = userDocs.filter((d) => d.status === 'Rejected').length
 
@@ -214,32 +217,14 @@ export default function PortalDashboard() {
                           </TableCell>
                           <TableCell>{catName}</TableCell>
                           <TableCell>
-                            {doc.status === 'Approved' ? (
-                              <Badge
-                                variant="outline"
-                                className="bg-emerald-50 text-emerald-700 border-emerald-200"
+                            <StatusBadge status={doc.status} />
+                            {doc.status === 'Rejected' && doc.rejection_reason && (
+                              <span
+                                className="text-xs text-rose-600 block mt-1 max-w-[200px] leading-tight line-clamp-2"
+                                title={doc.rejection_reason}
                               >
-                                Aprovado
-                              </Badge>
-                            ) : doc.status === 'Rejected' ? (
-                              <div className="flex flex-col gap-1 items-start">
-                                <Badge variant="destructive">Rejeitado</Badge>
-                                {doc.rejection_reason && (
-                                  <span
-                                    className="text-xs text-rose-600 max-w-[200px] leading-tight line-clamp-2"
-                                    title={doc.rejection_reason}
-                                  >
-                                    {doc.rejection_reason}
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <Badge
-                                variant="secondary"
-                                className="bg-amber-50 text-amber-700 border-amber-200"
-                              >
-                                Pendente
-                              </Badge>
+                                {doc.rejection_reason}
+                              </span>
                             )}
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm">
@@ -303,39 +288,24 @@ export default function PortalDashboard() {
             const doc = userDocs.find((d) => d.definition === def.id)
 
             let statusEl = (
-              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                <Clock className="w-3 h-3 mr-1" /> Pendente
+              <Badge
+                variant="outline"
+                className="bg-slate-50 text-slate-600 border-slate-200 gap-1.5 font-medium"
+              >
+                <AlertCircle className="w-3.5 h-3.5" /> Não Enviado
               </Badge>
             )
             if (doc) {
-              if (doc.status === 'Approved')
-                statusEl = (
-                  <Badge
-                    variant="outline"
-                    className="bg-emerald-50 text-emerald-700 border-emerald-200"
-                  >
-                    <CheckCircle2 className="w-3 h-3 mr-1" /> Aprovado
-                  </Badge>
-                )
-              else if (doc.status === 'Rejected')
-                statusEl = (
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge variant="destructive">
-                      <AlertCircle className="w-3 h-3 mr-1" /> Rejeitado
-                    </Badge>
-                    {doc.rejection_reason && (
-                      <span className="text-xs text-rose-600 max-w-[200px] text-right leading-tight">
-                        {doc.rejection_reason}
-                      </span>
-                    )}
-                  </div>
-                )
-              else
-                statusEl = (
-                  <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
-                    <Clock className="w-3 h-3 mr-1" /> Em Análise
-                  </Badge>
-                )
+              statusEl = (
+                <div className="flex flex-col items-end gap-1">
+                  <StatusBadge status={doc.status} />
+                  {doc.status === 'Rejected' && doc.rejection_reason && (
+                    <span className="text-xs text-rose-600 max-w-[200px] text-right leading-tight">
+                      {doc.rejection_reason}
+                    </span>
+                  )}
+                </div>
+              )
             }
 
             return (

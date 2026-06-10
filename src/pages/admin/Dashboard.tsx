@@ -1,4 +1,4 @@
-import { Users, FileWarning, Trees, ArrowRight, Loader2 } from 'lucide-react'
+import { Users, FileWarning, Trees, ArrowRight, Loader2, ShieldCheck } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -34,7 +34,9 @@ export default function Dashboard() {
       const [suppliersRes, collabRes, pendingDocsRes, forestRes, docsAllRes] = await Promise.all([
         pb.collection('suppliers').getList(1, 1),
         pb.collection('users').getList(1, 1, { filter: "role = 'Colaborador'" }),
-        pb.collection('documents').getList(1, 1, { filter: "status = 'Pending'" }),
+        pb
+          .collection('documents')
+          .getList(1, 1, { filter: "status = 'Pending' || status = 'Pending Final Approval'" }),
         pb.collection('forest_areas').getList(1, 1),
         pb.collection('documents').getFullList({ expand: 'definition' }),
       ])
@@ -129,7 +131,13 @@ export default function Dashboard() {
       case 'Pending':
         return (
           <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100/80 border-none">
-            Pendente
+            Em Análise (IA)
+          </Badge>
+        )
+      case 'Pending Final Approval':
+        return (
+          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100/80 border-none">
+            Revisão Final
           </Badge>
         )
       case 'Rejected':
@@ -154,8 +162,20 @@ export default function Dashboard() {
   return (
     <div className="space-y-8 animate-fade-in">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard Admin</h1>
-        <p className="text-muted-foreground mt-2">Visão geral do sistema e atividades recentes.</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Dashboard Admin</h1>
+            <p className="text-muted-foreground mt-2">
+              Visão geral do sistema e atividades recentes.
+            </p>
+          </div>
+          <Button asChild>
+            <Link to="/admin/compliance">
+              <ShieldCheck className="w-4 h-4 mr-2" />
+              Compliance Dashboard
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-5">
