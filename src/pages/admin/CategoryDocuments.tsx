@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { getDocuments, deleteDocument, updateDocument } from '@/services/documents'
-import { Trash2, FileText, CheckCircle2, XCircle } from 'lucide-react'
+import { Trash2, FileText, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { getForestAreas, ForestArea } from '@/services/forest_areas'
@@ -33,6 +33,63 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
+function FileViewer({ doc }: { doc: any }) {
+  const [url, setUrl] = useState<string>('')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!doc) return
+    let isMounted = true
+    let objectUrl = ''
+    const pbUrl = pb.files.getUrl(doc, doc.file)
+
+    if (doc.file.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+      setUrl(pbUrl)
+      setLoading(false)
+      return
+    }
+
+    fetch(pbUrl)
+      .then((r) => r.blob())
+      .then((blob) => {
+        if (!isMounted) return
+        objectUrl = URL.createObjectURL(
+          new Blob([blob], { type: doc.file.endsWith('.pdf') ? 'application/pdf' : blob.type }),
+        )
+        setUrl(objectUrl)
+        setLoading(false)
+      })
+      .catch((e) => {
+        console.error('File viewer fetch error:', e)
+        if (!isMounted) return
+        setUrl(pbUrl) // fallback
+        setLoading(false)
+      })
+
+    return () => {
+      isMounted = false
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl)
+      }
+    }
+  }, [doc])
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
+        <Loader2 className="w-8 h-8 animate-spin" />
+        <span className="text-sm">Carregando arquivo...</span>
+      </div>
+    )
+  }
+
+  if (doc?.file?.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+    return <img src={url} alt="Documento" className="w-full h-full object-contain" />
+  }
+
+  return <iframe src={url} className="w-full h-full border-0" title="Visualização do Documento" />
+}
+
 export default function AdminCategoryDocuments() {
   const { categoryId } = useParams()
   const { user } = useAuth()
@@ -55,7 +112,7 @@ export default function AdminCategoryDocuments() {
   const loadData = useCallback(async () => {
     try {
       const [docs, sup, forest] = await Promise.all([
-        getDocuments('', 'user,forest_area,definition'),
+        getDocuments('', 'user,forest_area,definition,supplier'),
         pb.collection('users').getFullList({ filter: 'role="Fornecedor"' }),
         getForestAreas(),
       ])
@@ -218,7 +275,12 @@ export default function AdminCategoryDocuments() {
                 <TableCell>
                   <StatusBadge status={doc.status} />
                 </TableCell>
-                <TableCell>{doc.expand?.user?.name || doc.expand?.user?.email || '-'}</TableCell>
+                <TableCell>
+                  {doc.expand?.supplier?.name ||
+                    doc.expand?.user?.name ||
+                    doc.expand?.user?.email ||
+                    '-'}
+                </TableCell>
                 <TableCell>{doc.expand?.forest_area?.name || '-'}</TableCell>
                 <TableCell>{new Date(doc.created).toLocaleDateString()}</TableCell>
                 <TableCell>
@@ -260,12 +322,8 @@ export default function AdminCategoryDocuments() {
             <div className="flex-1 bg-muted/30 border-r relative p-4 h-full flex flex-col">
               <h3 className="text-sm font-medium mb-2 shrink-0">Visualização do Arquivo</h3>
               {selectedDoc && (
-                <div className="flex-1 border rounded-md overflow-hidden bg-white">
-                  <iframe
-                    src={pb.files.getUrl(selectedDoc, selectedDoc.file)}
-                    className="w-full h-full"
-                    title="Visualização do Documento"
-                  />
+                <div className="flex-1 border rounded-md overflow-hidden bg-white relative">
+                  <FileViewer doc={selectedDoc} />
                 </div>
               )}
             </div>
@@ -290,21 +348,111 @@ export default function AdminCategoryDocuments() {
                   <div>
                     <h4 className="text-sm text-muted-foreground mb-1">Fornecedor Responsável</h4>
                     <p className="text-sm font-medium">
-                      {selectedDoc?.expand?.user?.name || selectedDoc?.expand?.user?.email}
+                      {selectedDoc?.expand?.supplier?.name ||
+                        selectedDoc?.expand?.user?.name ||
+                        selectedDoc?.expand?.user?.email ||
+                        '-'}
                     </p>
                   </div>
                 </div>
 
-                {selectedDoc?.analysis_log && (
-                  <div className="flex-1 flex flex-col min-h-[150px]">
-                    <h4 className="text-sm font-medium mb-2 shrink-0">
-                      Análise da IA de Validação
-                    </h4>
-                    <div className="flex-1 bg-slate-50 dark:bg-slate-900 p-4 rounded-md text-xs font-mono overflow-auto border whitespace-pre-wrap">
-                      {JSON.stringify(selectedDoc.analysis_log, null, 2)}
-                    </div>
+                <div className="flex-1 flex flex-col min-h-[200px]">
+                  <h4 className="text-sm font-medium mb-2 shrink-0">Análise da IA de Validação</h4>
+                  <div className="flex-1 bg-slate-50 dark:bg-slate-900 p-4 rounded-md border overflow-y-auto">
+                    {selectedDoc?.analysis_log ? (
+                      (() => {
+                        const log = selectedDoc.analysis_log
+                        const statusMap: Record<string, string> = {
+                          valid: 'Válido',
+                          invalid: 'Inválido',
+                        }
+                        const status = log.status
+                          ? statusMap[log.status.toLowerCase()] || log.status
+                          : 'Desconhecido'
+                        const extracted = log.extracted || {}
+
+                        return (
+                          <div className="space-y-4">
+                            <div>
+                              <span className="text-muted-foreground text-xs block mb-1">
+                                Status da Validação
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border ${
+                                    status === 'Válido'
+                                      ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                                      : status === 'Inválido'
+                                        ? 'bg-rose-50 text-rose-600 border-rose-200'
+                                        : 'bg-slate-50 text-slate-600 border-slate-200'
+                                  }`}
+                                >
+                                  {status}
+                                </span>
+                              </div>
+                              {log.reason && (
+                                <p className="text-xs text-muted-foreground mt-2 bg-muted p-2 rounded-md border">
+                                  {log.reason}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="space-y-2">
+                              <span className="text-sm font-medium text-muted-foreground">
+                                Dados Extraídos
+                              </span>
+                              <ul className="space-y-2 text-sm">
+                                <li className="flex flex-col border-b pb-2">
+                                  <span className="text-muted-foreground text-xs">CNPJ</span>
+                                  <span className="font-medium">
+                                    {extracted.cnpj || 'Não identificado'}
+                                  </span>
+                                </li>
+                                <li className="flex flex-col border-b pb-2">
+                                  <span className="text-muted-foreground text-xs">
+                                    Data de Emissão
+                                  </span>
+                                  <span className="font-medium">
+                                    {extracted.issuance_date || 'Não identificado'}
+                                  </span>
+                                </li>
+                                <li className="flex flex-col border-b pb-2 border-transparent">
+                                  <span className="text-muted-foreground text-xs">
+                                    Razão Social
+                                  </span>
+                                  <span className="font-medium">
+                                    {extracted.razao_social || 'Não identificado'}
+                                  </span>
+                                </li>
+                                {Object.entries(extracted).map(([key, value]) => {
+                                  if (['cnpj', 'issuance_date', 'razao_social'].includes(key))
+                                    return null
+                                  const formattedKey = key
+                                    .replace(/_/g, ' ')
+                                    .replace(/\b\w/g, (l) => l.toUpperCase())
+                                  return (
+                                    <li key={key} className="flex flex-col border-t pt-2">
+                                      <span className="text-muted-foreground text-xs">
+                                        {formattedKey}
+                                      </span>
+                                      <span className="font-medium">
+                                        {value ? String(value) : 'Não identificado'}
+                                      </span>
+                                    </li>
+                                  )
+                                })}
+                              </ul>
+                            </div>
+                          </div>
+                        )
+                      })()
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                        Nenhuma análise disponível.
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
 
                 <div className="pt-4 border-t shrink-0 mt-auto">
                   {showRejectReason ? (
