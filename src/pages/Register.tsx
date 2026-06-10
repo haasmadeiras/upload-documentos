@@ -42,21 +42,47 @@ export default function Register() {
   const [supplierId, setSupplierId] = useState('')
   const [supplierName, setSupplierName] = useState('')
 
-  const isTaxIdComplete =
-    personType === 'PF' ? formData.taxId.length === 14 : formData.taxId.length === 18
-  const isTaxIdValid =
-    personType === 'PF' ? isValidCPF(formData.taxId) : isValidCNPJ(formData.taxId)
-
   const [formData, setFormData] = useState({
     taxId: '',
     email: '',
     password: '',
     passwordConfirm: '',
+    legalName: '',
+    address: '',
   })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
+  const isTaxIdComplete =
+    personType === 'PF' ? formData.taxId.length === 14 : formData.taxId.length === 18
+  const isTaxIdValid =
+    personType === 'PF' ? isValidCPF(formData.taxId) : isValidCNPJ(formData.taxId)
+
+  useEffect(() => {
+    if (isTaxIdValid && formData.taxId) {
+      const fetchSupplier = async () => {
+        try {
+          const records = await pb.collection('suppliers').getList(1, 1, {
+            filter: `tax_id = "${formData.taxId}"`,
+          })
+          if (records.items.length > 0) {
+            const supplier = records.items[0]
+            setFormData((prev) => ({
+              ...prev,
+              email: supplier.email || prev.email,
+              legalName: supplier.legal_name || prev.legalName,
+              address: supplier.address || prev.address,
+            }))
+          }
+        } catch (err) {
+          // ignore errors silently
+        }
+      }
+      fetchSupplier()
+    }
+  }, [isTaxIdValid, formData.taxId])
+
   const handleTaxIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
+    const val = e.target.value.replace(/\D/g, '')
     setFormData((prev) => ({
       ...prev,
       taxId: personType === 'PF' ? formatCPF(val) : formatCNPJ(val),
@@ -148,6 +174,8 @@ export default function Register() {
         supplier: supplierId,
         person_type: personType,
         name: supplierName || formData.email.split('@')[0],
+        legal_name: formData.legalName,
+        address: formData.address,
       })
       setStep('success')
     } catch (err: any) {
