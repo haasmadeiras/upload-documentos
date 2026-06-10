@@ -222,7 +222,17 @@ export default function PortalDashboard() {
                                 Aprovado
                               </Badge>
                             ) : doc.status === 'Rejected' ? (
-                              <Badge variant="destructive">Rejeitado</Badge>
+                              <div className="flex flex-col gap-1 items-start">
+                                <Badge variant="destructive">Rejeitado</Badge>
+                                {doc.rejection_reason && (
+                                  <span
+                                    className="text-xs text-rose-600 max-w-[200px] leading-tight line-clamp-2"
+                                    title={doc.rejection_reason}
+                                  >
+                                    {doc.rejection_reason}
+                                  </span>
+                                )}
+                              </div>
                             ) : (
                               <Badge
                                 variant="secondary"
@@ -309,9 +319,16 @@ export default function PortalDashboard() {
                 )
               else if (doc.status === 'Rejected')
                 statusEl = (
-                  <Badge variant="destructive">
-                    <AlertCircle className="w-3 h-3 mr-1" /> Rejeitado
-                  </Badge>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge variant="destructive">
+                      <AlertCircle className="w-3 h-3 mr-1" /> Rejeitado
+                    </Badge>
+                    {doc.rejection_reason && (
+                      <span className="text-xs text-rose-600 max-w-[200px] text-right leading-tight">
+                        {doc.rejection_reason}
+                      </span>
+                    )}
+                  </div>
                 )
               else
                 statusEl = (

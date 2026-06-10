@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-10T16:48:38.227Z",
+  "generatedAt": "2026-06-10T16:55:09.088Z",
   "collections": [
     {
       "name": "users",
@@ -200,6 +200,18 @@
           "required": false,
           "system": false,
           "collectionRef": "suppliers"
+        },
+        {
+          "name": "rejection_reason",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "analysis_log",
+          "type": "json",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
