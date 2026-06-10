@@ -134,7 +134,7 @@ export default function SupplierDocuments() {
                     )}
                   </div>
 
-                  {status === 'rejeitado' && doc?.rejection_reason && (
+                  {(status === 'rejected' || status === 'rejeitado') && doc?.rejection_reason && (
                     <div className="text-sm p-2.5 bg-rose-50 text-rose-800 rounded-md border border-rose-100 flex items-start gap-2">
                       <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
                       <span>{doc.rejection_reason}</span>
