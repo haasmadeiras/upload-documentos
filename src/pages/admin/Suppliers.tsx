@@ -183,6 +183,19 @@ export default function AdminSuppliers() {
     isMaster,
   )
 
+  useRealtime(
+    'forest_areas',
+    () => {
+      if (isMaster) {
+        fetchSuppliers()
+        if (editingId) {
+          fetchForestHistory(editingId)
+        }
+      }
+    },
+    isMaster,
+  )
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       setIsSaving(true)
@@ -244,7 +257,7 @@ export default function AdminSuppliers() {
     try {
       const history = await pb.collection('forest_areas').getFullList<ForestArea>({
         filter: `supplier="${supplierId}"`,
-        sort: '-start_date',
+        sort: '-start_date,-created',
       })
       setForestHistory(history)
     } catch (e) {
@@ -639,7 +652,7 @@ export default function AdminSuppliers() {
 
             {editingId && forestHistory.length > 0 && (
               <div className="mt-8 border-t pt-6">
-                <h3 className="text-lg font-semibold mb-4">Histórico de Florestas</h3>
+                <h3 className="text-lg font-semibold mb-4">Histórico de Vínculos</h3>
                 <div className="space-y-3">
                   {forestHistory.map((fh) => (
                     <div key={fh.id} className="p-3 border rounded-md bg-muted/20">
@@ -658,9 +671,21 @@ export default function AdminSuppliers() {
                       <div className="text-sm text-muted-foreground space-y-1">
                         <p>
                           <span className="font-medium">Período:</span>{' '}
-                          {fh.start_date ? new Date(fh.start_date).toLocaleDateString() : 'N/A'} -{' '}
-                          {fh.end_date ? new Date(fh.end_date).toLocaleDateString() : 'Atual'}
+                          {fh.start_date
+                            ? new Date(fh.start_date).toLocaleDateString('pt-BR', {
+                                timeZone: 'UTC',
+                              })
+                            : 'N/A'}{' '}
+                          -{' '}
+                          {fh.end_date
+                            ? new Date(fh.end_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+                            : 'Atual'}
                         </p>
+                        {fh.registration_number && (
+                          <p>
+                            <span className="font-medium">Registro:</span> {fh.registration_number}
+                          </p>
+                        )}
                         {fh.location && (
                           <p>
                             <span className="font-medium">Localização:</span> {fh.location}
