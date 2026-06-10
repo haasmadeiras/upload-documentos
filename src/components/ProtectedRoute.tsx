@@ -24,7 +24,7 @@ export function ProtectedRoute({ adminOnly = false }: { adminOnly?: boolean }) {
     const isAdminOrColab =
       user.isAdmin === true || user.role === 'Admin' || user.role === 'Colaborador'
     if (!isAdminOrColab) {
-      return <Navigate to="/dashboard" replace />
+      return <Navigate to="/login" replace />
     }
   }
 

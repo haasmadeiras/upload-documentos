@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
-import { Loader2, ArrowLeft, Mail, KeyRound, CheckCircle2 } from 'lucide-react'
+import { Loader2, ArrowLeft, Mail, KeyRound, CheckCircle2, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import logoUrl from '@/assets/image-bb79d.png'
 import pb from '@/lib/pocketbase/client'
@@ -27,6 +27,7 @@ export default function Index() {
   const [resetCode, setResetCode] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [mockCode, setMockCode] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
     if (isAuthenticated && user && !loading) {
@@ -178,14 +179,28 @@ export default function Index() {
                         Esqueci minha senha
                       </Button>
                     </div>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Sua senha"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="Sua senha"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 {error && <p className="text-sm text-destructive font-medium">{error}</p>}
@@ -272,13 +287,20 @@ export default function Index() {
                     <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                     <Input
                       id="new-password"
-                      type="password"
+                      type={showPassword ? 'text' : 'password'}
                       placeholder="Mínimo 8 caracteres"
-                      className="pl-10"
+                      className="pl-10 pr-10"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
                 </div>
                 {error && <p className="text-sm text-destructive font-medium">{error}</p>}
