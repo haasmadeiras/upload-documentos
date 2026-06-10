@@ -102,6 +102,7 @@ const formSchema = z
     }
 
     if (
+      data.active &&
       data.role === 'Fornecedor' &&
       data.person_type === 'PJ' &&
       (!data.legal_name || data.legal_name.trim().length === 0)
@@ -168,6 +169,36 @@ export default function AdminUsers() {
     personTypeValue === 'PF' ? taxIdValue?.length === 14 : taxIdValue?.length === 18
   const isTaxIdValid =
     personTypeValue === 'PF' ? isValidCPF(taxIdValue || '') : isValidCNPJ(taxIdValue || '')
+
+  const isFornecedor = roleValue === 'Fornecedor'
+
+  useEffect(() => {
+    async function fetchSupplier() {
+      if (isFornecedor && isTaxIdComplete && isTaxIdValid) {
+        const cleanTaxId = taxIdValue?.replace(/\D/g, '') || ''
+        try {
+          const suppliers = await getSuppliers(
+            `tax_id = '${cleanTaxId}' || tax_id = '${taxIdValue}'`,
+          )
+          if (suppliers.length > 0) {
+            const supplierData = suppliers[0]
+            form.setValue('legal_name', supplierData.legal_name || '')
+            form.setValue('phone', maskPhone(supplierData.phone || ''))
+            form.setValue('address', supplierData.address || '')
+          } else {
+            form.setValue('legal_name', '')
+            form.setValue('phone', '')
+            form.setValue('address', '')
+          }
+        } catch (e) {
+          console.error('Failed to fetch supplier by tax_id', e)
+        }
+      }
+    }
+    if (open) {
+      fetchSupplier()
+    }
+  }, [taxIdValue, isTaxIdComplete, isTaxIdValid, isFornecedor, form, open])
 
   const fetchUsers = async () => {
     try {
@@ -520,7 +551,14 @@ export default function AdminUsers() {
                           ) : null}
                         </FormLabel>
                         <FormControl>
-                          <Input placeholder="Razão social (se aplicável)" {...field} />
+                          <Input
+                            placeholder="Razão social (se aplicável)"
+                            {...field}
+                            readOnly={isFornecedor}
+                            className={cn(
+                              isFornecedor && 'bg-muted text-muted-foreground cursor-not-allowed',
+                            )}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -567,6 +605,10 @@ export default function AdminUsers() {
                             placeholder="(00) 00000-0000"
                             {...field}
                             onChange={(e) => field.onChange(maskPhone(e.target.value))}
+                            readOnly={isFornecedor}
+                            className={cn(
+                              isFornecedor && 'bg-muted text-muted-foreground cursor-not-allowed',
+                            )}
                           />
                         </FormControl>
                         <FormMessage />
@@ -582,7 +624,14 @@ export default function AdminUsers() {
                     <FormItem>
                       <FormLabel>Endereço Completo</FormLabel>
                       <FormControl>
-                        <Input placeholder="Rua, Número, Bairro, Cidade - Estado, CEP" {...field} />
+                        <Input
+                          placeholder="Rua, Número, Bairro, Cidade - Estado, CEP"
+                          {...field}
+                          readOnly={isFornecedor}
+                          className={cn(
+                            isFornecedor && 'bg-muted text-muted-foreground cursor-not-allowed',
+                          )}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

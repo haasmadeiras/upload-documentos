@@ -24,6 +24,8 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
     updated: number
     skipped: number
     total: number
+    forestsCreated: number
+    forestsLinked: number
     errors: string[]
   } | null>(null)
 
@@ -152,6 +154,8 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
       let created = 0
       let updated = 0
       let skipped = 0
+      let forestsCreated = 0
+      let forestsLinked = 0
       const errors: string[] = []
 
       for (let i = 0; i < rows.length; i++) {
@@ -178,7 +182,59 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
               const razao = String(row.razao || '').trim()
               const fantasia = String(row.fantasia || '').trim()
               const forestName = String(row.floresta || '').trim()
-              const forestId = forestName ? forestMap.get(forestName.toLowerCase()) : undefined
+
+              const endereco = String(row.endereco || '').trim()
+              const cep = String(row.cep || '').trim()
+              const municipio = String(row.municipio || '').trim()
+              const uf = String(row.uf || '').trim()
+
+              const fullAddressArr = []
+              if (endereco) fullAddressArr.push(endereco)
+              if (municipio || uf)
+                fullAddressArr.push(`${municipio}${municipio && uf ? ' - ' : ''}${uf}`)
+              if (cep) fullAddressArr.push(`CEP: ${cep}`)
+              const locationStr = fullAddressArr.join(', ')
+
+              let forestId = forestName ? forestMap.get(forestName.toLowerCase()) : undefined
+
+              if (forestName) {
+                let userIdForForest = null
+                try {
+                  const userRecord = await pb
+                    .collection('users')
+                    .getFirstListItem(`tax_id="${taxId}"`)
+                  userIdForForest = userRecord.id
+                } catch {
+                  /* intentionally ignored */
+                }
+
+                if (!forestId) {
+                  try {
+                    const newForest = await pb.collection('forest_areas').create({
+                      name: forestName,
+                      location: locationStr,
+                      user: userIdForForest || null,
+                    })
+                    forestId = newForest.id
+                    forestMap.set(forestName.toLowerCase(), forestId)
+                    forestsCreated++
+                    forestsLinked++
+                  } catch (err: any) {
+                    errors.push(`Linha ${i + 2}: Erro ao criar Floresta - ${err.message}`)
+                  }
+                } else {
+                  forestsLinked++
+                  if (userIdForForest) {
+                    try {
+                      await pb
+                        .collection('forest_areas')
+                        .update(forestId, { user: userIdForForest })
+                    } catch {
+                      /* intentionally ignored */
+                    }
+                  }
+                }
+              }
 
               const payload = {
                 tax_id: taxId,
@@ -186,10 +242,10 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
                 email,
                 name: razao || fantasia || 'Sem Nome',
                 legal_name: fantasia,
-                address: String(row.endereco || '').trim(),
-                cep: String(row.cep || '').trim(),
-                municipio: String(row.municipio || '').trim(),
-                uf: String(row.uf || '').trim(),
+                address: endereco,
+                cep,
+                municipio,
+                uf,
                 forest_area: forestId || null,
                 floresta_info: forestId ? '' : forestName,
                 controle_florestal: String(row.controle || '').trim(),
@@ -218,7 +274,15 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
         }
       }
 
-      setStats({ created, updated, skipped, total: rows.length, errors })
+      setStats({
+        created,
+        updated,
+        skipped,
+        total: rows.length,
+        forestsCreated,
+        forestsLinked,
+        errors,
+      })
       toast.success(`Importação concluída: ${created} criados, ${updated} atualizados.`)
       onSuccess()
     } catch (error: any) {
@@ -279,8 +343,10 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
                 <AlertTitle>Importação Concluída</AlertTitle>
                 <AlertDescription>
                   <ul className="mt-2 text-sm list-disc list-inside">
-                    <li>Criados: {stats.created}</li>
-                    <li>Atualizados: {stats.updated}</li>
+                    <li>Fornecedores Criados: {stats.created}</li>
+                    <li>Fornecedores Atualizados: {stats.updated}</li>
+                    <li>Áreas Florestais Criadas: {stats.forestsCreated}</li>
+                    <li>Áreas Florestais Vinculadas: {stats.forestsLinked}</li>
                     <li>Ignorados/Erros: {stats.skipped}</li>
                   </ul>
                 </AlertDescription>
