@@ -248,7 +248,7 @@ export default function AdminUsers() {
         ) {
           form.setError('email', { message: 'Este e-mail já está em uso' })
         } else {
-          toast.error('Erro ao criar usuário')
+          toast.error(editingId ? 'Erro ao atualizar usuário' : 'Erro ao criar usuário')
         }
       }
     }
@@ -513,7 +513,15 @@ export default function AdminUsers() {
                       <FormItem>
                         <FormLabel>E-mail</FormLabel>
                         <FormControl>
-                          <Input placeholder="email@exemplo.com" type="email" {...field} />
+                          <Input
+                            placeholder="email@exemplo.com"
+                            type="email"
+                            {...field}
+                            readOnly={!isMaster && !!editingId}
+                            className={cn(
+                              !isMaster && !!editingId && 'bg-muted text-muted-foreground',
+                            )}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
