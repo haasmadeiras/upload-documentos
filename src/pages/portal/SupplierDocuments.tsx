@@ -145,24 +145,19 @@ export default function SupplierDocuments() {
                 <div className="flex gap-2 mt-2">
                   <Button
                     asChild
-                    variant={
-                      status === 'approved' ||
-                      status === 'pending final approval' ||
-                      status === 'pending'
-                        ? 'outline'
-                        : 'default'
-                    }
+                    variant={status === 'approved' || status === 'pending' ? 'outline' : 'default'}
                     className="flex-1 justify-between group"
                   >
                     <Link to={`/portal/upload/${def.id}`}>
                       {status === 'approved'
                         ? 'Visualizar ou Reenviar'
-                        : status === 'missing' || status === 'rejected'
+                        : status === 'missing' ||
+                            status === 'rejected' ||
+                            status === 'solicitar correção' ||
+                            status === 'vencido'
                           ? 'Fazer Upload'
                           : 'Visualizar'}
-                      {status === 'approved' ||
-                      status === 'pending final approval' ||
-                      status === 'pending' ? (
+                      {status === 'approved' || status === 'pending' ? (
                         <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                       ) : (
                         <FileUp className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" />

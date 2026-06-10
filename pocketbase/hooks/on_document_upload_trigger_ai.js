@@ -38,9 +38,9 @@ RETORNE APENAS um JSON estrito no seguinte formato e nada mais (sem blocos markd
   "status": "valid" | "invalid" | "error",
   "reason": "Explicação da rejeição. Vazio se válido.",
   "extracted": {
-    "cnpj": "cnpj extraído ou null",
-    "razao_social": "razao_social ou null",
-    "issuance_date": "data de emissão ou null"
+    "cnpj": "cnpj extraído ou 'Não Identificado'",
+    "razao_social": "razao_social ou 'Não Identificado'",
+    "issuance_date": "data de emissão ou 'Não Identificado'"
   }
 }`,
     })
@@ -58,10 +58,10 @@ RETORNE APENAS um JSON estrito no seguinte formato e nada mais (sem blocos markd
     docRecord.set('analysis_log', analysisResult)
 
     if (analysisResult.status === 'valid') {
-      docRecord.set('status', 'Pending Final Approval')
+      docRecord.set('status', 'Pending')
       docRecord.set('rejection_reason', '')
     } else {
-      docRecord.set('status', 'Rejected')
+      docRecord.set('status', 'Solicitar Correção')
       docRecord.set('rejection_reason', analysisResult.reason || 'Falha na validação do documento.')
     }
 
@@ -70,7 +70,7 @@ RETORNE APENAS um JSON estrito no seguinte formato e nada mais (sem blocos markd
     console.log('Failed to trigger AI analyst:', err.message)
     try {
       const docRecord = $app.findRecordById('documents', e.record.id)
-      docRecord.set('status', 'Rejected')
+      docRecord.set('status', 'Solicitar Correção')
       docRecord.set(
         'rejection_reason',
         'Erro interno na análise automática. Por favor, tente novamente.',

@@ -144,9 +144,7 @@ export default function PortalDashboard() {
 
   if (!activeName) {
     const totalDocs = userDocs.length
-    const pendingDocs = userDocs.filter(
-      (d) => d.status === 'Pending' || d.status === 'Pending Final Approval',
-    ).length
+    const pendingDocs = userDocs.filter((d) => d.status === 'Pending').length
     const approvedDocs = userDocs.filter((d) => d.status === 'Approved').length
     const rejectedDocs = userDocs.filter((d) => d.status === 'Rejected').length
 

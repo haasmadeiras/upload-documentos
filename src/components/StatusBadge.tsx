@@ -19,32 +19,11 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     )
   }
 
-  if (norm === 'pending final approval' || norm === 'aguardando aprovação final') {
-    return (
-      <Badge
-        variant="outline"
-        className="bg-indigo-50 text-indigo-600 border-indigo-200 gap-1.5 font-medium"
-      >
-        <CheckCircle2 className="w-3.5 h-3.5" /> Revisão Final
-      </Badge>
-    )
-  }
-
-  if (norm === 'under analysis' || norm === 'em análise' || norm === 'em_analise') {
-    return (
-      <Badge
-        variant="outline"
-        className="bg-blue-50 text-blue-600 border-blue-200 gap-1.5 font-medium"
-      >
-        <Search className="w-3.5 h-3.5" /> Em Análise
-      </Badge>
-    )
-  }
-
   if (
     norm === 'correction required' ||
     norm === 'aguardando correção' ||
-    norm === 'solicitar correção'
+    norm === 'solicitar correção' ||
+    norm === 'solicitar_correcao'
   ) {
     return (
       <Badge

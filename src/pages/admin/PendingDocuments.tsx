@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useNavigate, Link } from 'react-router-dom'
 import { format } from 'date-fns'
-import { FileWarning, Loader2, ArrowLeft, Check, X, Eye } from 'lucide-react'
+import { FileWarning, Loader2, ArrowLeft, Check, X, Eye, ZoomIn, ZoomOut } from 'lucide-react'
 
 import pb from '@/lib/pocketbase/client'
 import { toast } from 'sonner'
@@ -26,6 +26,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import { StatusBadge } from '@/components/StatusBadge'
 
 export default function AdminPendingDocuments() {
@@ -38,6 +39,13 @@ export default function AdminPendingDocuments() {
   const [isRejectOpen, setIsRejectOpen] = useState(false)
   const [rejectionReason, setRejectionReason] = useState('')
 
+  const [zoom, setZoom] = useState(1)
+  const [manualData, setManualData] = useState({
+    cnpj: '',
+    razao_social: '',
+    issuance_date: '',
+  })
+
   const isMaster = user?.isAdmin === true || user?.role === 'Admin' || user?.role === 'Colaborador'
 
   useEffect(() => {
@@ -49,7 +57,7 @@ export default function AdminPendingDocuments() {
   const fetchPendingDocs = async () => {
     try {
       const records = await pb.collection('documents').getFullList({
-        filter: "status = 'Pending' || status = 'Pending Final Approval'",
+        filter: "status = 'Pending'",
         expand: 'supplier,definition,user',
         sort: '-created',
       })
@@ -71,9 +79,33 @@ export default function AdminPendingDocuments() {
     if (isMaster) fetchPendingDocs()
   })
 
+  useEffect(() => {
+    if (selectedDoc) {
+      setZoom(1)
+      const ex = selectedDoc.analysis_log?.extracted || {}
+      setManualData({
+        cnpj: ex.cnpj || '',
+        razao_social: ex.razao_social || '',
+        issuance_date: ex.issuance_date || '',
+      })
+    }
+  }, [selectedDoc])
+
   const handleApprove = async (doc: any) => {
     try {
-      await pb.collection('documents').update(doc.id, { status: 'Approved' })
+      const currentLog = doc.analysis_log || {}
+      const updatedLog = {
+        ...currentLog,
+        extracted: {
+          ...currentLog.extracted,
+          ...manualData,
+        },
+      }
+
+      await pb.collection('documents').update(doc.id, {
+        status: 'Approved',
+        analysis_log: updatedLog,
+      })
       toast.success('Documento aprovado com sucesso!')
       setSelectedDoc(null)
     } catch (e) {
@@ -84,15 +116,15 @@ export default function AdminPendingDocuments() {
 
   const handleReject = async () => {
     if (!rejectionReason.trim()) {
-      toast.error('Informe o motivo da rejeição')
+      toast.error('Informe o motivo')
       return
     }
     try {
       await pb.collection('documents').update(selectedDoc.id, {
-        status: 'Rejected',
+        status: 'Solicitar Correção',
         rejection_reason: rejectionReason,
       })
-      toast.success('Documento rejeitado com sucesso!')
+      toast.success('Correção solicitada com sucesso!')
       setIsRejectOpen(false)
       setSelectedDoc(null)
       setRejectionReason('')
@@ -100,6 +132,33 @@ export default function AdminPendingDocuments() {
       console.error(e)
       toast.error('Erro ao rejeitar documento')
     }
+  }
+
+  const isUnidentified = (val: string) =>
+    !val || val.toLowerCase() === 'não identificado' || val.toLowerCase() === 'null'
+
+  const renderField = (label: string, field: keyof typeof manualData) => {
+    const value = manualData[field]
+    const originalValue = selectedDoc?.analysis_log?.extracted?.[field]
+    const needsManual = isUnidentified(originalValue)
+
+    return (
+      <div className="space-y-1">
+        <label className="text-xs font-semibold text-muted-foreground">{label}</label>
+        {needsManual ? (
+          <Input
+            value={value}
+            onChange={(e) => setManualData((prev) => ({ ...prev, [field]: e.target.value }))}
+            className="h-8 text-sm"
+            placeholder="Digite manualmente..."
+          />
+        ) : (
+          <div className="text-sm font-medium bg-slate-50 p-2 rounded-md border border-slate-100">
+            {value}
+          </div>
+        )}
+      </div>
+    )
   }
 
   if (!isMaster) return null
@@ -186,71 +245,103 @@ export default function AdminPendingDocuments() {
       </Card>
 
       <Dialog open={!!selectedDoc} onOpenChange={(o) => !o && setSelectedDoc(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="max-w-6xl h-[85vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="p-6 pb-4 shrink-0">
             <DialogTitle>Revisão de Documento</DialogTitle>
-            <DialogDescription>
-              Confira o resultado da análise da IA e decida a aprovação.
-            </DialogDescription>
+            <DialogDescription>Confira o documento e os dados extraídos pela IA.</DialogDescription>
           </DialogHeader>
 
           {selectedDoc && (
-            <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="font-semibold block text-muted-foreground">Fornecedor</span>
-                  {selectedDoc.expand?.supplier?.name || 'N/A'}
-                </div>
-                <div>
-                  <span className="font-semibold block text-muted-foreground">Documento</span>
-                  {selectedDoc.title || selectedDoc.expand?.definition?.name}
-                </div>
-                <div>
-                  <span className="font-semibold block text-muted-foreground">Status Atual</span>
-                  <StatusBadge status={selectedDoc.status} />
-                </div>
-                <div>
-                  <span className="font-semibold block text-muted-foreground">Arquivo</span>
-                  <a
-                    href={`${import.meta.env.VITE_POCKETBASE_URL}/api/files/documents/${selectedDoc.id}/${selectedDoc.file}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
+            <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-6 p-6 pt-0">
+              <div className="flex-1 relative border rounded-lg bg-slate-200/50 overflow-hidden flex flex-col shadow-inner">
+                <div className="absolute bottom-4 right-4 z-10 flex bg-white/95 backdrop-blur-sm shadow border rounded-lg p-1 gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setZoom((z) => Math.max(z - 0.2, 0.4))}
                   >
-                    Ver Arquivo Original
-                  </a>
+                    <ZoomOut className="w-4 h-4" />
+                  </Button>
+                  <div className="flex items-center px-2 text-xs font-medium min-w-[3rem] justify-center">
+                    {Math.round(zoom * 100)}%
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setZoom((z) => Math.min(z + 0.2, 3))}
+                  >
+                    <ZoomIn className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-auto p-4 flex justify-center">
+                  <div className="min-w-fit min-h-fit flex items-start justify-center">
+                    <img
+                      src={pb.files.getUrl(selectedDoc, selectedDoc.file, { thumb: '1000x0' })}
+                      alt="Document Preview"
+                      style={{
+                        width: `${zoom * 100}%`,
+                        minWidth: `${zoom * 50}vw`,
+                        transition:
+                          'width 0.2s cubic-bezier(0.2, 0, 0, 1), min-width 0.2s cubic-bezier(0.2, 0, 0, 1)',
+                      }}
+                      className="max-w-none h-auto bg-white rounded shadow-md object-contain"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-4 rounded-md border text-sm">
-                <span className="font-semibold text-slate-700 block mb-2">
-                  Log de Análise da IA
-                </span>
-                {selectedDoc.analysis_log ? (
-                  <pre className="whitespace-pre-wrap text-slate-600 font-mono text-xs">
-                    {typeof selectedDoc.analysis_log === 'object'
-                      ? JSON.stringify(selectedDoc.analysis_log, null, 2)
-                      : selectedDoc.analysis_log}
-                  </pre>
-                ) : (
-                  <span className="text-muted-foreground italic">
-                    Nenhum log disponível (ainda em processamento ou falhou).
-                  </span>
-                )}
+              <div className="w-full md:w-[350px] shrink-0 flex flex-col gap-6 overflow-y-auto pr-2">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-semibold mb-3">Informações do Fornecedor</h3>
+                    <div className="space-y-2 text-sm bg-slate-50 p-4 rounded-lg border">
+                      <div>
+                        <span className="text-muted-foreground block text-xs">
+                          Nome / Razão Social
+                        </span>
+                        {selectedDoc.expand?.supplier?.name || 'N/A'}
+                      </div>
+                      <div className="pt-2">
+                        <span className="text-muted-foreground block text-xs">Documento</span>
+                        {selectedDoc.title || selectedDoc.expand?.definition?.name}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-border" />
+
+                  <div>
+                    <h3 className="text-sm font-semibold mb-3">Resumo da Análise</h3>
+                    <div className="space-y-4">
+                      {renderField('CNPJ', 'cnpj')}
+                      {renderField('Razão Social', 'razao_social')}
+                      {renderField('Data de Emissão', 'issuance_date')}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setSelectedDoc(null)}>
-              Cancelar
-            </Button>
-            <Button variant="destructive" onClick={() => setIsRejectOpen(true)}>
-              <X className="w-4 h-4 mr-2" /> Rejeitar
-            </Button>
-            <Button onClick={() => handleApprove(selectedDoc)}>
-              <Check className="w-4 h-4 mr-2" /> Aprovar
-            </Button>
+          <DialogFooter className="p-6 pt-4 shrink-0 border-t bg-slate-50/50">
+            <div className="flex items-center justify-between w-full">
+              <Button variant="ghost" onClick={() => setSelectedDoc(null)}>
+                Cancelar
+              </Button>
+              <div className="flex gap-2">
+                <Button variant="destructive" onClick={() => setIsRejectOpen(true)}>
+                  <X className="w-4 h-4 mr-2" /> Solicitar Correção
+                </Button>
+                <Button
+                  onClick={() => handleApprove(selectedDoc)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <Check className="w-4 h-4 mr-2" /> Aprovar
+                </Button>
+              </div>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -258,20 +349,23 @@ export default function AdminPendingDocuments() {
       <Dialog open={isRejectOpen} onOpenChange={setIsRejectOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rejeitar Documento</DialogTitle>
-            <DialogDescription>Informe o motivo da rejeição para o fornecedor.</DialogDescription>
+            <DialogTitle>Solicitar Correção</DialogTitle>
+            <DialogDescription>
+              Informe o motivo para que o fornecedor corrija o documento.
+            </DialogDescription>
           </DialogHeader>
           <Textarea
             placeholder="Ex: CNPJ Divergente, Documento Ilegível..."
             value={rejectionReason}
             onChange={(e) => setRejectionReason(e.target.value)}
+            className="min-h-[100px]"
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsRejectOpen(false)}>
               Cancelar
             </Button>
             <Button variant="destructive" onClick={handleReject}>
-              Confirmar Rejeição
+              Confirmar Solicitação
             </Button>
           </DialogFooter>
         </DialogContent>

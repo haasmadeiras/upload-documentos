@@ -34,9 +34,7 @@ export default function Dashboard() {
       const [suppliersRes, collabRes, pendingDocsRes, forestRes, docsAllRes] = await Promise.all([
         pb.collection('suppliers').getList(1, 1),
         pb.collection('users').getList(1, 1, { filter: "role = 'Colaborador'" }),
-        pb
-          .collection('documents')
-          .getList(1, 1, { filter: "status = 'Pending' || status = 'Pending Final Approval'" }),
+        pb.collection('documents').getList(1, 1, { filter: "status = 'Pending'" }),
         pb.collection('forest_areas').getList(1, 1),
         pb.collection('documents').getFullList({ expand: 'definition' }),
       ])
@@ -131,13 +129,19 @@ export default function Dashboard() {
       case 'Pending':
         return (
           <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100/80 border-none">
-            Em Análise (IA)
+            Pendente
           </Badge>
         )
-      case 'Pending Final Approval':
+      case 'Solicitar Correção':
         return (
-          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100/80 border-none">
-            Revisão Final
+          <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100/80 border-none">
+            Solicitar Correção
+          </Badge>
+        )
+      case 'Vencido':
+        return (
+          <Badge className="bg-rose-100 text-rose-800 hover:bg-rose-100/80 border-none">
+            Vencido
           </Badge>
         )
       case 'Rejected':
