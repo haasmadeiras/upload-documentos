@@ -115,6 +115,9 @@ export default function PortalUpload() {
       formData.append('status', 'Pending')
       formData.append('user', pb.authStore.record.id)
       formData.append('definition', req.id)
+      if (pb.authStore.record.supplier) {
+        formData.append('supplier', pb.authStore.record.supplier)
+      }
       if (selectedForest) {
         formData.append('forest_area', selectedForest)
       }

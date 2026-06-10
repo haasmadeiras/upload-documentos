@@ -18,8 +18,9 @@ export function ProtectedRoute({ adminOnly = false }: { adminOnly?: boolean }) {
   }
 
   if (adminOnly) {
-    const isAdmin = user.isAdmin === true || user.role === 'Admin'
-    if (!isAdmin) {
+    const isAdminOrColab =
+      user.isAdmin === true || user.role === 'Admin' || user.role === 'Colaborador'
+    if (!isAdminOrColab) {
       return <Navigate to="/portal" replace />
     }
   }

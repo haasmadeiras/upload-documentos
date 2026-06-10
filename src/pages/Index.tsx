@@ -29,8 +29,9 @@ export default function Index() {
 
   useEffect(() => {
     if (isAuthenticated && user && !loading) {
-      const isAdmin = user.isAdmin === true || user.role === 'Admin'
-      navigate(isAdmin ? '/admin' : '/dashboard')
+      const isAdminOrColab =
+        user.isAdmin === true || user.role === 'Admin' || user.role === 'Colaborador'
+      navigate(isAdminOrColab ? '/admin' : '/dashboard')
     }
   }, [isAuthenticated, user, loading, navigate])
 

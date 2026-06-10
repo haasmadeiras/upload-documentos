@@ -13,7 +13,10 @@ import { getForestAreas, ForestArea } from '@/services/forest_areas'
 import { useRealtime } from '@/hooks/use-realtime'
 import { Users, Truck, FileText, Map as MapIcon } from 'lucide-react'
 
+import { useAuth } from '@/hooks/use-auth'
+
 export default function AdminDashboard() {
+  const { user } = useAuth()
   const [stats, setStats] = useState({ employees: 0, vehicles: 0, documents: 0, forests: 0 })
   const [suppliers, setSuppliers] = useState<any[]>([])
   const [forestAreas, setForestAreas] = useState<ForestArea[]>([])
@@ -76,7 +79,7 @@ export default function AdminDashboard() {
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard Admin</h1>
+          <h1 className="text-3xl font-bold">Dashboard de Gestão</h1>
           <p className="text-muted-foreground">Visão geral do sistema e cadastros</p>
         </div>
 

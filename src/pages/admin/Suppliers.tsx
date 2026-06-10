@@ -113,7 +113,7 @@ export default function AdminSuppliers() {
   const [open, setOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
 
-  const isMaster = user?.isAdmin === true || user?.role === 'Admin'
+  const isMaster = user?.isAdmin === true || user?.role === 'Admin' || user?.role === 'Colaborador'
 
   useEffect(() => {
     if (isAuthenticated && !isMaster) {
