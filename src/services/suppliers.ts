@@ -10,6 +10,11 @@ export interface Supplier {
   phone?: string
   address?: string
   external_code?: string
+  cep?: string
+  municipio?: string
+  uf?: string
+  floresta_info?: string
+  controle_florestal?: string
   created: string
   updated: string
 }

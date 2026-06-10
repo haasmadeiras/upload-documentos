@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-10T13:30:28.301Z",
+  "generatedAt": "2026-06-10T13:41:06.445Z",
   "collections": [
     {
       "name": "users",
@@ -720,6 +720,36 @@
         },
         {
           "name": "external_code",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cep",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "municipio",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "uf",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "floresta_info",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "controle_florestal",
           "type": "text",
           "required": false,
           "system": false

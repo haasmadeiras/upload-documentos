@@ -14,6 +14,25 @@ interface Props {
   onSuccess: () => void
 }
 
+const splitCSV = (str: string, sep: string) => {
+  const result: string[] = []
+  let inQuotes = false
+  let cur = ''
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i]
+    if (char === '"') {
+      inQuotes = !inQuotes
+    } else if (char === sep && !inQuotes) {
+      result.push(cur)
+      cur = ''
+    } else {
+      cur += char
+    }
+  }
+  result.push(cur)
+  return result
+}
+
 export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
   const [file, setFile] = useState<File | null>(null)
   const [importing, setImporting] = useState(false)
@@ -74,53 +93,77 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
       const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '')
       if (lines.length < 2) throw new Error('O arquivo está vazio ou sem dados válidos')
 
+      const normalizeHeader = (h: string) =>
+        h
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .trim()
+
       let headerIdx = 0
+      let headers: string[] = []
+      let delimiter = ';'
+
       for (let i = 0; i < lines.length; i++) {
+        const lineNorm = normalizeHeader(lines[i])
         if (
-          lines[i].includes('Código') &&
-          (lines[i].includes('CNPJ/CPF') || lines[i].includes('E-mail'))
+          lineNorm.includes('codigo') &&
+          (lineNorm.includes('cnpj') || lineNorm.includes('cpf') || lineNorm.includes('email'))
         ) {
           headerIdx = i
+          delimiter = lines[i].includes(';') ? ';' : ','
+          headers = splitCSV(lines[i], delimiter).map(normalizeHeader)
           break
         }
       }
 
-      const delimiter = lines[headerIdx].includes(';') ? ';' : ','
-      const headers = lines[headerIdx].split(delimiter).map((h) => {
-        let clean = h.trim().replace(/^[\uFEFF"']+|["']+$/g, '')
-        clean = clean.replace(/^Relatório de colaboradores:\s*/i, '').trim()
-        return clean
-      })
+      if (headers.length === 0) {
+        headerIdx = 0
+        delimiter = lines[0].includes(';') ? ';' : ','
+        headers = splitCSV(lines[0], delimiter).map(normalizeHeader)
+      }
+
+      const colMap = {
+        codigo: headers.findIndex((h) => h === 'codigo'),
+        razao: headers.findIndex((h) => h.includes('razao')),
+        fantasia: headers.findIndex((h) => h.includes('fantasia') || h.includes('apelido')),
+        endereco: headers.findIndex((h) => h === 'endereco'),
+        cep: headers.findIndex((h) => h === 'cep'),
+        municipio: headers.findIndex((h) => h === 'municipio'),
+        uf: headers.findIndex((h) => h === 'uf'),
+        floresta: headers.findIndex((h) => h === 'floresta'),
+        controle: headers.findIndex((h) => h.includes('controle')),
+        doc: headers.findIndex((h) => h.includes('cnpj') || h.includes('cpf')),
+        email: headers.findIndex((h) => h.includes('email') || h.includes('e-mail')),
+      }
+
+      if (colMap.codigo === -1)
+        throw new Error('Erro: Coluna Código não localizada no arquivo Excel.')
+      if (colMap.fantasia === -1)
+        throw new Error('Erro: Coluna Fantasia/Apelido não localizada no arquivo Excel.')
+      if (colMap.doc === -1)
+        throw new Error('Erro: Coluna CNPJ/CPF não localizada no arquivo Excel.')
+      if (colMap.email === -1)
+        throw new Error('Erro: Coluna E-mail não localizada no arquivo Excel.')
 
       const rows: Record<string, string>[] = []
       for (let i = headerIdx + 1; i < lines.length; i++) {
-        const values = lines[i].split(delimiter).map((v) => v.trim().replace(/^["']+|["']+$/g, ''))
-        const row: Record<string, string> = {}
-        headers.forEach((h, idx) => {
-          row[h] = values[idx] || ''
+        const values = splitCSV(lines[i], delimiter).map((v) =>
+          v.trim().replace(/^["']+|["']+$/g, ''),
+        )
+        rows.push({
+          codigo: colMap.codigo !== -1 ? values[colMap.codigo] : '',
+          razao: colMap.razao !== -1 ? values[colMap.razao] : '',
+          fantasia: colMap.fantasia !== -1 ? values[colMap.fantasia] : '',
+          endereco: colMap.endereco !== -1 ? values[colMap.endereco] : '',
+          cep: colMap.cep !== -1 ? values[colMap.cep] : '',
+          municipio: colMap.municipio !== -1 ? values[colMap.municipio] : '',
+          uf: colMap.uf !== -1 ? values[colMap.uf] : '',
+          floresta: colMap.floresta !== -1 ? values[colMap.floresta] : '',
+          controle: colMap.controle !== -1 ? values[colMap.controle] : '',
+          doc: colMap.doc !== -1 ? values[colMap.doc] : '',
+          email: colMap.email !== -1 ? values[colMap.email] : '',
         })
-        rows.push(row)
-      }
-
-      if (rows.length === 0) throw new Error('O arquivo não contém dados de fornecedores')
-
-      const reqCols = [
-        'Código',
-        'Razão Soc/Nome',
-        'Fantasia/Apelido',
-        'Endereço',
-        'CEP',
-        'Município',
-        'UF',
-        'Floresta',
-        'Controle Florestal',
-        'CNPJ/CPF',
-        'E-mail',
-      ]
-
-      for (const col of reqCols) {
-        if (!(col in rows[0]))
-          throw new Error(`Coluna '${col}' não encontrada. Verifique o modelo.`)
       }
 
       let success = 0
@@ -129,28 +172,27 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i]
-        const rawTaxId = String(row['CNPJ/CPF'] || '')
+        const rawTaxId = String(row.doc || '')
         const taxId = rawTaxId.replace(/\D/g, '')
 
-        if (!taxId) continue
+        if (!taxId) {
+          skipped++
+          continue
+        }
 
         if (taxId.length !== 11 && taxId.length !== 14) {
           errors.push(`Linha ${i + 2}: Documento inválido (${rawTaxId})`)
           skipped++
         } else {
-          const email = String(row['E-mail'] || '').trim()
+          const email = String(row.email || '').trim()
           if (!email) {
             errors.push(`Linha ${i + 2}: E-mail vazio para o documento ${taxId}`)
             skipped++
           } else {
             try {
               const personType = taxId.length === 14 ? 'PJ' : 'PF'
-              const name = String(row['Fantasia/Apelido'] || '').trim()
-              const legalName = String(row['Razão Soc/Nome'] || '').trim()
-              const address = [row['Endereço'], row['Município'], row['UF'], row['CEP']]
-                .filter(Boolean)
-                .join(' - ')
-              const externalCode = String(row['Código'] || '').trim()
+              const name = String(row.fantasia || '').trim()
+              const legalName = String(row.razao || '').trim()
 
               const payload = {
                 tax_id: taxId,
@@ -158,8 +200,13 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
                 email,
                 name: name || legalName || 'Sem Nome',
                 legal_name: legalName,
-                address,
-                external_code: externalCode,
+                address: String(row.endereco || '').trim(),
+                cep: String(row.cep || '').trim(),
+                municipio: String(row.municipio || '').trim(),
+                uf: String(row.uf || '').trim(),
+                floresta_info: String(row.floresta || '').trim(),
+                controle_florestal: String(row.controle || '').trim(),
+                external_code: String(row.codigo || '').trim(),
               }
 
               try {
@@ -184,6 +231,7 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
       }
 
       setStats({ success, skipped, total: rows.length, errors })
+      toast.success(`${success} fornecedores importados com sucesso!`)
       onSuccess()
     } catch (error: any) {
       toast.error(error.message || 'Erro ao processar o arquivo')
