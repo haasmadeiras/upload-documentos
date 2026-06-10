@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useRealtime } from '@/hooks/use-realtime'
 import { ArrowLeft, CheckCircle2, History, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -31,14 +32,7 @@ export default function PortalUpload() {
   const [upload, setUpload] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    getForestAreas()
-      .then((data) => {
-        setForestAreas(data)
-        if (data.length === 1) setSelectedForest(data[0].id)
-      })
-      .catch(console.error)
-
+  const loadData = () => {
     if (id && pb.authStore.record?.id) {
       Promise.all([
         pb.collection('document_definitions').getOne(id),
@@ -66,6 +60,7 @@ export default function PortalUpload() {
                     ? 'rejeitado'
                     : 'pendente',
               fileName: doc.file,
+              rejectionReason: doc.rejection_reason,
             })
           }
         })
@@ -74,7 +69,24 @@ export default function PortalUpload() {
     } else {
       setLoading(false)
     }
+  }
+
+  useEffect(() => {
+    getForestAreas()
+      .then((data) => {
+        setForestAreas(data)
+        if (data.length === 1) setSelectedForest(data[0].id)
+      })
+      .catch(console.error)
+
+    loadData()
   }, [id])
+
+  useRealtime('documents', (e) => {
+    if (e.record.user === pb.authStore.record?.id && e.record.definition === id) {
+      loadData()
+    }
+  })
 
   if (loading) {
     return (
@@ -217,8 +229,9 @@ export default function PortalUpload() {
                 <div>
                   <p className="font-semibold text-sm">O envio anterior foi rejeitado.</p>
                   <p className="text-sm mt-1 opacity-90">
-                    Motivo: O documento está ilegível ou incompleto. Por favor, envie uma nova
-                    versão atualizada.
+                    Motivo:{' '}
+                    {upload.rejectionReason ||
+                      'O documento está ilegível ou incompleto. Por favor, envie uma nova versão atualizada.'}
                   </p>
                 </div>
               </CardContent>

@@ -19,6 +19,7 @@ import AdminUsers from './pages/admin/Users'
 import AdminAuditLogs from './pages/admin/AuditLogs'
 import PortalDashboard from './pages/portal/Dashboard'
 import PortalUpload from './pages/portal/Upload'
+import SupplierDocuments from './pages/portal/SupplierDocuments'
 import PortalEmployeeDetails from './pages/portal/EmployeeDetails'
 import PortalEmployees from './pages/portal/Employees'
 import AdminCategoryDocuments from './pages/admin/CategoryDocuments'
@@ -69,7 +70,7 @@ const App = () => (
                 <Route path="/portal/employees/:id" element={<PortalEmployeeDetails />} />{' '}
                 <Route path="/portal/fornecedor" element={<PortalDashboard />} />
                 <Route path="/portal/veiculos" element={<PortalDashboard />} />
-                <Route path="/portal/contratados" element={<PortalDashboard />} />
+                <Route path="/portal/contratados" element={<SupplierDocuments />} />
                 <Route path="/portal/florestas" element={<PortalDashboard />} />
               </Route>
             </Route>
