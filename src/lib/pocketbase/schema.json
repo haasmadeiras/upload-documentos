@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-10T14:56:33.267Z",
+  "generatedAt": "2026-06-10T15:01:10.815Z",
   "collections": [
     {
       "name": "users",
@@ -92,6 +92,12 @@
         {
           "name": "active",
           "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "last_login",
+          "type": "date",
           "required": false,
           "system": false
         }
@@ -800,7 +806,7 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["Update", "Delete", "Status Change", "Create"]
+          "selectValues": ["Update", "Delete", "Status Change", "Create", "Login"]
         },
         {
           "name": "details",

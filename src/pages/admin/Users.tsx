@@ -8,10 +8,15 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
 import { useRealtime } from '@/hooks/use-realtime'
+import { format } from 'date-fns'
 
 import { getUsers, createUser, updateUser, deleteUser, User } from '@/services/users'
 import { Button } from '@/components/ui/button'
-import { Pencil, Trash2, ShieldAlert } from 'lucide-react'
+import { Pencil, Trash2, ShieldAlert, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+
+type SortField = 'name' | 'email' | 'role' | 'active' | 'tax_id' | 'last_login'
+type SortOrder = 'asc' | 'desc'
+type ExtendedUser = User & { last_login?: string }
 import { Switch } from '@/components/ui/switch'
 import {
   AlertDialog,
@@ -134,6 +139,8 @@ export default function AdminUsers() {
   const [open, setOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null)
+  const [sortField, setSortField] = useState<SortField>('last_login')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
 
   const isMaster = user?.isAdmin === true || user?.role === 'Admin'
   const isColaborador = user?.role === 'Colaborador'
@@ -249,13 +256,42 @@ export default function AdminUsers() {
     }
   }
 
-  const filteredUsers = users.filter(
+  const filteredUsers = (users as ExtendedUser[]).filter(
     (u) =>
       u.name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase()) ||
       u.tax_id?.includes(search) ||
       u.legal_name?.toLowerCase().includes(search.toLowerCase()),
   )
+
+  const sortedUsers = [...filteredUsers].sort((a, b) => {
+    let valA: any = a[sortField]
+    let valB: any = b[sortField]
+
+    if (sortField === 'last_login') {
+      valA = valA ? new Date(valA).getTime() : 0
+      valB = valB ? new Date(valB).getTime() : 0
+    } else if (typeof valA === 'string') {
+      valA = valA.toLowerCase()
+      valB = (valB || '').toLowerCase()
+    } else if (typeof valA === 'boolean') {
+      valA = valA ? 1 : 0
+      valB = valB ? 1 : 0
+    }
+
+    if (valA < valB) return sortOrder === 'asc' ? -1 : 1
+    if (valA > valB) return sortOrder === 'asc' ? 1 : -1
+    return 0
+  })
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortOrder(field === 'last_login' ? 'desc' : 'asc')
+    }
+  }
 
   const handleDeleteUser = async () => {
     if (!deleteUserId) return
@@ -533,29 +569,126 @@ export default function AdminUsers() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nome</TableHead>
-              <TableHead>E-mail</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>CNPJ/CPF</TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => handleSort('name')}
+              >
+                <div className="flex items-center gap-1">
+                  Nome
+                  {sortField === 'name' ? (
+                    sortOrder === 'asc' ? (
+                      <ArrowUp className="w-3 h-3" />
+                    ) : (
+                      <ArrowDown className="w-3 h-3" />
+                    )
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 text-muted-foreground/30" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => handleSort('email')}
+              >
+                <div className="flex items-center gap-1">
+                  E-mail
+                  {sortField === 'email' ? (
+                    sortOrder === 'asc' ? (
+                      <ArrowUp className="w-3 h-3" />
+                    ) : (
+                      <ArrowDown className="w-3 h-3" />
+                    )
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 text-muted-foreground/30" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => handleSort('role')}
+              >
+                <div className="flex items-center gap-1">
+                  Role
+                  {sortField === 'role' ? (
+                    sortOrder === 'asc' ? (
+                      <ArrowUp className="w-3 h-3" />
+                    ) : (
+                      <ArrowDown className="w-3 h-3" />
+                    )
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 text-muted-foreground/30" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => handleSort('active')}
+              >
+                <div className="flex items-center gap-1">
+                  Status
+                  {sortField === 'active' ? (
+                    sortOrder === 'asc' ? (
+                      <ArrowUp className="w-3 h-3" />
+                    ) : (
+                      <ArrowDown className="w-3 h-3" />
+                    )
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 text-muted-foreground/30" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => handleSort('tax_id')}
+              >
+                <div className="flex items-center gap-1">
+                  CNPJ/CPF
+                  {sortField === 'tax_id' ? (
+                    sortOrder === 'asc' ? (
+                      <ArrowUp className="w-3 h-3" />
+                    ) : (
+                      <ArrowDown className="w-3 h-3" />
+                    )
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 text-muted-foreground/30" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => handleSort('last_login')}
+              >
+                <div className="flex items-center gap-1">
+                  Último Acesso
+                  {sortField === 'last_login' ? (
+                    sortOrder === 'asc' ? (
+                      <ArrowUp className="w-3 h-3" />
+                    ) : (
+                      <ArrowDown className="w-3 h-3" />
+                    )
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 text-muted-foreground/30" />
+                  )}
+                </div>
+              </TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center h-24">
+                <TableCell colSpan={7} className="text-center h-24">
                   Carregando usuários...
                 </TableCell>
               </TableRow>
-            ) : filteredUsers.length === 0 ? (
+            ) : sortedUsers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center h-24">
+                <TableCell colSpan={7} className="text-center h-24">
                   Nenhum usuário encontrado.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredUsers.map((u) => (
+              sortedUsers.map((u) => (
                 <TableRow key={u.id}>
                   <TableCell className="font-medium">
                     {u.name}
@@ -586,6 +719,15 @@ export default function AdminUsers() {
                     </Badge>
                   </TableCell>
                   <TableCell>{u.tax_id}</TableCell>
+                  <TableCell>
+                    {u.last_login ? (
+                      <span className="text-sm text-muted-foreground">
+                        {format(new Date(u.last_login), 'dd/MM/yyyy HH:mm')}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground italic">Nunca acessou</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
                     {canEditOrDelete(u) && (
                       <div className="flex justify-end gap-2">
