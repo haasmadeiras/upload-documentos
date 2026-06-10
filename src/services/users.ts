@@ -12,12 +12,18 @@ export interface User {
   legal_name?: string
   address?: string
   active: boolean
+  supplier?: string
+  expand?: {
+    supplier?: {
+      legal_name?: string
+    }
+  }
   created: string
   updated: string
 }
 
 export const getUsers = (filter?: string) =>
-  pb.collection('users').getFullList<User>({ sort: '-created', filter })
+  pb.collection('users').getFullList<User>({ sort: '-created', filter, expand: 'supplier' })
 export const createUser = (data: Partial<User> & { password?: string; passwordConfirm?: string }) =>
   pb.collection('users').create<User>(data)
 export const updateUser = (id: string, data: Partial<User>) =>

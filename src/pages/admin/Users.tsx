@@ -193,7 +193,9 @@ export default function AdminUsers() {
         setUsers((prev) => [e.record as unknown as User, ...prev])
       } else if (e.action === 'update') {
         setUsers((prev) =>
-          prev.map((u) => (u.id === e.record.id ? (e.record as unknown as User) : u)),
+          prev.map((u) =>
+            u.id === e.record.id ? { ...u, ...(e.record as unknown as User), expand: u.expand } : u,
+          ),
         )
       } else if (e.action === 'delete') {
         setUsers((prev) => prev.filter((u) => u.id !== e.record.id))
@@ -265,7 +267,8 @@ export default function AdminUsers() {
       u.name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase()) ||
       (searchClean !== '' && u.tax_id?.replace(/\D/g, '').includes(searchClean)) ||
-      u.legal_name?.toLowerCase().includes(search.toLowerCase()),
+      u.legal_name?.toLowerCase().includes(search.toLowerCase()) ||
+      u.expand?.supplier?.legal_name?.toLowerCase().includes(search.toLowerCase()),
   )
 
   const sortedUsers = [...filteredUsers].sort((a, b) => {
@@ -319,7 +322,7 @@ export default function AdminUsers() {
       role: u.role,
       person_type: u.person_type,
       phone: u.phone || '',
-      legal_name: u.legal_name || '',
+      legal_name: u.legal_name || u.expand?.supplier?.legal_name || '',
       address: u.address || '',
       active: u.active ?? true,
     })
@@ -738,8 +741,10 @@ export default function AdminUsers() {
                 <TableRow key={u.id}>
                   <TableCell className="font-medium">
                     {u.name}
-                    {u.legal_name && (
-                      <div className="text-xs text-muted-foreground mt-0.5">{u.legal_name}</div>
+                    {(u.legal_name || u.expand?.supplier?.legal_name) && (
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {u.legal_name || u.expand?.supplier?.legal_name}
+                      </div>
                     )}
                   </TableCell>
                   <TableCell>{u.email}</TableCell>
