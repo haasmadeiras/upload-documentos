@@ -225,27 +225,34 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
                   const activeForests = await pb.collection('forest_areas').getFullList({
                     filter: `supplier="${supplierId}" && is_active=true`,
                   })
-                  const currentActive = activeForests[0]
 
-                  let newActiveId = currentActive?.id
+                  let activeMatch = null
+                  const otherActives = []
 
-                  if (currentActive) {
-                    if (currentActive.name.toLowerCase().trim() !== forestName.toLowerCase()) {
-                      await pb.collection('forest_areas').update(currentActive.id, {
-                        is_active: false,
-                        end_date: new Date().toISOString(),
-                      })
-                      const newForest = await pb.collection('forest_areas').create({
-                        name: forestName,
-                        location: locationStr,
-                        supplier: supplierId,
-                        start_date: new Date().toISOString(),
-                        is_active: true,
-                      })
-                      newActiveId = newForest.id
-                      forestsCreated++
-                      forestsLinked++
+                  for (const f of activeForests) {
+                    if (f.name.toLowerCase().trim() === forestName.toLowerCase()) {
+                      activeMatch = f
+                    } else {
+                      otherActives.push(f)
                     }
+                  }
+
+                  let finalForestId = null
+
+                  for (const f of otherActives) {
+                    await pb.collection('forest_areas').update(f.id, {
+                      is_active: false,
+                      end_date: new Date().toISOString(),
+                    })
+                  }
+
+                  if (activeMatch) {
+                    if (activeMatch.location !== locationStr) {
+                      await pb.collection('forest_areas').update(activeMatch.id, {
+                        location: locationStr,
+                      })
+                    }
+                    finalForestId = activeMatch.id
                   } else {
                     const newForest = await pb.collection('forest_areas').create({
                       name: forestName,
@@ -254,15 +261,15 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
                       start_date: new Date().toISOString(),
                       is_active: true,
                     })
-                    newActiveId = newForest.id
+                    finalForestId = newForest.id
                     forestsCreated++
                     forestsLinked++
                   }
 
-                  if (newActiveId) {
+                  if (finalForestId) {
                     await pb
                       .collection('suppliers')
-                      .update(supplierId, { forest_area: newActiveId })
+                      .update(supplierId, { forest_area: finalForestId })
                   }
                 } catch (err: any) {
                   errors.push(`Linha ${i + 2}: Erro ao vincular Floresta - ${err.message}`)
