@@ -1,7 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { getDocuments, deleteDocument, updateDocument } from '@/services/documents'
-import { Trash2, FileText, CheckCircle2, XCircle, Loader2, AlertTriangle } from 'lucide-react'
+import {
+  Trash2,
+  FileText,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  AlertTriangle,
+  ExternalLink,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { getForestAreas, ForestArea } from '@/services/forest_areas'
@@ -35,22 +43,26 @@ import {
 
 function FileViewer({ doc }: { doc: any }) {
   const [url, setUrl] = useState<string>('')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function loadUrl() {
       if (!doc) return
+      setLoading(true)
       try {
         const token = await pb.files.getToken()
         setUrl(pb.files.getUrl(doc, doc.file, { token }))
       } catch (err) {
         console.error('Error getting file token', err)
         setUrl(pb.files.getUrl(doc, doc.file))
+      } finally {
+        setLoading(false)
       }
     }
     loadUrl()
   }, [doc])
 
-  if (!url) {
+  if (loading || !url) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
         <Loader2 className="w-8 h-8 animate-spin" />
@@ -64,11 +76,10 @@ function FileViewer({ doc }: { doc: any }) {
   }
 
   return (
-    <embed
+    <iframe
       src={url}
-      type={doc?.file?.endsWith('.pdf') ? 'application/pdf' : undefined}
-      className="w-full h-full border-0"
       title="Visualização do Documento"
+      className="w-full h-full border-0 bg-white"
     />
   )
 }
@@ -86,8 +97,8 @@ export default function AdminCategoryDocuments() {
 
   // Review Modal State
   const [selectedDoc, setSelectedDoc] = useState<any>(null)
+  const [selectedStatus, setSelectedStatus] = useState<string>('')
   const [rejectionReason, setRejectionReason] = useState('')
-  const [showRejectReason, setShowRejectReason] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
 
   const canReview = user?.role === 'Admin' || user?.role === 'Colaborador'
@@ -119,8 +130,8 @@ export default function AdminCategoryDocuments() {
   // Reset modal state on select
   useEffect(() => {
     if (selectedDoc) {
-      setRejectionReason('')
-      setShowRejectReason(false)
+      setRejectionReason(selectedDoc.rejection_reason || '')
+      setSelectedStatus(selectedDoc.status || 'Pending')
     }
   }, [selectedDoc])
 
@@ -135,38 +146,25 @@ export default function AdminCategoryDocuments() {
     }
   }
 
-  const handleApprove = async () => {
+  const handleUpdateStatus = async () => {
     if (!selectedDoc) return
-    try {
-      setActionLoading(true)
-      await updateDocument(selectedDoc.id, { status: 'Approved' })
-      toast.success('Documento aprovado com sucesso!')
-      setSelectedDoc(null)
-    } catch (err) {
-      console.error(err)
-      toast.error('Erro ao aprovar documento')
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const handleReject = async () => {
-    if (!selectedDoc) return
-    if (!rejectionReason.trim()) {
-      toast.error('Por favor, informe o motivo da rejeição')
+    const requiresReason = selectedStatus === 'Rejected' || selectedStatus === 'Correction Required'
+    if (requiresReason && !rejectionReason.trim()) {
+      toast.error('Por favor, informe o motivo.')
       return
     }
+
     try {
       setActionLoading(true)
       await updateDocument(selectedDoc.id, {
-        status: 'Rejected',
-        rejection_reason: rejectionReason,
+        status: selectedStatus,
+        rejection_reason: requiresReason ? rejectionReason : '',
       })
-      toast.success('Documento rejeitado com sucesso!')
+      toast.success('Status do documento atualizado com sucesso!')
       setSelectedDoc(null)
     } catch (err) {
       console.error(err)
-      toast.error('Erro ao rejeitar documento')
+      toast.error('Erro ao atualizar status do documento')
     } finally {
       setActionLoading(false)
     }
@@ -303,7 +301,23 @@ export default function AdminCategoryDocuments() {
           <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
             {/* Preview Panel */}
             <div className="flex-1 bg-muted/30 border-r relative p-4 h-full flex flex-col">
-              <h3 className="text-sm font-medium mb-2 shrink-0">Visualização do Arquivo</h3>
+              <div className="flex justify-between items-center mb-2 shrink-0">
+                <h3 className="text-sm font-medium">Visualização do Arquivo</h3>
+                {selectedDoc && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => {
+                      const url = pb.files.getUrl(selectedDoc, selectedDoc.file)
+                      window.open(url, '_blank')
+                    }}
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Abrir em Nova Aba
+                  </Button>
+                )}
+              </div>
               {selectedDoc && (
                 <div className="flex-1 border rounded-md overflow-hidden bg-white relative">
                   <FileViewer doc={selectedDoc} />
@@ -433,54 +447,55 @@ export default function AdminCategoryDocuments() {
                   </div>
                 </div>
 
-                <div className="pt-4 border-t shrink-0 mt-auto">
-                  {showRejectReason ? (
-                    <div className="space-y-3 animate-fade-in-up">
-                      <Label className="text-destructive font-medium">Motivo da Rejeição</Label>
+                <div className="pt-4 border-t shrink-0 mt-auto space-y-4">
+                  <div className="space-y-2">
+                    <Label>Atualizar Status</Label>
+                    <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Pending">Pendente</SelectItem>
+                        <SelectItem value="Under Analysis">Em Análise</SelectItem>
+                        <SelectItem value="Pending Final Approval">
+                          Aguardando Aprovação Final
+                        </SelectItem>
+                        <SelectItem value="Correction Required">Aguardando Correção</SelectItem>
+                        <SelectItem value="Approved">Aprovado</SelectItem>
+                        <SelectItem value="Rejected">Rejeitado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {(selectedStatus === 'Rejected' || selectedStatus === 'Correction Required') && (
+                    <div className="space-y-2 animate-fade-in-up">
+                      <Label className="text-destructive font-medium">Motivo</Label>
                       <textarea
-                        placeholder="Descreva claramente o motivo da rejeição para orientar o fornecedor..."
+                        placeholder="Descreva claramente o motivo para orientar o fornecedor..."
                         value={rejectionReason}
                         onChange={(e) => setRejectionReason(e.target.value)}
-                        className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       />
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          onClick={() => setShowRejectReason(false)}
-                          disabled={actionLoading}
-                        >
-                          Cancelar
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          className="w-full"
-                          onClick={handleReject}
-                          disabled={actionLoading}
-                        >
-                          Confirmar Rejeição
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3">
-                      <Button
-                        variant="outline"
-                        className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950"
-                        onClick={() => setShowRejectReason(true)}
-                        disabled={actionLoading}
-                      >
-                        <XCircle className="w-4 h-4 mr-2" /> Rejeitar
-                      </Button>
-                      <Button
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                        onClick={handleApprove}
-                        disabled={actionLoading}
-                      >
-                        <CheckCircle2 className="w-4 h-4 mr-2" /> Aprovar
-                      </Button>
                     </div>
                   )}
+
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => setSelectedDoc(null)}
+                      disabled={actionLoading}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      className="w-full"
+                      onClick={handleUpdateStatus}
+                      disabled={actionLoading}
+                    >
+                      Salvar Alterações
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>

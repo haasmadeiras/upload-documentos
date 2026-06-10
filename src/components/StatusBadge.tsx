@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle2, Clock, AlertCircle, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, AlertCircle, XCircle, Search, RefreshCw } from 'lucide-react'
 
 interface StatusBadgeProps {
   status: string
@@ -23,20 +23,31 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     return (
       <Badge
         variant="outline"
-        className="bg-blue-50 text-blue-600 border-blue-200 gap-1.5 font-medium"
+        className="bg-indigo-50 text-indigo-600 border-indigo-200 gap-1.5 font-medium"
       >
         <CheckCircle2 className="w-3.5 h-3.5" /> Revisão Final
       </Badge>
     )
   }
 
-  if (norm === 'em análise' || norm === 'em_analise' || norm === 'pending') {
+  if (norm === 'under analysis' || norm === 'em análise' || norm === 'em_analise') {
+    return (
+      <Badge
+        variant="outline"
+        className="bg-blue-50 text-blue-600 border-blue-200 gap-1.5 font-medium"
+      >
+        <Search className="w-3.5 h-3.5" /> Em Análise
+      </Badge>
+    )
+  }
+
+  if (norm === 'correction required' || norm === 'aguardando correção') {
     return (
       <Badge
         variant="outline"
         className="bg-amber-50 text-amber-600 border-amber-200 gap-1.5 font-medium"
       >
-        <Clock className="w-3.5 h-3.5" /> Em Análise (IA)
+        <RefreshCw className="w-3.5 h-3.5" /> Aguardando Correção
       </Badge>
     )
   }
@@ -68,7 +79,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
       variant="outline"
       className="bg-slate-50 text-slate-600 border-slate-200 gap-1.5 font-medium"
     >
-      <AlertCircle className="w-3.5 h-3.5" /> Pendente
+      <Clock className="w-3.5 h-3.5" /> Pendente
     </Badge>
   )
 }

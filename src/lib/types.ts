@@ -1,6 +1,12 @@
 export type Role = 'master' | 'stakeholder'
 
-export type DocumentStatus = 'Pendente' | 'Em Análise' | 'Aprovado' | 'Rejeitado'
+export type DocumentStatus =
+  | 'Pending'
+  | 'Under Analysis'
+  | 'Pending Final Approval'
+  | 'Approved'
+  | 'Rejected'
+  | 'Correction Required'
 
 export interface Requirement {
   id: string
