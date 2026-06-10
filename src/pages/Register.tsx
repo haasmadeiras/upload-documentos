@@ -92,6 +92,10 @@ export default function Register() {
       })
       if (err.message?.includes('Usuário já cadastrado')) {
         setFieldErrors({ taxId: err.message })
+      } else if (err.message?.includes('O CPF/CNPJ informado não foi encontrado')) {
+        setFieldErrors({ taxId: err.message })
+      } else if (err.message?.includes('O e-mail informado não coincide')) {
+        setFieldErrors({ email: err.message })
       } else if (err.message?.includes('Fornecedor não localizado')) {
         setFieldErrors({ taxId: err.message, email: err.message })
       }
