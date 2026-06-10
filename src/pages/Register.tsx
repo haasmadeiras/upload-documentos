@@ -131,6 +131,7 @@ export default function Register() {
         tax_id: taxIdClean,
         role: 'Fornecedor',
         isAdmin: false,
+        active: true,
         supplier: supplierId,
         person_type: personType,
         name: supplierName || formData.email.split('@')[0],
