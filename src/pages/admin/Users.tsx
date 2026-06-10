@@ -337,7 +337,7 @@ export default function AdminUsers() {
       tax_id: u.person_type === 'PF' ? formatCPF(u.tax_id || '') : formatCNPJ(u.tax_id || ''),
       role: u.role,
       person_type: u.person_type,
-      phone: u.phone || '',
+      phone: maskPhone(u.phone || supplierData?.phone || ''),
       legal_name: u.legal_name || supplierData?.legal_name || '',
       address: u.address || supplierData?.address || '',
       active: u.active ?? true,

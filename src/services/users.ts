@@ -17,6 +17,7 @@ export interface User {
     supplier?: {
       legal_name?: string
       address?: string
+      phone?: string
     }
   }
   created: string
