@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-10T18:25:00.869Z",
+  "generatedAt": "2026-06-10T18:48:02.787Z",
   "collections": [
     {
       "name": "users",
@@ -132,13 +132,6 @@
           "system": false
         },
         {
-          "name": "status",
-          "type": "select",
-          "required": true,
-          "system": false,
-          "selectValues": ["Pending", "Pending Final Approval", "Approved", "Rejected"]
-        },
-        {
           "name": "user",
           "type": "relation",
           "required": true,
@@ -212,6 +205,13 @@
           "type": "json",
           "required": false,
           "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["Pending", "Approved", "Rejected", "Solicitar Correção", "Vencido"]
         }
       ],
       "indexes": []

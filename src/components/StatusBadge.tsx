@@ -41,7 +41,11 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     )
   }
 
-  if (norm === 'correction required' || norm === 'aguardando correção') {
+  if (
+    norm === 'correction required' ||
+    norm === 'aguardando correção' ||
+    norm === 'solicitar correção'
+  ) {
     return (
       <Badge
         variant="outline"
@@ -63,13 +67,13 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     )
   }
 
-  if (norm === 'expired' || norm === 'expirado') {
+  if (norm === 'expired' || norm === 'expirado' || norm === 'vencido') {
     return (
       <Badge
         variant="outline"
         className="bg-orange-50 text-orange-600 border-orange-200 gap-1.5 font-medium"
       >
-        <AlertCircle className="w-3.5 h-3.5" /> Expirado
+        <AlertCircle className="w-3.5 h-3.5" /> Vencido
       </Badge>
     )
   }

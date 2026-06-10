@@ -1,6 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams } from 'react-router-dom'
-import { getDocuments, deleteDocument, updateDocument } from '@/services/documents'
+import {
+  getDocuments,
+  deleteDocument,
+  updateDocument,
+  downloadDocument,
+} from '@/services/documents'
 import {
   Trash2,
   FileText,
@@ -9,7 +14,14 @@ import {
   Loader2,
   AlertTriangle,
   ExternalLink,
+  Download,
 } from 'lucide-react'
+import * as pdfjsLib from 'pdfjs-dist'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.mjs',
+  import.meta.url,
+).toString()
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { getForestAreas, ForestArea } from '@/services/forest_areas'
@@ -41,6 +53,68 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
+function PdfViewer({ url }: { url: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    let renderTask: any = null
+
+    async function renderPdf() {
+      try {
+        setError(false)
+        const loadingTask = pdfjsLib.getDocument(url)
+        const pdf = await loadingTask.promise
+        const page = await pdf.getPage(1)
+
+        const viewport = page.getViewport({ scale: 1.5 })
+        const canvas = canvasRef.current
+        if (!canvas) return
+
+        const context = canvas.getContext('2d')
+        if (!context) return
+
+        canvas.height = viewport.height
+        canvas.width = viewport.width
+
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport,
+        }
+
+        renderTask = page.render(renderContext)
+        await renderTask.promise
+      } catch (err) {
+        console.error('Error rendering PDF:', err)
+        setError(true)
+      }
+    }
+
+    renderPdf()
+
+    return () => {
+      if (renderTask) renderTask.cancel()
+    }
+  }, [url])
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+        <p className="text-sm text-destructive mb-2 font-medium">Erro ao renderizar prévia.</p>
+        <p className="text-xs text-muted-foreground">
+          Por favor, utilize o botão de Download abaixo.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="w-full h-full overflow-auto flex justify-center bg-gray-100 p-4">
+      <canvas ref={canvasRef} className="max-w-full h-auto object-contain shadow-md" />
+    </div>
+  )
+}
+
 function FileViewer({ doc }: { doc: any }) {
   const [url, setUrl] = useState<string>('')
   const [loading, setLoading] = useState(true)
@@ -71,16 +145,24 @@ function FileViewer({ doc }: { doc: any }) {
     )
   }
 
-  if (doc?.file?.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+  const isImage = !!doc?.file?.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+  const isPdf = !!doc?.file?.match(/\.(pdf)$/i)
+
+  if (isImage) {
     return <img src={url} alt="Documento" className="w-full h-full object-contain" />
   }
 
+  if (isPdf) {
+    return <PdfViewer url={url} />
+  }
+
   return (
-    <iframe
-      src={url}
-      title="Visualização do Documento"
-      className="w-full h-full border-0 bg-white"
-    />
+    <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+      <p className="text-sm text-destructive mb-2 font-medium">Erro ao renderizar prévia.</p>
+      <p className="text-xs text-muted-foreground">
+        Por favor, utilize o botão de Download abaixo.
+      </p>
+    </div>
   )
 }
 
@@ -148,7 +230,7 @@ export default function AdminCategoryDocuments() {
 
   const handleUpdateStatus = async () => {
     if (!selectedDoc) return
-    const requiresReason = selectedStatus === 'Rejected' || selectedStatus === 'Correction Required'
+    const requiresReason = selectedStatus === 'Rejected' || selectedStatus === 'Solicitar Correção'
     if (requiresReason && !rejectionReason.trim()) {
       toast.error('Por favor, informe o motivo.')
       return
@@ -303,20 +385,56 @@ export default function AdminCategoryDocuments() {
             <div className="flex-1 bg-muted/30 border-r relative p-4 h-full flex flex-col">
               <div className="flex justify-between items-center mb-2 shrink-0">
                 <h3 className="text-sm font-medium">Visualização do Arquivo</h3>
-                {selectedDoc && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8"
-                    onClick={() => {
-                      const url = pb.files.getUrl(selectedDoc, selectedDoc.file)
-                      window.open(url, '_blank')
-                    }}
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Abrir em Nova Aba
-                  </Button>
-                )}
+                <div className="flex gap-2">
+                  {selectedDoc && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        onClick={async () => {
+                          try {
+                            const token = await pb.files.getToken()
+                            const url = pb.files.getUrl(selectedDoc, selectedDoc.file, { token })
+                            window.open(url, '_blank')
+                          } catch (e) {
+                            window.open(pb.files.getUrl(selectedDoc, selectedDoc.file), '_blank')
+                          }
+                        }}
+                      >
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Abrir em Nova Aba
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        onClick={async () => {
+                          try {
+                            const token = await pb.files.getToken()
+                            const url = pb.files.getUrl(selectedDoc, selectedDoc.file, { token })
+
+                            const response = await fetch(url)
+                            const blob = await response.blob()
+                            const downloadUrl = window.URL.createObjectURL(blob)
+                            const a = document.createElement('a')
+                            a.href = downloadUrl
+                            a.download = selectedDoc.file
+                            document.body.appendChild(a)
+                            a.click()
+                            window.URL.revokeObjectURL(downloadUrl)
+                            document.body.removeChild(a)
+                          } catch (e) {
+                            downloadDocument(selectedDoc)
+                          }
+                        }}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
               {selectedDoc && (
                 <div className="flex-1 border rounded-md overflow-hidden bg-white relative">
@@ -456,18 +574,15 @@ export default function AdminCategoryDocuments() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Pending">Pendente</SelectItem>
-                        <SelectItem value="Under Analysis">Em Análise</SelectItem>
-                        <SelectItem value="Pending Final Approval">
-                          Aguardando Aprovação Final
-                        </SelectItem>
-                        <SelectItem value="Correction Required">Aguardando Correção</SelectItem>
                         <SelectItem value="Approved">Aprovado</SelectItem>
                         <SelectItem value="Rejected">Rejeitado</SelectItem>
+                        <SelectItem value="Solicitar Correção">Solicitar Correção</SelectItem>
+                        <SelectItem value="Vencido">Vencido</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
-                  {(selectedStatus === 'Rejected' || selectedStatus === 'Correction Required') && (
+                  {(selectedStatus === 'Rejected' || selectedStatus === 'Solicitar Correção') && (
                     <div className="space-y-2 animate-fade-in-up">
                       <Label className="text-destructive font-medium">Motivo</Label>
                       <textarea
