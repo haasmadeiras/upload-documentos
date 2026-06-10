@@ -259,7 +259,7 @@ export default function AdminPendingDocuments() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    onClick={() => setZoom((z) => Math.max(z - 0.2, 0.4))}
+                    onClick={() => setZoom((z) => Math.max(z - 0.1, 0.1))}
                   >
                     <ZoomOut className="w-4 h-4" />
                   </Button>
@@ -270,25 +270,26 @@ export default function AdminPendingDocuments() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    onClick={() => setZoom((z) => Math.min(z + 0.2, 3))}
+                    onClick={() => setZoom((z) => Math.min(z + 0.1, 3))}
                   >
                     <ZoomIn className="w-4 h-4" />
                   </Button>
                 </div>
-                <div className="flex-1 overflow-auto p-4 flex justify-center">
-                  <div className="min-w-fit min-h-fit flex items-start justify-center">
-                    <img
-                      src={pb.files.getUrl(selectedDoc, selectedDoc.file, { thumb: '1000x0' })}
-                      alt="Document Preview"
-                      style={{
-                        width: `${zoom * 100}%`,
-                        minWidth: `${zoom * 50}vw`,
-                        transition:
-                          'width 0.2s cubic-bezier(0.2, 0, 0, 1), min-width 0.2s cubic-bezier(0.2, 0, 0, 1)',
-                      }}
-                      className="max-w-none h-auto bg-white rounded shadow-md object-contain"
-                    />
-                  </div>
+                <div className="flex-1 overflow-auto p-4 flex">
+                  <img
+                    src={pb.files.getUrl(selectedDoc, selectedDoc.file, { thumb: '1000x0' })}
+                    alt="Document Preview"
+                    style={{
+                      margin: 'auto',
+                      width: `${zoom * 100}%`,
+                      maxWidth: zoom <= 1 ? '100%' : 'none',
+                      maxHeight: zoom <= 1 ? '100%' : 'none',
+                      height: 'auto',
+                      objectFit: 'contain',
+                      transition: 'width 0.2s ease-in-out',
+                    }}
+                    className="bg-white rounded shadow-md"
+                  />
                 </div>
               </div>
 

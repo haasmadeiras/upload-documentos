@@ -127,7 +127,7 @@ function PdfViewer({ url, scale }: { url: string; scale: number }) {
   return (
     <canvas
       ref={canvasRef}
-      className="shadow-md bg-white transition-all"
+      className="shadow-md bg-white transition-all duration-200 ease-in-out"
       style={{
         maxWidth: scale <= 1 ? '100%' : 'none',
         maxHeight: scale <= 1 ? '100%' : 'none',
@@ -181,7 +181,7 @@ function FileViewer({ doc }: { doc: any }) {
             variant="ghost"
             size="icon"
             className="w-8 h-8"
-            onClick={() => setScale((s) => Math.max(s - 0.25, 0.25))}
+            onClick={() => setScale((s) => Math.max(s - 0.1, 0.1))}
           >
             <ZoomOut className="w-4 h-4" />
           </Button>
@@ -192,31 +192,34 @@ function FileViewer({ doc }: { doc: any }) {
             variant="ghost"
             size="icon"
             className="w-8 h-8"
-            onClick={() => setScale((s) => Math.min(s + 0.5, 5))}
+            onClick={() => setScale((s) => Math.min(s + 0.1, 3))}
           >
             <ZoomIn className="w-4 h-4" />
           </Button>
         </div>
       )}
 
-      <div className="flex-1 overflow-auto flex items-center justify-center p-4">
+      <div className="flex-1 overflow-auto p-4 flex">
         {isImage ? (
           <img
             src={url}
             alt="Documento"
-            className="shadow-md bg-white transition-all"
+            className="shadow-md bg-white transition-all duration-200 ease-in-out"
             style={{
-              width: scale <= 1 ? '100%' : `${scale * 100}%`,
-              height: scale <= 1 ? '100%' : 'auto',
-              objectFit: scale <= 1 ? 'contain' : 'initial',
+              margin: 'auto',
+              width: `${scale * 100}%`,
               maxWidth: scale <= 1 ? '100%' : 'none',
               maxHeight: scale <= 1 ? '100%' : 'none',
+              height: 'auto',
+              objectFit: 'contain',
             }}
           />
         ) : isPdf ? (
-          <PdfViewer url={url} scale={scale} />
+          <div className="m-auto">
+            <PdfViewer url={url} scale={scale} />
+          </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+          <div className="flex flex-col items-center justify-center h-full p-4 text-center m-auto">
             <p className="text-sm text-destructive mb-2 font-medium">Erro ao renderizar prévia.</p>
             <p className="text-xs text-muted-foreground">
               Por favor, utilize o botão de Download abaixo.
