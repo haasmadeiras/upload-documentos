@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { getDocuments, deleteDocument, updateDocument } from '@/services/documents'
-import { Trash2, FileText, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
+import { Trash2, FileText, CheckCircle2, XCircle, Loader2, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { getForestAreas, ForestArea } from '@/services/forest_areas'
@@ -35,46 +35,13 @@ import {
 
 function FileViewer({ doc }: { doc: any }) {
   const [url, setUrl] = useState<string>('')
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!doc) return
-    let isMounted = true
-    let objectUrl = ''
-    const pbUrl = pb.files.getUrl(doc, doc.file)
-
-    if (doc.file.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-      setUrl(pbUrl)
-      setLoading(false)
-      return
-    }
-
-    fetch(pbUrl)
-      .then((r) => r.blob())
-      .then((blob) => {
-        if (!isMounted) return
-        objectUrl = URL.createObjectURL(
-          new Blob([blob], { type: doc.file.endsWith('.pdf') ? 'application/pdf' : blob.type }),
-        )
-        setUrl(objectUrl)
-        setLoading(false)
-      })
-      .catch((e) => {
-        console.error('File viewer fetch error:', e)
-        if (!isMounted) return
-        setUrl(pbUrl) // fallback
-        setLoading(false)
-      })
-
-    return () => {
-      isMounted = false
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl)
-      }
-    }
+    setUrl(pb.files.getUrl(doc, doc.file))
   }, [doc])
 
-  if (loading) {
+  if (!url) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
         <Loader2 className="w-8 h-8 animate-spin" />
@@ -87,7 +54,14 @@ function FileViewer({ doc }: { doc: any }) {
     return <img src={url} alt="Documento" className="w-full h-full object-contain" />
   }
 
-  return <iframe src={url} className="w-full h-full border-0" title="Visualização do Documento" />
+  return (
+    <embed
+      src={url}
+      type={doc?.file?.endsWith('.pdf') ? 'application/pdf' : undefined}
+      className="w-full h-full border-0"
+      title="Visualização do Documento"
+    />
+  )
 }
 
 export default function AdminCategoryDocuments() {
@@ -399,45 +373,78 @@ export default function AdminCategoryDocuments() {
 
                             <div className="space-y-2">
                               <span className="text-sm font-medium text-muted-foreground">
-                                Dados Extraídos
+                                Resumo da Análise
                               </span>
-                              <ul className="space-y-2 text-sm">
-                                <li className="flex flex-col border-b pb-2">
-                                  <span className="text-muted-foreground text-xs">CNPJ</span>
-                                  <span className="font-medium">
-                                    {extracted.cnpj || 'Não identificado'}
-                                  </span>
-                                </li>
-                                <li className="flex flex-col border-b pb-2">
-                                  <span className="text-muted-foreground text-xs">
-                                    Data de Emissão
-                                  </span>
-                                  <span className="font-medium">
-                                    {extracted.issuance_date || 'Não identificado'}
-                                  </span>
-                                </li>
-                                <li className="flex flex-col border-b pb-2 border-transparent">
-                                  <span className="text-muted-foreground text-xs">
-                                    Razão Social
-                                  </span>
-                                  <span className="font-medium">
-                                    {extracted.razao_social || 'Não identificado'}
-                                  </span>
-                                </li>
+                              <ul className="space-y-0 text-sm border rounded-md bg-white dark:bg-slate-950">
+                                {[
+                                  { label: 'CNPJ', value: extracted.cnpj },
+                                  { label: 'Razão Social', value: extracted.razao_social },
+                                  { label: 'Data de Emissão', value: extracted.issuance_date },
+                                  { label: 'Valor', value: extracted.valor || extracted.value },
+                                ].map((item, idx) => {
+                                  const isPresent =
+                                    item.value !== null &&
+                                    item.value !== undefined &&
+                                    item.value !== ''
+                                  return (
+                                    <li
+                                      key={item.label}
+                                      className="flex flex-col border-b last:border-b-0 px-3 py-2.5"
+                                    >
+                                      <span className="text-muted-foreground text-xs">
+                                        {item.label}
+                                      </span>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        {isPresent ? (
+                                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                                        ) : (
+                                          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                                        )}
+                                        <span
+                                          className={`font-medium text-sm ${!isPresent ? 'text-muted-foreground italic' : ''}`}
+                                        >
+                                          {isPresent ? String(item.value) : 'Não identificado'}
+                                        </span>
+                                      </div>
+                                    </li>
+                                  )
+                                })}
                                 {Object.entries(extracted).map(([key, value]) => {
-                                  if (['cnpj', 'issuance_date', 'razao_social'].includes(key))
+                                  if (
+                                    [
+                                      'cnpj',
+                                      'issuance_date',
+                                      'razao_social',
+                                      'valor',
+                                      'value',
+                                    ].includes(key.toLowerCase())
+                                  )
                                     return null
                                   const formattedKey = key
                                     .replace(/_/g, ' ')
                                     .replace(/\b\w/g, (l) => l.toUpperCase())
+                                  const isPresent =
+                                    value !== null && value !== undefined && value !== ''
                                   return (
-                                    <li key={key} className="flex flex-col border-t pt-2">
+                                    <li
+                                      key={key}
+                                      className="flex flex-col border-b last:border-b-0 px-3 py-2.5"
+                                    >
                                       <span className="text-muted-foreground text-xs">
                                         {formattedKey}
                                       </span>
-                                      <span className="font-medium">
-                                        {value ? String(value) : 'Não identificado'}
-                                      </span>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        {isPresent ? (
+                                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                                        ) : (
+                                          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                                        )}
+                                        <span
+                                          className={`font-medium text-sm ${!isPresent ? 'text-muted-foreground italic' : ''}`}
+                                        >
+                                          {isPresent ? String(value) : 'Não identificado'}
+                                        </span>
+                                      </div>
                                     </li>
                                   )
                                 })}
