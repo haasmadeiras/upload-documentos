@@ -17,7 +17,7 @@ import {
   deleteSupplier,
   Supplier,
 } from '@/services/suppliers'
-import { getForestAreas, ForestArea } from '@/services/forest_areas'
+import { getForestAreas, ForestArea, updateForestArea } from '@/services/forest_areas'
 import { useRealtime } from '@/hooks/use-realtime'
 import pb from '@/lib/pocketbase/client'
 import {
@@ -216,10 +216,49 @@ export default function AdminSuppliers() {
       }
 
       if (editingId) {
+        const currentSupplier = await pb.collection('suppliers').getOne<Supplier>(editingId)
+        const currentForestId = currentSupplier.forest_area || null
+        const newForestId = payload.forest_area || null
+
         await updateSupplier(editingId, payload)
+
+        if (currentForestId !== newForestId) {
+          const activeForests = await pb.collection('forest_areas').getFullList({
+            filter: `supplier="${editingId}" && is_active=true`,
+          })
+          const now = new Date().toISOString()
+          for (const f of activeForests) {
+            await updateForestArea(f.id, {
+              is_active: false,
+              end_date: now,
+            })
+          }
+
+          if (newForestId) {
+            await updateForestArea(newForestId, {
+              supplier: editingId,
+              start_date: now,
+              is_active: true,
+              end_date: '',
+            })
+          }
+        }
+
         toast.success('Fornecedor atualizado com sucesso!')
       } else {
-        await createSupplier(payload)
+        const newSupplier = await createSupplier(payload)
+        const newForestId = payload.forest_area || null
+
+        if (newForestId) {
+          const now = new Date().toISOString()
+          await updateForestArea(newForestId, {
+            supplier: newSupplier.id,
+            start_date: now,
+            is_active: true,
+            end_date: '',
+          })
+        }
+
         toast.success('Fornecedor pré-cadastrado com sucesso')
       }
 
