@@ -75,7 +75,7 @@ import { Badge } from '@/components/ui/badge'
 const formSchema = z
   .object({
     name: z.string().min(1, 'Nome é obrigatório'),
-    email: z.string().email('E-mail inválido'),
+    email: z.string().email('E-mail inválido').or(z.literal('')),
     tax_id: z.string().min(14, 'Documento inválido'),
     role: z.enum(['Admin', 'Colaborador', 'Fornecedor']),
     person_type: z.enum(['PF', 'PJ']),
@@ -203,12 +203,16 @@ export default function AdminUsers() {
   )
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!editingId && !values.email) {
+      form.setError('email', { message: 'E-mail é obrigatório para novos usuários' })
+      return
+    }
+
     try {
       if (editingId) {
-        await updateUser(editingId, {
-          ...values,
-          isAdmin: values.role === 'Admin',
-        })
+        const payload: any = { ...values, isAdmin: values.role === 'Admin' }
+        if (!payload.email) delete payload.email
+        await updateUser(editingId, payload)
         toast.success('Usuário atualizado com sucesso.')
       } else {
         // Generate a secure random password for the pending user.
@@ -309,8 +313,8 @@ export default function AdminUsers() {
   const handleEditClick = (u: User) => {
     setEditingId(u.id)
     form.reset({
-      name: u.name,
-      email: u.email,
+      name: u.name || '',
+      email: u.email || '',
       tax_id: u.person_type === 'PF' ? formatCPF(u.tax_id || '') : formatCNPJ(u.tax_id || ''),
       role: u.role,
       person_type: u.person_type,
@@ -517,12 +521,18 @@ export default function AdminUsers() {
                             placeholder="email@exemplo.com"
                             type="email"
                             {...field}
+                            value={field.value || ''}
                             readOnly={!isMaster && !!editingId}
                             className={cn(
                               !isMaster && !!editingId && 'bg-muted text-muted-foreground',
                             )}
                           />
                         </FormControl>
+                        {field.value === '' && !!editingId && (
+                          <p className="text-sm text-amber-600 mt-1">
+                            E-mail oculto ou não cadastrado. A atualização manterá o e-mail atual.
+                          </p>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
