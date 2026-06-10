@@ -11,6 +11,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { format } from 'date-fns'
 
 import { getUsers, createUser, updateUser, deleteUser, User } from '@/services/users'
+import { formatCPF, formatCNPJ, isValidCPF, isValidCNPJ } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Pencil, Trash2, ShieldAlert, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 
@@ -74,18 +75,17 @@ const formSchema = z
     active: z.boolean().default(true),
   })
   .superRefine((data, ctx) => {
-    const taxIdClean = data.tax_id.replace(/\D/g, '')
-    if (data.person_type === 'PF' && taxIdClean.length !== 11) {
+    if (data.person_type === 'PF' && !isValidCPF(data.tax_id)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'CPF inválido',
+        message: 'Por favor, insira um CPF ou CNPJ válido com a formatação correta.',
         path: ['tax_id'],
       })
     }
-    if (data.person_type === 'PJ' && taxIdClean.length !== 14) {
+    if (data.person_type === 'PJ' && !isValidCNPJ(data.tax_id)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'CNPJ inválido',
+        message: 'Por favor, insira um CPF ou CNPJ válido com a formatação correta.',
         path: ['tax_id'],
       })
     }
@@ -102,24 +102,6 @@ const formSchema = z
       })
     }
   })
-
-function maskTaxId(value: string, personType: 'PF' | 'PJ') {
-  const raw = value.replace(/\D/g, '')
-  if (personType === 'PF') {
-    return raw
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
-      .slice(0, 14)
-  } else {
-    return raw
-      .replace(/^(\d{2})(\d)/, '$1.$2')
-      .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-      .replace(/\.(\d{3})(\d)/, '.$1/$2')
-      .replace(/(\d{4})(\d{1,2})$/, '$1-$2')
-      .slice(0, 18)
-  }
-}
 
 function maskPhone(value: string) {
   const raw = value.replace(/\D/g, '')
@@ -311,7 +293,7 @@ export default function AdminUsers() {
     form.reset({
       name: u.name,
       email: u.email,
-      tax_id: u.tax_id,
+      tax_id: u.person_type === 'PF' ? formatCPF(u.tax_id || '') : formatCNPJ(u.tax_id || ''),
       role: u.role,
       person_type: u.person_type,
       phone: u.phone || '',
@@ -433,9 +415,13 @@ export default function AdminUsers() {
                             }
                             {...field}
                             onChange={(e) =>
-                              field.onChange(maskTaxId(e.target.value, personTypeValue))
+                              field.onChange(
+                                personTypeValue === 'PF'
+                                  ? formatCPF(e.target.value)
+                                  : formatCNPJ(e.target.value),
+                              )
                             }
-                          />
+                          />{' '}
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -718,7 +704,11 @@ export default function AdminUsers() {
                       {u.active !== false ? 'Ativo' : 'Inativo'}
                     </Badge>
                   </TableCell>
-                  <TableCell>{u.tax_id}</TableCell>
+                  <TableCell>
+                    {u.person_type === 'PF'
+                      ? formatCPF(u.tax_id || '')
+                      : formatCNPJ(u.tax_id || '')}
+                  </TableCell>
                   <TableCell>
                     {u.last_login ? (
                       <span className="text-sm text-muted-foreground">

@@ -3,8 +3,24 @@ routerAdd('GET', '/backend/v1/auth/check-tax-id', (e) => {
   const taxIdClean = taxIdRaw.replace(/\D/g, '')
   if (!taxIdClean) return e.json(200, { exists: false })
 
+  let taxIdFormatted = taxIdClean
+  if (taxIdClean.length === 11) {
+    taxIdFormatted = taxIdClean.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+  } else if (taxIdClean.length === 14) {
+    taxIdFormatted = taxIdClean.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
+  }
+
   try {
-    const user = $app.findFirstRecordByData('users', 'tax_id', taxIdClean)
+    const records = $app.findRecordsByFilter(
+      'users',
+      'tax_id = {:clean} || tax_id = {:formatted}',
+      '-created',
+      1,
+      0,
+      { clean: taxIdClean, formatted: taxIdFormatted },
+    )
+    if (records.length === 0) throw new Error('not found')
+    const user = records[0]
     const hasPassword = user.getString('passwordHash') !== ''
     return e.json(200, {
       exists: true,

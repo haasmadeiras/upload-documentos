@@ -57,10 +57,10 @@ export default function Register() {
     const errors: Record<string, string> = {}
 
     if (personType === 'PF' && !isValidCPF(formData.taxId)) {
-      errors.taxId = 'CPF inválido.'
+      errors.taxId = 'Por favor, insira um CPF ou CNPJ válido com a formatação correta.'
     }
     if (personType === 'PJ' && !isValidCNPJ(formData.taxId)) {
-      errors.taxId = 'CNPJ inválido.'
+      errors.taxId = 'Por favor, insira um CPF ou CNPJ válido com a formatação correta.'
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       errors.email = 'E-mail inválido.'
@@ -123,12 +123,11 @@ export default function Register() {
 
     setIsLoading(true)
     try {
-      const taxIdClean = formData.taxId.replace(/\D/g, '')
       await pb.collection('users').create({
         email: formData.email,
         password: formData.password,
         passwordConfirm: formData.passwordConfirm,
-        tax_id: taxIdClean,
+        tax_id: formData.taxId,
         role: 'Fornecedor',
         isAdmin: false,
         active: true,
