@@ -52,6 +52,7 @@ export default function PortalUpload() {
             id: def.id,
             title: def.name,
             description: `Formatos aceitos: ${def.allowed_formats || 'Qualquer'}`,
+            allowedFormats: def.allowed_formats || 'pdf, jpg, jpeg, png',
           })
           if (docsRes.items.length > 0) {
             const doc = docsRes.items[0]
@@ -266,11 +267,16 @@ export default function PortalUpload() {
                 <FileUploader
                   file={null}
                   onFileSelect={(f) => f && handleUpload(f)}
-                  accept={
-                    req.description.includes('Qualquer')
-                      ? '.pdf,.jpg,.jpeg,.png'
-                      : req.description.split(': ')[1] || '.pdf,.jpg,.jpeg,.png'
-                  }
+                  accept={req.allowedFormats
+                    .split(',')
+                    .map((f: string) => {
+                      const ext = f.trim().toLowerCase().replace(/^\./, '')
+                      if (ext === 'pdf') return '.pdf,application/pdf'
+                      if (ext === 'jpg' || ext === 'jpeg') return '.jpg,.jpeg,image/jpeg'
+                      if (ext === 'png') return '.png,image/png'
+                      return `.${ext}`
+                    })
+                    .join(',')}
                 />
               )}
             </CardContent>

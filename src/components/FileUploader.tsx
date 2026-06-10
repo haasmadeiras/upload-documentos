@@ -55,12 +55,28 @@ export function FileUploader({ onFileSelect, file, accept = '.pdf,.jpg,.png' }: 
     }
 
     // specific check for PDF which is often required
-    if (acceptedTypes.includes('.pdf') || acceptedTypes.includes('application/pdf')) {
+    if (
+      acceptedTypes.includes('.pdf') ||
+      acceptedTypes.includes('application/pdf') ||
+      acceptedTypes.includes('pdf')
+    ) {
       if (extension === '.pdf' || mime === 'application/pdf') isValid = true
     }
 
     if (!isValid) {
-      alert(`Formato de arquivo inválido. Aceitos: ${accept}`)
+      const formattedAccept = Array.from(
+        new Set(
+          acceptedTypes.map((t) => {
+            if (t === 'application/pdf') return '.pdf'
+            if (t === 'image/jpeg') return '.jpg'
+            if (t === 'image/png') return '.png'
+            if (t.includes('/')) return t
+            if (!t.startsWith('.')) return `.${t}`
+            return t
+          }),
+        ),
+      ).join(', ')
+      alert(`Formato de arquivo inválido. Formatos aceitos: ${formattedAccept}`)
       return
     }
     onFileSelect(selectedFile)
