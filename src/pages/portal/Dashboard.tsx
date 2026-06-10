@@ -11,11 +11,31 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { UploadCloud, CheckCircle2, Clock, AlertCircle, FileText, Download } from 'lucide-react'
+import {
+  UploadCloud,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  FileText,
+  Download,
+  Trash2,
+} from 'lucide-react'
+import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { useAuth } from '@/hooks/use-auth'
 import { getDocumentCategories, DocumentCategory } from '@/services/document_categories'
 import { getDocumentDefinitions, DocumentDefinition } from '@/services/document_definitions'
-import { getDocuments, downloadDocument } from '@/services/documents'
+import { getDocuments, downloadDocument, deleteDocument } from '@/services/documents'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useRealtime } from '@/hooks/use-realtime'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -29,6 +49,16 @@ export default function PortalDashboard() {
   const [userDocs, setUserDocs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteDocument(id)
+      toast.success('Documento excluído com sucesso.')
+      loadData()
+    } catch (err) {
+      toast.error('Erro ao excluir documento.')
+    }
+  }
 
   const loadData = async () => {
     if (!user?.id) return
@@ -238,14 +268,41 @@ export default function PortalDashboard() {
                             })}
                           </TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => downloadDocument(doc)}
-                              title="Baixar Documento"
-                            >
-                              <Download className="w-4 h-4 text-muted-foreground" />
-                            </Button>
+                            <div className="flex items-center gap-1 justify-end">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => downloadDocument(doc)}
+                                title="Baixar Documento"
+                              >
+                                <Download className="w-4 h-4 text-muted-foreground" />
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" title="Excluir Documento">
+                                    <Trash2 className="w-4 h-4 text-rose-500" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Excluir documento?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Tem certeza que deseja excluir o documento "{doc.title}"? Esta
+                                      ação não pode ser desfeita.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDelete(doc.id)}
+                                      className="bg-rose-500 text-white hover:bg-rose-600"
+                                    >
+                                      Excluir
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
                           </TableCell>
                         </TableRow>
                       )
@@ -357,15 +414,46 @@ export default function PortalDashboard() {
                         </Link>
                       </Button>
                       {doc && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="w-9 h-9"
-                          onClick={() => downloadDocument(doc)}
-                          title="Baixar Documento"
-                        >
-                          <Download className="w-4 h-4 text-muted-foreground" />
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="w-9 h-9"
+                            onClick={() => downloadDocument(doc)}
+                            title="Baixar Documento"
+                          >
+                            <Download className="w-4 h-4 text-muted-foreground" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="w-9 h-9 border-rose-200 hover:bg-rose-50"
+                                title="Excluir Documento"
+                              >
+                                <Trash2 className="w-4 h-4 text-rose-500" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Excluir documento?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Tem certeza que deseja excluir este documento?
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDelete(doc.id)}
+                                  className="bg-rose-500 text-white hover:bg-rose-600"
+                                >
+                                  Excluir
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </>
                       )}
                     </div>
                   </div>

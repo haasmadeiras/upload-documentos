@@ -1,20 +1,42 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, XCircle, FileUp, ChevronRight, Download } from 'lucide-react'
+import { AlertCircle, XCircle, FileUp, ChevronRight, Download, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { useRealtime } from '@/hooks/use-realtime'
 import { StatusBadge } from '@/components/StatusBadge'
-import { downloadDocument } from '@/services/documents'
+import { downloadDocument, deleteDocument } from '@/services/documents'
 
 export default function SupplierDocuments() {
   const { user } = useAuth()
   const [definitions, setDefinitions] = useState<any[]>([])
   const [documents, setDocuments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteDocument(id)
+      toast.success('Documento excluído com sucesso.')
+      loadData()
+    } catch (err) {
+      toast.error('Erro ao excluir documento.')
+    }
+  }
 
   const loadData = async () => {
     if (!user) return
@@ -130,7 +152,7 @@ export default function SupplierDocuments() {
                         ? 'outline'
                         : 'default'
                     }
-                    className="w-full justify-between group"
+                    className="flex-1 justify-between group"
                   >
                     <Link to={`/portal/upload/${def.id}`}>
                       {status === 'approved'
@@ -148,15 +170,47 @@ export default function SupplierDocuments() {
                     </Link>
                   </Button>
                   {doc && (
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="shrink-0"
-                      onClick={() => downloadDocument(doc)}
-                      title="Baixar Documento"
-                    >
-                      <Download className="w-4 h-4 text-muted-foreground" />
-                    </Button>
+                    <>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0"
+                        onClick={() => downloadDocument(doc)}
+                        title="Baixar Documento"
+                      >
+                        <Download className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="shrink-0 border-rose-200 hover:bg-rose-50"
+                            title="Excluir Documento"
+                          >
+                            <Trash2 className="w-4 h-4 text-rose-500" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Excluir documento?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Tem certeza que deseja excluir o documento "{def.name}"? Esta ação não
+                              pode ser desfeita.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(doc.id)}
+                              className="bg-rose-500 text-white hover:bg-rose-600"
+                            >
+                              Excluir
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </>
                   )}
                 </div>
               </CardContent>
