@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, UploadCloud } from 'lucide-react'
+import { ArrowLeft, UploadCloud, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -13,7 +13,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { getEmployee, Employee } from '@/services/employees'
 import { getDocumentDefinitions, DocumentDefinition } from '@/services/document_definitions'
-import { getDocuments, createDocument } from '@/services/documents'
+import { getDocuments, createDocument, downloadDocument } from '@/services/documents'
 import { toast } from 'sonner'
 import { addDays, format, isValid, parseISO } from 'date-fns'
 import { useAuth } from '@/hooks/use-auth'
@@ -174,40 +174,53 @@ export default function PortalEmployeeDetails() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    {status === 'Missing' || status === 'Rejected' ? (
-                      <Dialog
-                        open={uploadingDefId === def.id}
-                        onOpenChange={(open) => !open && setUploadingDefId(null)}
-                      >
-                        <DialogTrigger asChild>
-                          <Button size="sm" onClick={() => setUploadingDefId(def.id)}>
-                            <UploadCloud className="w-4 h-4 mr-2" /> Enviar
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Enviar Documento: {def.name}</DialogTitle>
-                          </DialogHeader>
-                          <form onSubmit={handleUpload} className="space-y-4 py-4">
-                            <div className="space-y-2">
-                              <Label>Arquivo</Label>
-                              <Input
-                                type="file"
-                                required
-                                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                              />
-                            </div>
-                            <Button type="submit" className="w-full">
-                              Confirmar Envio
+                    <div className="flex items-center justify-end gap-2">
+                      {doc && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => downloadDocument(doc)}
+                          title="Baixar Documento"
+                        >
+                          <Download className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                      )}
+                      {status === 'Missing' || status === 'Rejected' ? (
+                        <Dialog
+                          open={uploadingDefId === def.id}
+                          onOpenChange={(open) => !open && setUploadingDefId(null)}
+                        >
+                          <DialogTrigger asChild>
+                            <Button size="sm" onClick={() => setUploadingDefId(def.id)}>
+                              <UploadCloud className="w-4 h-4 mr-2" /> Enviar
                             </Button>
-                          </form>
-                        </DialogContent>
-                      </Dialog>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        Enviado em {doc?.created ? format(parseISO(doc.created), 'dd/MM/yyyy') : ''}
-                      </span>
-                    )}
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Enviar Documento: {def.name}</DialogTitle>
+                            </DialogHeader>
+                            <form onSubmit={handleUpload} className="space-y-4 py-4">
+                              <div className="space-y-2">
+                                <Label>Arquivo</Label>
+                                <Input
+                                  type="file"
+                                  required
+                                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                                />
+                              </div>
+                              <Button type="submit" className="w-full">
+                                Confirmar Envio
+                              </Button>
+                            </form>
+                          </DialogContent>
+                        </Dialog>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">
+                          Enviado em{' '}
+                          {doc?.created ? format(parseISO(doc.created), 'dd/MM/yyyy') : ''}
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               )

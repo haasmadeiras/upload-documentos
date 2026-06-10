@@ -11,11 +11,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { UploadCloud, CheckCircle2, Clock, AlertCircle, FileText } from 'lucide-react'
+import { UploadCloud, CheckCircle2, Clock, AlertCircle, FileText, Download } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { getDocumentCategories, DocumentCategory } from '@/services/document_categories'
 import { getDocumentDefinitions, DocumentDefinition } from '@/services/document_definitions'
-import { getDocuments } from '@/services/documents'
+import { getDocuments, downloadDocument } from '@/services/documents'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useRealtime } from '@/hooks/use-realtime'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -196,6 +196,7 @@ export default function PortalDashboard() {
                       <TableHead>Categoria</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Data de Envio</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -235,6 +236,16 @@ export default function PortalDashboard() {
                               hour: '2-digit',
                               minute: '2-digit',
                             })}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => downloadDocument(doc)}
+                              title="Baixar Documento"
+                            >
+                              <Download className="w-4 h-4 text-muted-foreground" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       )
@@ -338,12 +349,25 @@ export default function PortalDashboard() {
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
                     {statusEl}
-                    <Button variant={doc ? 'outline' : 'default'} size="sm" asChild>
-                      <Link to={`/portal/upload/${def.id}`}>
-                        <UploadCloud className="w-4 h-4 mr-2" />
-                        {doc ? 'Atualizar Arquivo' : 'Enviar Arquivo'}
-                      </Link>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button variant={doc ? 'outline' : 'default'} size="sm" asChild>
+                        <Link to={`/portal/upload/${def.id}`}>
+                          <UploadCloud className="w-4 h-4 mr-2" />
+                          {doc ? 'Atualizar Arquivo' : 'Enviar Arquivo'}
+                        </Link>
+                      </Button>
+                      {doc && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="w-9 h-9"
+                          onClick={() => downloadDocument(doc)}
+                          title="Baixar Documento"
+                        >
+                          <Download className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, XCircle, FileUp, ChevronRight } from 'lucide-react'
+import { AlertCircle, XCircle, FileUp, ChevronRight, Download } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -8,6 +8,7 @@ import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { useRealtime } from '@/hooks/use-realtime'
 import { StatusBadge } from '@/components/StatusBadge'
+import { downloadDocument } from '@/services/documents'
 
 export default function SupplierDocuments() {
   const { user } = useAuth()
@@ -119,32 +120,45 @@ export default function SupplierDocuments() {
                   )}
                 </div>
 
-                <Button
-                  asChild
-                  variant={
-                    status === 'approved' ||
-                    status === 'pending final approval' ||
-                    status === 'pending'
-                      ? 'outline'
-                      : 'default'
-                  }
-                  className="w-full justify-between group mt-2"
-                >
-                  <Link to={`/portal/upload/${def.id}`}>
-                    {status === 'approved'
-                      ? 'Visualizar ou Reenviar'
-                      : status === 'missing' || status === 'rejected'
-                        ? 'Fazer Upload'
-                        : 'Visualizar'}
-                    {status === 'approved' ||
-                    status === 'pending final approval' ||
-                    status === 'pending' ? (
-                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                    ) : (
-                      <FileUp className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" />
-                    )}
-                  </Link>
-                </Button>
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    asChild
+                    variant={
+                      status === 'approved' ||
+                      status === 'pending final approval' ||
+                      status === 'pending'
+                        ? 'outline'
+                        : 'default'
+                    }
+                    className="w-full justify-between group"
+                  >
+                    <Link to={`/portal/upload/${def.id}`}>
+                      {status === 'approved'
+                        ? 'Visualizar ou Reenviar'
+                        : status === 'missing' || status === 'rejected'
+                          ? 'Fazer Upload'
+                          : 'Visualizar'}
+                      {status === 'approved' ||
+                      status === 'pending final approval' ||
+                      status === 'pending' ? (
+                        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      ) : (
+                        <FileUp className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </Link>
+                  </Button>
+                  {doc && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0"
+                      onClick={() => downloadDocument(doc)}
+                      title="Baixar Documento"
+                    >
+                      <Download className="w-4 h-4 text-muted-foreground" />
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           )
