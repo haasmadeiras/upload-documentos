@@ -21,6 +21,8 @@ import PortalUpload from './pages/portal/Upload'
 import PortalEmployeeDetails from './pages/portal/EmployeeDetails'
 import PortalEmployees from './pages/portal/Employees'
 import AdminCategoryDocuments from './pages/admin/CategoryDocuments'
+import AdminPendingDocuments from './pages/admin/PendingDocuments'
+import AdminExpiringDocuments from './pages/admin/ExpiringDocuments'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -51,6 +53,8 @@ const App = () => (
                 path="/admin/documents/category/:categoryId"
                 element={<AdminCategoryDocuments />}
               />
+              <Route path="/admin/documents/pending" element={<AdminPendingDocuments />} />
+              <Route path="/admin/documents/expiring" element={<AdminExpiringDocuments />} />
             </Route>
 
             <Route element={<ProtectedRoute />}>

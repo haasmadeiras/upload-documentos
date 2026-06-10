@@ -181,17 +181,19 @@ export default function Dashboard() {
             <div className="text-2xl font-bold text-blue-600">{metrics.collaborators}</div>
           </CardContent>
         </Card>
-        <Card className="border-none shadow-sm bg-white">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Docs Pendentes
-            </CardTitle>
-            <FileWarning className="w-4 h-4 text-amber-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-amber-600">{metrics.pendingDocs}</div>
-          </CardContent>
-        </Card>
+        <Link to="/admin/documents/pending" className="block">
+          <Card className="border-none shadow-sm bg-white hover:bg-slate-50 transition-colors cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Docs Pendentes
+              </CardTitle>
+              <FileWarning className="w-4 h-4 text-amber-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-600">{metrics.pendingDocs}</div>
+            </CardContent>
+          </Card>
+        </Link>
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -203,17 +205,19 @@ export default function Dashboard() {
             <div className="text-2xl font-bold text-emerald-600">{metrics.forestAreas}</div>
           </CardContent>
         </Card>
-        <Card className="border-none shadow-sm bg-white">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Docs a Vencer
-            </CardTitle>
-            <FileWarning className="w-4 h-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{metrics.expiringDocs}</div>
-          </CardContent>
-        </Card>
+        <Link to="/admin/documents/expiring" className="block">
+          <Card className="border-none shadow-sm bg-white hover:bg-slate-50 transition-colors cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Docs a Vencer
+              </CardTitle>
+              <FileWarning className="w-4 h-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">{metrics.expiringDocs}</div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

@@ -120,7 +120,7 @@ export default function AdminAuditLogs() {
                       {format(new Date(log.created), 'dd/MM/yyyy HH:mm:ss')}
                     </TableCell>
                     <TableCell>
-                      {log.expand?.admin_user?.name || 'Sistema'}
+                      {log.expand?.admin_user?.name || 'SISTEMA'}
                       {log.expand?.admin_user?.email && (
                         <div className="text-xs text-muted-foreground">
                           {log.expand?.admin_user?.email}
