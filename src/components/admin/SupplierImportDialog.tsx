@@ -7,30 +7,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Download, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import pb from '@/lib/pocketbase/client'
+import * as XLSX from 'xlsx'
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
-}
-
-const splitCSV = (str: string, sep: string) => {
-  const result: string[] = []
-  let inQuotes = false
-  let cur = ''
-  for (let i = 0; i < str.length; i++) {
-    const char = str[i]
-    if (char === '"') {
-      inQuotes = !inQuotes
-    } else if (char === sep && !inQuotes) {
-      result.push(cur)
-      cur = ''
-    } else {
-      cur += char
-    }
-  }
-  result.push(cur)
-  return result
 }
 
 export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
@@ -58,15 +40,10 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
       'CNPJ/CPF',
       'E-mail',
     ]
-    const csv = '\uFEFF' + headers.join(';') + '\n'
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', 'modelo_fornecedores.csv')
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    const worksheet = XLSX.utils.aoa_to_sheet([headers])
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Modelo')
+    XLSX.writeFile(workbook, 'modelo_fornecedores.xlsx')
   }
 
   const handleImport = async () => {
@@ -76,52 +53,49 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
     setStats(null)
 
     try {
-      const text = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          const result = e.target?.result
-          if (typeof result === 'string') {
-            resolve(result)
-          } else {
-            reject(new Error('Falha ao ler o arquivo'))
-          }
-        }
-        reader.onerror = reject
-        reader.readAsText(file)
-      })
+      const data = await file.arrayBuffer()
+      const workbook = XLSX.read(data, { type: 'array' })
+      const firstSheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[firstSheetName]
+      const rowsRaw = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][]
 
-      const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '')
-      if (lines.length < 2) throw new Error('O arquivo está vazio ou sem dados válidos')
-
-      const normalizeHeader = (h: string) =>
+      const normalizeHeader = (h: any) =>
         h
-          .toLowerCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .trim()
+          ? String(h)
+              .toLowerCase()
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .trim()
+          : ''
 
-      let headerIdx = 0
+      let headerIdx = -1
       let headers: string[] = []
-      let delimiter = ';'
 
-      for (let i = 0; i < lines.length; i++) {
-        const lineNorm = normalizeHeader(lines[i])
+      for (let i = 0; i < rowsRaw.length; i++) {
+        const row = rowsRaw[i]
+        if (!Array.isArray(row)) continue
+        const rowString = row.map(normalizeHeader).join(' ')
         if (
-          lineNorm.includes('codigo') &&
-          (lineNorm.includes('cnpj') || lineNorm.includes('cpf') || lineNorm.includes('email'))
+          rowString.includes('codigo') &&
+          (rowString.includes('cnpj') || rowString.includes('cpf') || rowString.includes('email'))
         ) {
           headerIdx = i
-          delimiter = lines[i].includes(';') ? ';' : ','
-          headers = splitCSV(lines[i], delimiter).map(normalizeHeader)
+          headers = row.map(normalizeHeader)
           break
         }
       }
 
-      if (headers.length === 0) {
-        headerIdx = 0
-        delimiter = lines[0].includes(';') ? ';' : ','
-        headers = splitCSV(lines[0], delimiter).map(normalizeHeader)
+      if (headerIdx === -1) {
+        for (let i = 0; i < rowsRaw.length; i++) {
+          if (Array.isArray(rowsRaw[i]) && rowsRaw[i].length > 0 && rowsRaw[i].some(Boolean)) {
+            headerIdx = i
+            headers = rowsRaw[i].map(normalizeHeader)
+            break
+          }
+        }
       }
+
+      if (headers.length === 0) throw new Error('O arquivo está vazio ou sem dados válidos')
 
       const colMap = {
         codigo: headers.findIndex((h) => h === 'codigo'),
@@ -137,32 +111,36 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
         email: headers.findIndex((h) => h.includes('email') || h.includes('e-mail')),
       }
 
+      const isExcel =
+        file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')
+      const extStr = isExcel ? '.xlsx' : '.csv'
+
       if (colMap.codigo === -1)
-        throw new Error('Erro: Coluna Código não localizada no arquivo Excel.')
+        throw new Error(`Erro: Coluna Código não localizada no arquivo ${extStr}`)
       if (colMap.fantasia === -1)
-        throw new Error('Erro: Coluna Fantasia/Apelido não localizada no arquivo Excel.')
+        throw new Error(`Erro: Coluna Fantasia/Apelido não localizada no arquivo ${extStr}`)
       if (colMap.doc === -1)
-        throw new Error('Erro: Coluna CNPJ/CPF não localizada no arquivo Excel.')
+        throw new Error(`Erro: Coluna CNPJ/CPF não localizada no arquivo ${extStr}`)
       if (colMap.email === -1)
-        throw new Error('Erro: Coluna E-mail não localizada no arquivo Excel.')
+        throw new Error(`Erro: Coluna E-mail não localizada no arquivo ${extStr}`)
 
       const rows: Record<string, string>[] = []
-      for (let i = headerIdx + 1; i < lines.length; i++) {
-        const values = splitCSV(lines[i], delimiter).map((v) =>
-          v.trim().replace(/^["']+|["']+$/g, ''),
-        )
+      for (let i = headerIdx + 1; i < rowsRaw.length; i++) {
+        const row = rowsRaw[i]
+        if (!Array.isArray(row) || row.length === 0 || row.every((val) => !val)) continue
+
         rows.push({
-          codigo: colMap.codigo !== -1 ? values[colMap.codigo] : '',
-          razao: colMap.razao !== -1 ? values[colMap.razao] : '',
-          fantasia: colMap.fantasia !== -1 ? values[colMap.fantasia] : '',
-          endereco: colMap.endereco !== -1 ? values[colMap.endereco] : '',
-          cep: colMap.cep !== -1 ? values[colMap.cep] : '',
-          municipio: colMap.municipio !== -1 ? values[colMap.municipio] : '',
-          uf: colMap.uf !== -1 ? values[colMap.uf] : '',
-          floresta: colMap.floresta !== -1 ? values[colMap.floresta] : '',
-          controle: colMap.controle !== -1 ? values[colMap.controle] : '',
-          doc: colMap.doc !== -1 ? values[colMap.doc] : '',
-          email: colMap.email !== -1 ? values[colMap.email] : '',
+          codigo: colMap.codigo !== -1 ? String(row[colMap.codigo] || '').trim() : '',
+          razao: colMap.razao !== -1 ? String(row[colMap.razao] || '').trim() : '',
+          fantasia: colMap.fantasia !== -1 ? String(row[colMap.fantasia] || '').trim() : '',
+          endereco: colMap.endereco !== -1 ? String(row[colMap.endereco] || '').trim() : '',
+          cep: colMap.cep !== -1 ? String(row[colMap.cep] || '').trim() : '',
+          municipio: colMap.municipio !== -1 ? String(row[colMap.municipio] || '').trim() : '',
+          uf: colMap.uf !== -1 ? String(row[colMap.uf] || '').trim() : '',
+          floresta: colMap.floresta !== -1 ? String(row[colMap.floresta] || '').trim() : '',
+          controle: colMap.controle !== -1 ? String(row[colMap.controle] || '').trim() : '',
+          doc: colMap.doc !== -1 ? String(row[colMap.doc] || '').trim() : '',
+          email: colMap.email !== -1 ? String(row[colMap.email] || '').trim() : '',
         })
       }
 
@@ -231,7 +209,7 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
       }
 
       setStats({ success, skipped, total: rows.length, errors })
-      toast.success(`${success} fornecedores importados com sucesso!`)
+      toast.success(`Importação concluída: ${success} fornecedores adicionados com sucesso.`)
       onSuccess()
     } catch (error: any) {
       toast.error(error.message || 'Erro ao processar o arquivo')
@@ -259,7 +237,9 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
           <DialogTitle>Importar Fornecedores</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="text-sm text-muted-foreground">Importe fornecedores via arquivo CSV.</div>
+          <div className="text-sm text-muted-foreground">
+            Importe fornecedores via arquivo Excel (.xlsx) ou CSV.
+          </div>
           <Button variant="link" className="p-0 h-auto" onClick={downloadTemplate}>
             <Download className="mr-2 w-4 h-4" /> Baixar modelo
           </Button>
@@ -267,7 +247,7 @@ export function SupplierImportDialog({ open, onOpenChange, onSuccess }: Props) {
           {!importing && !stats && (
             <Input
               type="file"
-              accept=".csv"
+              accept=".csv, .xlsx, .xls"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
             />
           )}
