@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Plus, Search, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Upload } from 'lucide-react'
+import { SupplierImportDialog } from '@/components/admin/SupplierImportDialog'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -51,6 +52,8 @@ const formSchema = z
     person_type: z.enum(['PF', 'PJ']),
     phone: z.string().optional(),
     legal_name: z.string().optional(),
+    address: z.string().optional(),
+    external_code: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     const taxIdClean = data.tax_id.replace(/\D/g, '')
@@ -112,6 +115,7 @@ export default function AdminSuppliers() {
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   const isMaster = user?.isAdmin === true || user?.role === 'Admin' || user?.role === 'Colaborador'
 
@@ -162,6 +166,8 @@ export default function AdminSuppliers() {
         person_type: values.person_type,
         phone: values.phone,
         legal_name: values.legal_name,
+        address: values.address,
+        external_code: values.external_code,
       }
 
       if (editingId) {
@@ -213,6 +219,8 @@ export default function AdminSuppliers() {
         person_type: s.person_type || 'PJ',
         phone: s.phone || '',
         legal_name: s.legal_name || '',
+        address: s.address || '',
+        external_code: s.external_code || '',
       })
     } else {
       setEditingId(null)
@@ -223,6 +231,8 @@ export default function AdminSuppliers() {
         person_type: 'PJ',
         phone: '',
         legal_name: '',
+        address: '',
+        external_code: '',
       })
     }
     setOpen(true)
@@ -257,10 +267,21 @@ export default function AdminSuppliers() {
             setOpen(o)
           }}
         >
-          <Button onClick={() => handleOpenDialog()}>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Fornecedor
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Importar
+            </Button>
+            <Button onClick={() => handleOpenDialog()}>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo Fornecedor
+            </Button>
+          </div>
+          <SupplierImportDialog
+            open={importOpen}
+            onOpenChange={setImportOpen}
+            onSuccess={fetchSuppliers}
+          />
           <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
@@ -347,6 +368,35 @@ export default function AdminSuppliers() {
                         </FormLabel>
                         <FormControl>
                           <Input placeholder="Razão social" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Endereço Completo</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Rua, Número, Bairro..." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="external_code"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Código Externo</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Código ERP" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

@@ -8,6 +8,8 @@ export interface Supplier {
   email: string
   person_type: 'PF' | 'PJ'
   phone?: string
+  address?: string
+  external_code?: string
   created: string
   updated: string
 }
