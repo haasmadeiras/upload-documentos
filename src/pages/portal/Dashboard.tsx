@@ -36,6 +36,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { getDocumentCategories, DocumentCategory } from '@/services/document_categories'
 import { getDocumentDefinitions, DocumentDefinition } from '@/services/document_definitions'
 import { getDocuments, downloadDocument, deleteDocument } from '@/services/documents'
+import { getEmployees } from '@/services/employees'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useRealtime } from '@/hooks/use-realtime'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -47,6 +48,7 @@ export default function PortalDashboard() {
   const [categories, setCategories] = useState<DocumentCategory[]>([])
   const [definitions, setDefinitions] = useState<DocumentDefinition[]>([])
   const [userDocs, setUserDocs] = useState<any[]>([])
+  const [employees, setEmployees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -67,14 +69,16 @@ export default function PortalDashboard() {
       const isAdmin = user?.isAdmin || user?.role === 'Admin'
       const filter = isAdmin ? '' : `user = "${user?.id}"`
 
-      const [cats, defs, docs] = await Promise.all([
+      const [cats, defs, docs, emps] = await Promise.all([
         getDocumentCategories(),
         getDocumentDefinitions(),
         getDocuments(filter, 'definition.category'),
+        getEmployees(filter),
       ])
       setCategories(cats)
       setDefinitions(defs)
       setUserDocs(docs)
+      setEmployees(emps)
     } catch (err) {
       console.error('Error loading dashboard data:', err)
       setError('Não foi possível carregar os dados. Verifique sua conexão e tente novamente.')
@@ -263,18 +267,8 @@ export default function PortalDashboard() {
                     return cDefs.length > 0
                   })
                   .map((category) => {
-                    const cDefs = relevantDefs.filter((d) => d.category === category.id)
-                    const cMandatory = cDefs.filter((d) => d.is_mandatory)
-                    const cUploaded = cMandatory.filter((def) =>
-                      userDocs.some((doc) => doc.definition === def.id),
-                    )
-                    const progress =
-                      cMandatory.length > 0
-                        ? Math.round((cUploaded.length / cMandatory.length) * 100)
-                        : 100
-
-                    let path = '/portal'
                     const nameLower = category.name.toLowerCase()
+                    let path = '/portal'
                     if (nameLower.includes('fornecedor')) path = '/portal/fornecedor'
                     else if (nameLower.includes('veículo') || nameLower.includes('veiculo'))
                       path = '/portal/veiculos'
@@ -283,6 +277,48 @@ export default function PortalDashboard() {
                     else if (nameLower.includes('funcionário') || nameLower.includes('funcionario'))
                       path = '/portal/employees'
 
+                    const isEmployeeCategory =
+                      nameLower.includes('funcionário') || nameLower.includes('funcionario')
+
+                    let subtext = ''
+                    let progress = 100
+
+                    if (isEmployeeCategory) {
+                      const employeeDefs = relevantDefs.filter((d) => d.category === category.id)
+                      let completeCount = 0
+                      employees.forEach((emp) => {
+                        const requiredDefs = employeeDefs.filter(
+                          (d) =>
+                            d.is_mandatory &&
+                            (d.target_role === 'all' || d.target_role === emp.role),
+                        )
+                        const hasAll = requiredDefs.every((def) => {
+                          const doc = userDocs.find(
+                            (d) => d.employee === emp.id && d.definition === def.id,
+                          )
+                          return doc && doc.status === 'Approved'
+                        })
+                        if (hasAll && requiredDefs.length > 0) completeCount++
+                        else if (requiredDefs.length === 0) completeCount++ // if no mandatory docs required
+                      })
+                      progress =
+                        employees.length > 0
+                          ? Math.round((completeCount / employees.length) * 100)
+                          : 100
+                      subtext = `${completeCount} de ${employees.length} funcionários com documentação completa`
+                    } else {
+                      const cDefs = relevantDefs.filter((d) => d.category === category.id)
+                      const cMandatory = cDefs.filter((d) => d.is_mandatory)
+                      const cUploaded = cMandatory.filter((def) =>
+                        userDocs.some((doc) => doc.definition === def.id),
+                      )
+                      progress =
+                        cMandatory.length > 0
+                          ? Math.round((cUploaded.length / cMandatory.length) * 100)
+                          : 100
+                      subtext = `${cUploaded.length} de ${cMandatory.length} obrigatórios enviados`
+                    }
+
                     return (
                       <Link key={category.id} to={path} className="block group">
                         <div className="flex items-center justify-between p-3 border rounded-lg hover:border-primary/50 hover:bg-secondary/20 transition-all">
@@ -290,9 +326,7 @@ export default function PortalDashboard() {
                             <p className="font-medium group-hover:text-primary transition-colors">
                               {category.name}
                             </p>
-                            <p className="text-xs text-muted-foreground">
-                              {cUploaded.length} de {cMandatory.length} obrigatórios enviados
-                            </p>
+                            <p className="text-xs text-muted-foreground">{subtext}</p>
                           </div>
                           <div className="flex items-center gap-4">
                             <div className="w-24 h-2 bg-secondary rounded-full overflow-hidden hidden sm:block">

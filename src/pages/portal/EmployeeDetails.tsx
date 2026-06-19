@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, UploadCloud, Download } from 'lucide-react'
+import { ArrowLeft, UploadCloud, Download, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { FileUploader } from '@/components/FileUploader'
 import {
   Table,
   TableBody,
@@ -46,7 +47,11 @@ export default function PortalEmployeeDetails() {
         getDocuments(`employee = "${id}"`),
       ])
       setEmployee(emp)
-      const validDefs = allDefs.filter((d) => d.target_role === 'all' || d.target_role === emp.role)
+      const validDefs = allDefs.filter(
+        (d) =>
+          (d.target_role === 'all' || d.target_role === emp.role) &&
+          d.expand?.category?.name?.toLowerCase().includes('funcion'),
+      )
       setDefs(validDefs)
       setDocs(allDocs)
     } catch (e) {
@@ -108,6 +113,13 @@ export default function PortalEmployeeDetails() {
         label: 'Rejeitado',
         color: 'bg-red-500/10 text-red-500 hover:bg-red-500/20',
       }
+    if (doc.status === 'Vencido' || doc.status === 'Expired')
+      return {
+        status: 'Vencido',
+        doc,
+        label: 'Vencido',
+        color: 'bg-orange-500/10 text-orange-600 hover:bg-orange-500/20',
+      }
     return {
       status: 'Pending',
       doc,
@@ -159,19 +171,37 @@ export default function PortalEmployeeDetails() {
               return (
                 <TableRow key={def.id}>
                   <TableCell className="font-medium">
-                    {def.name}
+                    <div className="flex items-center gap-2">
+                      {def.name}
+                      {status === 'Rejected' && (
+                        <AlertCircle className="w-4 h-4 text-rose-500" title="Rejeitado" />
+                      )}
+                      {status === 'Vencido' && (
+                        <AlertCircle className="w-4 h-4 text-orange-500" title="Vencido" />
+                      )}
+                    </div>
                     {def.validity_days > 0 && (
-                      <span className="block text-xs text-muted-foreground">
+                      <span className="block text-xs text-muted-foreground mt-1">
                         Válido por {def.validity_days} dias
                       </span>
                     )}
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Formatos: {def.allowed_formats || 'Qualquer'} | Max: {def.max_size_mb || 10}MB
+                    </div>
                   </TableCell>
                   <TableCell>{def.is_mandatory ? 'Sim' : 'Não'}</TableCell>
                   <TableCell>{validity}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={`border-0 ${color}`}>
-                      {label}
-                    </Badge>
+                    <div className="flex flex-col gap-1 items-start">
+                      <Badge variant="outline" className={`border-0 ${color}`}>
+                        {label}
+                      </Badge>
+                      {status === 'Rejected' && doc?.rejection_reason && (
+                        <div className="text-xs text-rose-600 font-medium leading-tight max-w-[200px]">
+                          Motivo: {doc.rejection_reason}
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -202,13 +232,14 @@ export default function PortalEmployeeDetails() {
                             <form onSubmit={handleUpload} className="space-y-4 py-4">
                               <div className="space-y-2">
                                 <Label>Arquivo</Label>
-                                <Input
-                                  type="file"
-                                  required
-                                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                                <FileUploader
+                                  file={file}
+                                  onFileSelect={setFile}
+                                  accept={def.allowed_formats || '.pdf,.jpg,.png'}
+                                  maxSizeMb={def.max_size_mb || 10}
                                 />
                               </div>
-                              <Button type="submit" className="w-full">
+                              <Button type="submit" className="w-full" disabled={!file}>
                                 Confirmar Envio
                               </Button>
                             </form>

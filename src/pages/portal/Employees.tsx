@@ -46,11 +46,15 @@ import {
   Employee,
 } from '@/services/employees'
 import { getForestAreas, ForestArea } from '@/services/forest_areas'
+import { getDocuments } from '@/services/documents'
+import { getDocumentDefinitions, DocumentDefinition } from '@/services/document_definitions'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { isValidCPF, formatCPF, cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
+import { CheckCircle2, Clock } from 'lucide-react'
 import * as pdfjsLib from 'pdfjs-dist'
 import PdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker'
 
@@ -64,6 +68,8 @@ export default function PortalEmployees() {
   const { user } = useAuth()
   const [employees, setEmployees] = useState<Employee[]>([])
   const [forestAreas, setForestAreas] = useState<ForestArea[]>([])
+  const [docs, setDocs] = useState<any[]>([])
+  const [defs, setDefs] = useState<DocumentDefinition[]>([])
   const [loading, setLoading] = useState(true)
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isImportOpen, setIsImportOpen] = useState(false)
@@ -97,12 +103,16 @@ export default function PortalEmployees() {
   const load = async () => {
     if (!user) return
     try {
-      const [data, forests] = await Promise.all([
+      const [data, forests, d, df] = await Promise.all([
         getEmployees(`user = "${user.id}"`),
         getForestAreas(),
+        getDocuments(`user = "${user.id}" && employee != ""`, 'definition'),
+        getDocumentDefinitions(),
       ])
       setEmployees(data)
       setForestAreas(forests)
+      setDocs(d)
+      setDefs(df)
     } catch (e) {
       toast.error('Erro ao carregar dados')
     } finally {
@@ -265,6 +275,42 @@ export default function PortalEmployees() {
     } finally {
       setImporting(false)
     }
+  }
+
+  const getEmployeeStatus = (emp: Employee) => {
+    const empDefs = defs.filter(
+      (d) =>
+        d.expand?.category?.name?.toLowerCase().includes('funcion') &&
+        (d.target_role === 'all' || d.target_role === emp.role),
+    )
+    const mandatoryDefs = empDefs.filter((d) => d.is_mandatory)
+
+    let isVencido = false
+    let isPendente = false
+
+    mandatoryDefs.forEach((def) => {
+      const doc = docs.find((d) => d.employee === emp.id && d.definition === def.id)
+      if (!doc) {
+        isPendente = true
+      } else if (doc.status === 'Vencido' || doc.status === 'Expired') {
+        isVencido = true
+      } else if (doc.status !== 'Approved') {
+        isPendente = true
+      }
+    })
+
+    empDefs
+      .filter((d) => !d.is_mandatory)
+      .forEach((def) => {
+        const doc = docs.find((d) => d.employee === emp.id && d.definition === def.id)
+        if (doc && (doc.status === 'Vencido' || doc.status === 'Expired')) {
+          isVencido = true
+        }
+      })
+
+    if (isVencido) return 'Vencido'
+    if (isPendente) return 'Pendente'
+    return 'Regular'
   }
 
   const handleExportCsv = () => {
@@ -623,50 +669,90 @@ export default function PortalEmployees() {
                 <TableHead>CPF</TableHead>
                 <TableHead>Função</TableHead>
                 <TableHead>Área Florestal</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {employees.length === 0 && !loading && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     Nenhum funcionário cadastrado.
                   </TableCell>
                 </TableRow>
               )}
-              {employees.map((emp) => (
-                <TableRow key={emp.id}>
-                  <TableCell className="font-medium">{emp.name}</TableCell>
-                  <TableCell>{formatCPF(emp.tax_id)}</TableCell>
-                  <TableCell className="capitalize">{emp.role}</TableCell>
-                  <TableCell>{emp.expand?.forest_area?.name || 'Não vinculada'}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setEditingEmp({ ...emp, tax_id: formatCPF(emp.tax_id) })}
-                        className="text-muted-foreground hover:text-primary"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(emp.id)}
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link to={`/portal/employees/${emp.id}`}>
-                          Ver Docs <ArrowRight className="w-4 h-4 ml-1" />
-                        </Link>
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {employees.map((emp) => {
+                const status = getEmployeeStatus(emp)
+                return (
+                  <TableRow key={emp.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {emp.name}
+                        {status === 'Vencido' && (
+                          <AlertCircle
+                            className="w-4 h-4 text-orange-500"
+                            title="Possui documentos vencidos"
+                          />
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{formatCPF(emp.tax_id)}</TableCell>
+                    <TableCell className="capitalize">{emp.role}</TableCell>
+                    <TableCell>{emp.expand?.forest_area?.name || 'Não vinculada'}</TableCell>
+                    <TableCell>
+                      {status === 'Regular' && (
+                        <Badge
+                          className="bg-emerald-50 text-emerald-600 border-emerald-200"
+                          variant="outline"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Regular
+                        </Badge>
+                      )}
+                      {status === 'Pendente' && (
+                        <Badge
+                          className="bg-amber-50 text-amber-600 border-amber-200"
+                          variant="outline"
+                        >
+                          <Clock className="w-3.5 h-3.5 mr-1" /> Pendente
+                        </Badge>
+                      )}
+                      {status === 'Vencido' && (
+                        <Badge
+                          className="bg-orange-50 text-orange-600 border-orange-200"
+                          variant="outline"
+                        >
+                          <AlertCircle className="w-3.5 h-3.5 mr-1" /> Vencido
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditingEmp({ ...emp, tax_id: formatCPF(emp.tax_id) })}
+                          className="text-muted-foreground hover:text-primary"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(emp.id)}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" asChild>
+                          <Link to={`/portal/employees/${emp.id}`}>
+                            Ver Docs <ArrowRight className="w-4 h-4 ml-1" />
+                          </Link>
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </CardContent>
