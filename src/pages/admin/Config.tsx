@@ -49,6 +49,7 @@ export default function AdminConfig() {
     name: string
     is_mandatory: boolean
     validity_days: number
+    max_size_mb: number
     is_vide_documento: boolean
     allowed_formats: string
     target_person_type: 'Both' | 'PF' | 'PJ'
@@ -57,6 +58,7 @@ export default function AdminConfig() {
     name: '',
     is_mandatory: true,
     validity_days: 0,
+    max_size_mb: 20,
     is_vide_documento: false,
     allowed_formats: 'pdf, jpg, png',
     target_person_type: 'Both',
@@ -102,6 +104,7 @@ export default function AdminConfig() {
         name: def.name,
         is_mandatory: def.is_mandatory,
         validity_days: def.validity_days || 0,
+        max_size_mb: def.max_size_mb || 20,
         is_vide_documento: def.is_vide_documento || false,
         allowed_formats: def.allowed_formats || '',
         target_person_type: (def.target_person_type as any) || 'Both',
@@ -113,6 +116,7 @@ export default function AdminConfig() {
         name: '',
         is_mandatory: true,
         validity_days: 0,
+        max_size_mb: 20,
         is_vide_documento: false,
         allowed_formats: 'pdf, jpg, png',
         target_person_type: 'Both',
@@ -128,6 +132,7 @@ export default function AdminConfig() {
         ...formData,
         category: selectedCategory,
         validity_days: formData.is_vide_documento ? 0 : Number(formData.validity_days),
+        max_size_mb: Number(formData.max_size_mb) || 20,
       }
 
       if (editingDef) {
@@ -255,6 +260,13 @@ export default function AdminConfig() {
                               </span>
                               <span className="hidden sm:inline">•</span>
                               <span className="flex items-center gap-1">
+                                Tamanho Máx:{' '}
+                                <strong className="text-slate-700">
+                                  {def.max_size_mb || 20} MB
+                                </strong>
+                              </span>
+                              <span className="hidden sm:inline">•</span>
+                              <span className="flex items-center gap-1">
                                 Formatos:{' '}
                                 <strong className="text-slate-700">
                                   {def.allowed_formats || '*'}
@@ -328,24 +340,40 @@ export default function AdminConfig() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="validity_days">Validade em Dias (0 para indeterminado)</Label>
-              <Input
-                id="validity_days"
-                type="number"
-                min="0"
-                disabled={formData.is_vide_documento}
-                value={formData.is_vide_documento ? '' : formData.validity_days}
-                onChange={(e) =>
-                  setFormData({ ...formData, validity_days: parseInt(e.target.value) || 0 })
-                }
-              />
+            <div className="flex gap-4">
+              <div className="space-y-2 flex-1">
+                <Label htmlFor="validity_days">Validade (Dias)</Label>
+                <Input
+                  id="validity_days"
+                  type="number"
+                  min="0"
+                  disabled={formData.is_vide_documento}
+                  value={formData.is_vide_documento ? '' : formData.validity_days}
+                  onChange={(e) =>
+                    setFormData({ ...formData, validity_days: parseInt(e.target.value) || 0 })
+                  }
+                  placeholder="0 = indeterminado"
+                />
+              </div>
+
+              <div className="space-y-2 flex-1">
+                <Label htmlFor="max_size_mb">Tamanho Máx (MB)</Label>
+                <Input
+                  id="max_size_mb"
+                  type="number"
+                  min="1"
+                  value={formData.max_size_mb}
+                  onChange={(e) =>
+                    setFormData({ ...formData, max_size_mb: parseInt(e.target.value) || 20 })
+                  }
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
               <Label>Formatos Permitidos</Label>
               <div className="flex flex-wrap gap-4 mt-2">
-                {['PDF', 'JPG', 'PNG', 'XLS', 'XLSX'].map((format) => {
+                {['PDF', 'JPG', 'PNG', 'XLS', 'XLSX', 'CSV'].map((format) => {
                   const isChecked = formData.allowed_formats
                     .toLowerCase()
                     .split(',')

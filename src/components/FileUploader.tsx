@@ -2,15 +2,23 @@ import React, { useState, useCallback } from 'react'
 import { UploadCloud, File as FileIcon, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/use-toast'
 
 interface FileUploaderProps {
   onFileSelect: (file: File | null) => void
   file: File | null
   accept?: string
+  maxSizeMb?: number
 }
 
-export function FileUploader({ onFileSelect, file, accept = '.pdf,.jpg,.png' }: FileUploaderProps) {
+export function FileUploader({
+  onFileSelect,
+  file,
+  accept = '.pdf,.jpg,.png',
+  maxSizeMb = 20,
+}: FileUploaderProps) {
   const [isDragging, setIsDragging] = useState(false)
+  const { toast } = useToast()
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -70,15 +78,36 @@ export function FileUploader({ onFileSelect, file, accept = '.pdf,.jpg,.png' }: 
             if (t === 'application/pdf') return '.pdf'
             if (t === 'image/jpeg') return '.jpg'
             if (t === 'image/png') return '.png'
+            if (t === 'application/vnd.ms-excel') return '.xls'
+            if (t === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+              return '.xlsx'
+            if (t === 'text/csv') return '.csv'
             if (t.includes('/')) return t
             if (!t.startsWith('.')) return `.${t}`
             return t
           }),
         ),
-      ).join(', ')
-      alert(`Formato de arquivo inválido. Formatos aceitos: ${formattedAccept}`)
+      )
+        .join(', ')
+        .toUpperCase()
+
+      toast({
+        title: 'Formato inválido',
+        description: `O formato ${extension.toUpperCase()} não é permitido. Por favor, envie arquivos nos formatos: ${formattedAccept}.`,
+        variant: 'destructive',
+      })
       return
     }
+
+    if (maxSizeMb && selectedFile.size > maxSizeMb * 1024 * 1024) {
+      toast({
+        title: 'Tamanho excedido',
+        description: `O arquivo selecionado (${(selectedFile.size / 1024 / 1024).toFixed(2)}MB) excede o limite permitido de ${maxSizeMb}MB para este documento.`,
+        variant: 'destructive',
+      })
+      return
+    }
+
     onFileSelect(selectedFile)
   }
 
@@ -103,7 +132,9 @@ export function FileUploader({ onFileSelect, file, accept = '.pdf,.jpg,.png' }: 
               <span className="font-semibold text-foreground">Clique para fazer upload</span> ou
               arraste o arquivo
             </p>
-            <p className="text-xs text-muted-foreground">Formatos aceitos: {accept} (Max 10MB)</p>
+            <p className="text-xs text-muted-foreground">
+              Formatos aceitos: {accept} (Max {maxSizeMb}MB)
+            </p>
           </div>
           <input
             type="file"

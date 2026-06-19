@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-19T00:41:14.019Z",
+  "generatedAt": "2026-06-19T00:47:19.374Z",
   "collections": [
     {
       "name": "users",
@@ -323,6 +323,12 @@
         {
           "name": "is_vide_documento",
           "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "max_size_mb",
+          "type": "number",
           "required": false,
           "system": false
         }

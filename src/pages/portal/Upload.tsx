@@ -47,6 +47,7 @@ export default function PortalUpload() {
             title: def.name,
             description: `Formatos aceitos: ${def.allowed_formats || 'Qualquer'}`,
             allowedFormats: def.allowed_formats || 'pdf, jpg, jpeg, png',
+            maxSizeMb: def.max_size_mb || 20,
           })
           if (docsRes.items.length > 0) {
             const doc = docsRes.items[0]
@@ -280,6 +281,7 @@ export default function PortalUpload() {
                 <FileUploader
                   file={null}
                   onFileSelect={(f) => f && handleUpload(f)}
+                  maxSizeMb={req.maxSizeMb}
                   accept={req.allowedFormats
                     .split(',')
                     .map((f: string) => {
@@ -287,6 +289,10 @@ export default function PortalUpload() {
                       if (ext === 'pdf') return '.pdf,application/pdf'
                       if (ext === 'jpg' || ext === 'jpeg') return '.jpg,.jpeg,image/jpeg'
                       if (ext === 'png') return '.png,image/png'
+                      if (ext === 'xls') return '.xls,application/vnd.ms-excel'
+                      if (ext === 'xlsx')
+                        return '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                      if (ext === 'csv') return '.csv,text/csv'
                       return `.${ext}`
                     })
                     .join(',')}
