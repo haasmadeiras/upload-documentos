@@ -1,4 +1,3 @@
-// @deps pdf-parse@1.1.1, buffer@6.0.3
 onRecordAfterUpdateSuccess(async (e) => {
   const originalStatus = e.record.original().getString('status')
   const newStatus = e.record.getString('status')
@@ -41,28 +40,6 @@ onRecordAfterUpdateSuccess(async (e) => {
       }
     } catch (err) {}
 
-    let fileText = ''
-    const fileName = e.record.getString('file')
-    if (fileName.toLowerCase().endsWith('.pdf')) {
-      try {
-        const pdfParse = require('pdf-parse')
-        const { Buffer } = require('buffer')
-        const url = `${$secrets.get('PB_INSTANCE_URL')}/api/files/${e.record.collectionId}/${docId}/${fileName}`
-        const res = $http.send({
-          url,
-          method: 'GET',
-          headers: { Authorization: 'Bearer ' + $secrets.get('PB_SUPERUSER_TOKEN') },
-        })
-        if (res.statusCode === 200) {
-          const buffer = Buffer.from(res.body)
-          const data = await pdfParse(buffer)
-          fileText = data.text
-        }
-      } catch (err) {
-        console.log('PDF extraction error:', err.message)
-      }
-    }
-
     const promptMessage = `Por favor, analise o documento recém-enviado.
 ID do Registro do Documento: ${docId}
 Tipo de Documento Esperado: ${defName}
@@ -71,13 +48,8 @@ CNPJ/CPF Esperado: ${expectedTaxId}
 Nome/Razão Social Esperado: ${expectedName}
 Data Atual: ${new Date().toISOString().split('T')[0]}
 
-Conteúdo de Texto Extraído do Arquivo PDF:
-"""
-${fileText}
-"""
-
 Instruções:
-1. Use o 'Conteúdo de Texto Extraído do Arquivo PDF' fornecido acima para análise. Se o documento for uma imagem, use a ferramenta 'documents' para analisar o arquivo usando capacidades de visão.
+1. Use a ferramenta 'documents' ou de leitura para buscar e analisar o arquivo associado ao documento de ID ${docId}.
 2. Verifique se o documento corresponde ao 'Tipo de Documento Esperado'.
 3. Extraia o CNPJ/CPF do documento. REMOVA todas as pontuações (pontos, traços, barras) do CNPJ/CPF extraído e do 'CNPJ/CPF Esperado'. Compare apenas os dígitos numéricos. Especificamente para Certidão Negativa de Débitos (CND Estadual, etc), se a raiz (primeiros 8 dígitos numéricos) coincidir, considere válido.
 4. Extraia o Nome/Razão Social e verifique se corresponde ao esperado usando fuzzy matching (tolere pequenas diferenças e abreviações).
