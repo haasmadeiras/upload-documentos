@@ -198,7 +198,7 @@ RETORNE APENAS um JSON estrito. Não adicione texto antes ou depois do JSON. Nã
             analysisResult.extracted_expiration_date + ' 12:00:00.000Z',
           )
 
-          if (expDate < Date.now() && docRecord.getString('status') === 'Approved') {
+          if (expDate < Date.now()) {
             docRecord.set('status', 'Vencido')
             docRecord.set(
               'rejection_reason',

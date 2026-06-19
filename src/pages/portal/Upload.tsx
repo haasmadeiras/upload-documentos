@@ -184,7 +184,9 @@ export default function PortalUpload() {
               ? 'border-l-rose-500 bg-rose-50/50'
               : isApproved
                 ? 'border-l-emerald-500 bg-emerald-50/50'
-                : 'border-l-amber-500 bg-amber-50/50',
+                : existingDoc.status === 'Aguardando Aprovação'
+                  ? 'border-l-blue-500 bg-blue-50/50'
+                  : 'border-l-amber-500 bg-amber-50/50',
           )}
         >
           <CardHeader className="pb-3">
@@ -193,7 +195,10 @@ export default function PortalUpload() {
                 <CardTitle className="flex items-center gap-2 text-lg">
                   {isApproved && <FileCheck2 className="w-5 h-5 text-emerald-600" />}
                   {isErrorState && <XCircle className="w-5 h-5 text-rose-600" />}
-                  {isPending && <Clock className="w-5 h-5 text-amber-600" />}
+                  {existingDoc.status === 'Aguardando Aprovação' && (
+                    <Clock className="w-5 h-5 text-blue-600" />
+                  )}
+                  {existingDoc.status === 'Pending' && <Clock className="w-5 h-5 text-amber-600" />}
                   Status Atual: {existingDoc.status}
                 </CardTitle>
                 <CardDescription className="mt-1">
@@ -210,14 +215,13 @@ export default function PortalUpload() {
           </CardHeader>
           <CardContent className="space-y-4">
             {existingDoc.status === 'Aguardando Aprovação' && (
-              <Alert className="bg-amber-50 border-amber-500 text-amber-900 shadow-sm">
-                <AlertCircle className="h-5 w-5 text-amber-600" />
-                <AlertTitle className="text-amber-800 font-semibold">
+              <Alert className="bg-blue-50 border-blue-500 text-blue-900 shadow-sm">
+                <AlertCircle className="h-5 w-5 text-blue-600" />
+                <AlertTitle className="text-blue-800 font-semibold">
                   Análise Manual Necessária
                 </AlertTitle>
-                <AlertDescription className="mt-2 text-amber-700 font-medium">
-                  A validação automática não pôde ser concluída ou os dados requerem verificação
-                  adicional. O documento será revisado manualmente por nossa equipe.
+                <AlertDescription className="mt-2 text-blue-700 font-medium">
+                  Seu documento está em análise manual pela nossa equipe.
                 </AlertDescription>
               </Alert>
             )}
@@ -240,16 +244,20 @@ export default function PortalUpload() {
               </div>
             )}
 
-            {(isErrorState || existingDoc.rejection_reason) && (
+            {isErrorState && (
               <Alert
                 variant="destructive"
                 className="bg-rose-50 border-rose-500 text-rose-900 shadow-sm"
               >
                 <AlertCircle className="h-5 w-5 text-rose-600" />
-                <AlertTitle className="text-rose-800 font-semibold">Motivo da Rejeição</AlertTitle>
+                <AlertTitle className="text-rose-800 font-semibold">
+                  {existingDoc.status === 'Vencido' ? 'Documento Vencido' : 'Motivo da Rejeição'}
+                </AlertTitle>
                 <AlertDescription className="mt-2 text-rose-700 font-medium">
                   {existingDoc.rejection_reason ||
-                    'Documento rejeitado. Por favor, verifique os dados e tente novamente.'}
+                    (existingDoc.status === 'Vencido'
+                      ? 'O documento anexado já passou da data de validade.'
+                      : 'Documento rejeitado. Por favor, verifique os dados e tente novamente.')}
                 </AlertDescription>
               </Alert>
             )}
