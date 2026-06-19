@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Plus, Search, Pencil, Trash2, Upload, CheckCircle2, AlertCircle } from 'lucide-react'
+import {
+  Plus,
+  Search,
+  Pencil,
+  Trash2,
+  Upload,
+  CheckCircle2,
+  AlertCircle,
+  ChevronsUpDown,
+  Check,
+} from 'lucide-react'
 import { cn, formatCPF, formatCNPJ, isValidCPF, isValidCNPJ } from '@/lib/utils'
 import { SupplierImportDialog } from '@/components/admin/SupplierImportDialog'
 import { z } from 'zod'
@@ -57,6 +67,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Card, CardContent } from '@/components/ui/card'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Badge } from '@/components/ui/badge'
 
 const formSchema = z
   .object({
@@ -68,7 +88,7 @@ const formSchema = z
     legal_name: z.string().optional(),
     address: z.string().optional(),
     external_code: z.string().optional(),
-    forest_area: z.string().optional(),
+    forest_area: z.array(z.string()).optional(),
     controle_florestal: z.string().optional(),
     cep: z.string().optional(),
     municipio: z.string().optional(),
@@ -145,6 +165,7 @@ export default function AdminSuppliers() {
       cep: '',
       municipio: '',
       uf: '',
+      forest_area: [],
     },
   })
 
@@ -208,7 +229,8 @@ export default function AdminSuppliers() {
         legal_name: values.legal_name,
         address: values.address,
         external_code: values.external_code,
-        forest_area: values.forest_area === 'none' ? null : values.forest_area || null,
+        forest_area:
+          values.forest_area && values.forest_area.length > 0 ? values.forest_area : null,
         controle_florestal: values.controle_florestal,
         cep: values.cep,
         municipio: values.municipio,
@@ -217,25 +239,35 @@ export default function AdminSuppliers() {
 
       if (editingId) {
         const currentSupplier = await pb.collection('suppliers').getOne<Supplier>(editingId)
-        const currentForestId = currentSupplier.forest_area || null
-        const newForestId = payload.forest_area || null
+        const currentForestIds = Array.isArray(currentSupplier.forest_area)
+          ? currentSupplier.forest_area
+          : currentSupplier.forest_area
+            ? [currentSupplier.forest_area]
+            : []
+        const newForestIds = payload.forest_area || []
 
         await updateSupplier(editingId, payload)
 
-        if (currentForestId !== newForestId) {
+        const removed = currentForestIds.filter((id) => !newForestIds.includes(id))
+        const added = newForestIds.filter((id) => !currentForestIds.includes(id))
+
+        if (removed.length > 0 || added.length > 0) {
           const activeForests = await pb.collection('forest_areas').getFullList({
             filter: `supplier="${editingId}" && is_active=true`,
           })
           const now = new Date().toISOString()
+
           for (const f of activeForests) {
-            await updateForestArea(f.id, {
-              is_active: false,
-              end_date: now,
-            })
+            if (removed.includes(f.id)) {
+              await updateForestArea(f.id, {
+                is_active: false,
+                end_date: now,
+              })
+            }
           }
 
-          if (newForestId) {
-            await updateForestArea(newForestId, {
+          for (const fId of added) {
+            await updateForestArea(fId, {
               supplier: editingId,
               start_date: now,
               is_active: true,
@@ -247,16 +279,18 @@ export default function AdminSuppliers() {
         toast.success('Fornecedor atualizado com sucesso!')
       } else {
         const newSupplier = await createSupplier(payload)
-        const newForestId = payload.forest_area || null
+        const newForestIds = payload.forest_area || []
 
-        if (newForestId) {
+        if (newForestIds.length > 0) {
           const now = new Date().toISOString()
-          await updateForestArea(newForestId, {
-            supplier: newSupplier.id,
-            start_date: now,
-            is_active: true,
-            end_date: '',
-          })
+          for (const fId of newForestIds) {
+            await updateForestArea(fId, {
+              supplier: newSupplier.id,
+              start_date: now,
+              is_active: true,
+              end_date: '',
+            })
+          }
         }
 
         toast.success('Fornecedor pré-cadastrado com sucesso')
@@ -321,7 +355,11 @@ export default function AdminSuppliers() {
         legal_name: s.legal_name || '',
         address: s.address || '',
         external_code: s.external_code || '',
-        forest_area: s.forest_area || '',
+        forest_area: Array.isArray(s.forest_area)
+          ? s.forest_area
+          : s.forest_area
+            ? [s.forest_area]
+            : [],
         controle_florestal: s.controle_florestal || '',
         cep: s.cep || '',
         municipio: s.municipio || '',
@@ -339,7 +377,7 @@ export default function AdminSuppliers() {
         legal_name: '',
         address: '',
         external_code: '',
-        forest_area: '',
+        forest_area: [],
         controle_florestal: '',
         cep: '',
         municipio: '',
@@ -359,10 +397,15 @@ export default function AdminSuppliers() {
       s.legal_name?.toLowerCase().includes(search.toLowerCase())
 
     const matchUf = ufFilter === 'all' || s.uf === ufFilter
+    const supplierForests = Array.isArray(s.forest_area)
+      ? s.forest_area
+      : s.forest_area
+        ? [s.forest_area]
+        : []
     const matchForest =
       forestFilter === 'all' ||
-      s.forest_area === forestFilter ||
-      (forestFilter === 'none' && !s.forest_area)
+      (forestFilter !== 'none' && supplierForests.includes(forestFilter)) ||
+      (forestFilter === 'none' && supplierForests.length === 0)
 
     return matchSearch && matchUf && matchForest
   })
@@ -645,23 +688,60 @@ export default function AdminSuppliers() {
                     control={form.control}
                     name="forest_area"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Floresta (Opcional)</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value || undefined}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione a floresta" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="none">Nenhuma</SelectItem>
-                            {forests.map((f) => (
-                              <SelectItem key={f.id} value={f.id}>
-                                {f.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <FormItem className="flex flex-col justify-end">
+                        <FormLabel>Florestas (Opcional)</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                  'w-full justify-between font-normal',
+                                  !field.value?.length && 'text-muted-foreground',
+                                )}
+                              >
+                                {field.value?.length
+                                  ? `${field.value.length} floresta(s) selecionada(s)`
+                                  : 'Selecione as florestas'}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[300px] p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Buscar floresta..." />
+                              <CommandList>
+                                <CommandEmpty>Nenhuma floresta encontrada.</CommandEmpty>
+                                <CommandGroup>
+                                  {forests.map((f) => {
+                                    const isSelected = field.value?.includes(f.id)
+                                    return (
+                                      <CommandItem
+                                        key={f.id}
+                                        value={f.name}
+                                        onSelect={() => {
+                                          const newValues = isSelected
+                                            ? field.value?.filter((id) => id !== f.id)
+                                            : [...(field.value || []), f.id]
+                                          field.onChange(newValues)
+                                        }}
+                                      >
+                                        <Check
+                                          className={cn(
+                                            'mr-2 h-4 w-4',
+                                            isSelected ? 'opacity-100' : 'opacity-0',
+                                          )}
+                                        />
+                                        {f.name}
+                                      </CommandItem>
+                                    )
+                                  })}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -788,7 +868,7 @@ export default function AdminSuppliers() {
                 <TableHead>Nome / Razão Social</TableHead>
                 <TableHead>Email Autorizado</TableHead>
                 <TableHead>CPF/CNPJ</TableHead>
-                <TableHead>Floresta</TableHead>
+                <TableHead>Florestas</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -821,7 +901,25 @@ export default function AdminSuppliers() {
                         : formatCNPJ(s.tax_id || '')}
                     </TableCell>
                     <TableCell>
-                      {s.expand?.forest_area ? s.expand.forest_area.name : s.floresta_info || '-'}
+                      {s.expand?.forest_area &&
+                      Array.isArray(s.expand.forest_area) &&
+                      s.expand.forest_area.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {s.expand.forest_area.map((f) => (
+                            <Badge key={f.id} variant="secondary" className="text-xs font-normal">
+                              {f.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : s.expand?.forest_area && !Array.isArray(s.expand.forest_area) ? (
+                        <Badge variant="secondary" className="text-xs font-normal">
+                          {(s.expand.forest_area as unknown as { name: string }).name}
+                        </Badge>
+                      ) : s.floresta_info ? (
+                        <span className="text-sm">{s.floresta_info}</span>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">Nenhuma</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">

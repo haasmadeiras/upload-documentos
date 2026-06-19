@@ -13,16 +13,18 @@ export interface Supplier {
   cep?: string
   municipio?: string
   uf?: string
-  forest_area?: string
+  forest_area?: string[] | string
   floresta_info?: string
   controle_florestal?: string
   created: string
   updated: string
   expand?: {
-    forest_area?: {
-      id: string
-      name: string
-    }
+    forest_area?:
+      | {
+          id: string
+          name: string
+        }[]
+      | { id: string; name: string }
   }
 }
 
