@@ -49,20 +49,22 @@ Data Atual: ${new Date().toISOString().split('T')[0]}
 Instruções:
 1. Use a ferramenta 'documents' para ler o registro do documento fornecido e analisar o arquivo anexado (use capacidades de visão).
 2. Verifique se o documento corresponde ao 'Tipo de Documento Esperado'.
-3. Extraia o CNPJ/CPF e verifique se corresponde ao 'CNPJ/CPF Esperado'.
+3. Extraia o CNPJ/CPF. Especificamente para Certidão Negativa de Débitos (CND), extraia o CNPJ base/raiz (8 primeiros dígitos) e valide com o CNPJ/CPF Esperado considerando correspondência fuzzy/base.
 4. Extraia o Nome/Razão Social e verifique se corresponde ao esperado usando fuzzy matching (tolere pequenas diferenças e abreviações).
 5. Siga rigorosamente as 'Instruções Específicas de Validação' se houver.
 6. Extraia a data de validade (expiration_date) no formato YYYY-MM-DD.
-7. Se a data de validade extraída for anterior à 'Data Atual', classifique o status como 'Vencido'.
-8. Se os dados de CNPJ/CPF ou Nome não corresponderem, classifique como 'Rejected' com os devidos detalhes no reason.
+7. Se a data de validade extraída for anterior à 'Data Atual', defina is_expired como true e classifique o status como 'Vencido'.
+8. Se os dados de CNPJ/CPF ou Nome não corresponderem, classifique como 'Rejected' com os devidos detalhes em explanation.
 
 RETORNE APENAS um JSON estrito no seguinte formato e nada mais:
 {
   "status": "Approved" | "Rejected" | "Aguardando Aprovação" | "Vencido",
-  "reason": "Explicação detalhada em caso de rejeição, vencimento ou dúvida. Vazio se Approved.",
+  "explanation": "Explicação detalhada em caso de rejeição, vencimento ou dúvida. Vazio se Approved.",
   "extracted_expiration_date": "YYYY-MM-DD",
+  "is_expired": boolean,
   "extracted_tax_id": "string",
-  "extracted_name": "string"
+  "extracted_name": "string",
+  "match_confidence": "High" | "Medium" | "Low"
 }`,
     })
 
@@ -86,13 +88,22 @@ RETORNE APENAS um JSON estrito no seguinte formato e nada mais:
       docRecord.set('rejection_reason', '')
     } else if (analysisResult.status === 'Rejected') {
       docRecord.set('status', 'Rejected')
-      docRecord.set('rejection_reason', analysisResult.reason || 'Documento inválido.')
-    } else if (analysisResult.status === 'Vencido') {
+      docRecord.set(
+        'rejection_reason',
+        analysisResult.explanation || analysisResult.reason || 'Documento inválido.',
+      )
+    } else if (analysisResult.status === 'Vencido' || analysisResult.is_expired) {
       docRecord.set('status', 'Vencido')
-      docRecord.set('rejection_reason', analysisResult.reason || 'Documento vencido.')
+      docRecord.set(
+        'rejection_reason',
+        analysisResult.explanation || analysisResult.reason || 'Documento vencido.',
+      )
     } else {
       docRecord.set('status', 'Aguardando Aprovação')
-      docRecord.set('rejection_reason', analysisResult.reason || 'Necessita de revisão humana.')
+      docRecord.set(
+        'rejection_reason',
+        analysisResult.explanation || analysisResult.reason || 'Necessita de revisão humana.',
+      )
     }
 
     if (

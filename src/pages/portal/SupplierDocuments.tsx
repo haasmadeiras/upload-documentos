@@ -9,11 +9,14 @@ import {
   Trash2,
   Clock,
   Eye,
+  Info,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -136,8 +139,17 @@ export default function SupplierDocuments() {
             }
           }
 
+          const isErrorState =
+            status === 'rejected' || status === 'rejeitado' || status === 'vencido'
+
           return (
-            <Card key={def.id} className="flex flex-col">
+            <Card
+              key={def.id}
+              className={cn(
+                'flex flex-col',
+                isErrorState && 'border-rose-300 shadow-sm ring-1 ring-rose-100',
+              )}
+            >
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start gap-4">
                   <CardTitle className="text-lg leading-tight">{def.name}</CardTitle>
@@ -147,6 +159,12 @@ export default function SupplierDocuments() {
                     </Badge>
                   )}
                 </div>
+                {isErrorState && (
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-rose-600 bg-rose-50 px-2 py-1 rounded-md mt-2 w-fit">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Atenção necessária
+                  </div>
+                )}
                 <CardDescription className="text-sm mt-1">
                   Formatos aceitos: {def.allowed_formats || 'Todos'}
                 </CardDescription>
@@ -178,7 +196,10 @@ export default function SupplierDocuments() {
                   {(status === 'rejected' || status === 'rejeitado') && doc?.rejection_reason && (
                     <div className="text-sm p-2.5 bg-rose-50 text-rose-800 rounded-md border border-rose-100 flex items-start gap-2">
                       <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                      <span>{doc.rejection_reason}</span>
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium">Falha na validação</span>
+                        <span className="text-rose-700">{doc.rejection_reason}</span>
+                      </div>
                     </div>
                   )}
 
@@ -187,6 +208,52 @@ export default function SupplierDocuments() {
                       <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                       <span>Este documento expira em breve.</span>
                     </div>
+                  )}
+
+                  {doc?.analysis_log && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs justify-start w-fit text-muted-foreground hover:text-foreground"
+                        >
+                          <Info className="w-3 h-3 mr-1.5" />
+                          Ver análise da IA
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-3 text-sm space-y-2" align="start">
+                        <div className="font-medium text-foreground mb-1">
+                          Detalhes da Análise IA
+                        </div>
+                        {doc.analysis_log.extracted_tax_id && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">CNPJ/CPF:</span>
+                            <span className="font-medium">{doc.analysis_log.extracted_tax_id}</span>
+                          </div>
+                        )}
+                        {doc.analysis_log.extracted_name && (
+                          <div className="flex flex-col">
+                            <span className="text-muted-foreground">Nome Identificado:</span>
+                            <span className="font-medium line-clamp-2">
+                              {doc.analysis_log.extracted_name}
+                            </span>
+                          </div>
+                        )}
+                        {doc.analysis_log.match_confidence && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Confiança:</span>
+                            <span className="font-medium">{doc.analysis_log.match_confidence}</span>
+                          </div>
+                        )}
+                        {doc.analysis_log.explanation && (
+                          <div className="flex flex-col mt-2 pt-2 border-t">
+                            <span className="text-muted-foreground mb-1">Explicação:</span>
+                            <span className="text-foreground">{doc.analysis_log.explanation}</span>
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
                   )}
 
                   {doc?.expiration_date && status !== 'rejected' && status !== 'rejeitado' && (
