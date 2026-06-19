@@ -1,6 +1,15 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { AlertCircle, XCircle, FileUp, ChevronRight, Download, Trash2, Clock } from 'lucide-react'
+import {
+  AlertCircle,
+  XCircle,
+  FileUp,
+  ChevronRight,
+  Download,
+  Trash2,
+  Clock,
+  Eye,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -184,9 +193,10 @@ export default function SupplierDocuments() {
                     <div className="text-sm p-2.5 bg-blue-50 text-blue-800 rounded-md border border-blue-100 flex items-start gap-2">
                       <Clock className="w-4 h-4 shrink-0 mt-0.5" />
                       <span>
-                        Validade extraída:{' '}
-                        {new Date(doc.expiration_date).toLocaleDateString('pt-BR')}
-                        <span className="ml-1 text-xs font-semibold">(Sugerido por IA)</span>
+                        <strong>VCTO:</strong>{' '}
+                        {new Date(doc.expiration_date).toLocaleDateString('pt-BR', {
+                          timeZone: 'UTC',
+                        })}
                       </span>
                     </div>
                   )}
@@ -208,13 +218,13 @@ export default function SupplierDocuments() {
                   >
                     <Link to={`/portal/upload/${def.id}`}>
                       {status === 'approved' || status === 'aprovado'
-                        ? 'Visualizar ou Reenviar'
+                        ? 'Detalhes / Reenviar'
                         : status === 'missing' ||
                             status === 'rejected' ||
                             status === 'rejeitado' ||
                             status === 'vencido'
                           ? 'Fazer Upload'
-                          : 'Visualizar'}
+                          : 'Detalhes'}
                       {status === 'approved' ||
                       status === 'aprovado' ||
                       status === 'pending' ||
@@ -228,6 +238,21 @@ export default function SupplierDocuments() {
                   </Button>
                   {doc && (
                     <>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0"
+                        asChild
+                        title="Visualizar Arquivo"
+                      >
+                        <a
+                          href={pb.files.getUrl(doc, doc.file)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Eye className="w-4 h-4 text-muted-foreground" />
+                        </a>
+                      </Button>
                       <Button
                         variant="outline"
                         size="icon"

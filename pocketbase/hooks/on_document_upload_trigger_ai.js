@@ -44,6 +44,7 @@ Tipo de Documento Esperado: ${defName}
 Instruções Específicas de Validação: ${defInstructions ? defInstructions : 'Nenhuma instrução específica.'}
 CNPJ/CPF Esperado: ${expectedTaxId}
 Nome/Razão Social Esperado: ${expectedName}
+Data Atual: ${new Date().toISOString().split('T')[0]}
 
 Instruções:
 1. Use a ferramenta 'documents' para ler o registro do documento fornecido e analisar o arquivo anexado (use capacidades de visão).
@@ -51,12 +52,14 @@ Instruções:
 3. Extraia o CNPJ/CPF e verifique se corresponde ao 'CNPJ/CPF Esperado'.
 4. Extraia o Nome/Razão Social e verifique se corresponde ao esperado usando fuzzy matching (tolere pequenas diferenças e abreviações).
 5. Siga rigorosamente as 'Instruções Específicas de Validação' se houver.
-6. Extraia a data de validade ou emissão.
+6. Extraia a data de validade (expiration_date) no formato YYYY-MM-DD.
+7. Se a data de validade extraída for anterior à 'Data Atual', classifique o status como 'Vencido'.
+8. Se os dados de CNPJ/CPF ou Nome não corresponderem, classifique como 'Rejected' com os devidos detalhes no reason.
 
 RETORNE APENAS um JSON estrito no seguinte formato e nada mais:
 {
-  "status": "Approved" | "Rejected" | "Aguardando Aprovação",
-  "reason": "Explicação detalhada em caso de rejeição ou dúvida. Vazio se Approved.",
+  "status": "Approved" | "Rejected" | "Aguardando Aprovação" | "Vencido",
+  "reason": "Explicação detalhada em caso de rejeição, vencimento ou dúvida. Vazio se Approved.",
   "extracted_expiration_date": "YYYY-MM-DD",
   "extracted_tax_id": "string",
   "extracted_name": "string"
@@ -84,6 +87,9 @@ RETORNE APENAS um JSON estrito no seguinte formato e nada mais:
     } else if (analysisResult.status === 'Rejected') {
       docRecord.set('status', 'Rejected')
       docRecord.set('rejection_reason', analysisResult.reason || 'Documento inválido.')
+    } else if (analysisResult.status === 'Vencido') {
+      docRecord.set('status', 'Vencido')
+      docRecord.set('rejection_reason', analysisResult.reason || 'Documento vencido.')
     } else {
       docRecord.set('status', 'Aguardando Aprovação')
       docRecord.set('rejection_reason', analysisResult.reason || 'Necessita de revisão humana.')
@@ -95,11 +101,20 @@ RETORNE APENAS um JSON estrito no seguinte formato e nada mais:
       analysisResult.extracted_expiration_date.includes('-')
     ) {
       try {
-        if (!isNaN(Date.parse(analysisResult.extracted_expiration_date))) {
+        const expDate = Date.parse(analysisResult.extracted_expiration_date)
+        if (!isNaN(expDate)) {
           docRecord.set(
             'expiration_date',
             analysisResult.extracted_expiration_date + ' 12:00:00.000Z',
           )
+
+          if (expDate < Date.now() && docRecord.getString('status') === 'Approved') {
+            docRecord.set('status', 'Vencido')
+            docRecord.set(
+              'rejection_reason',
+              'O documento está vencido de acordo com a data extraída.',
+            )
+          }
         }
       } catch (e) {}
     }
