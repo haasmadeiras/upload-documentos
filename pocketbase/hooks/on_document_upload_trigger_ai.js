@@ -50,7 +50,7 @@ Instruções:
 3. Extraia o CNPJ/CPF do documento. REMOVA todas as pontuações (pontos, traços, barras) do CNPJ/CPF extraído e do 'CNPJ/CPF Esperado'. Compare apenas os dígitos numéricos. Especificamente para Certidão Negativa de Débitos (CND Estadual, etc), se a raiz (primeiros 8 dígitos numéricos) coincidir, considere válido.
 4. Extraia o Nome/Razão Social e verifique se corresponde ao esperado usando fuzzy matching (tolere pequenas diferenças e abreviações).
 5. Siga rigorosamente as 'Instruções Específicas de Validação' se houver.
-6. Extraia a data de validade (expiration_date) presente no documento no formato YYYY-MM-DD.
+6. Extraia a data de validade (expiration_date) presente no documento no formato YYYY-MM-DD. Seja extremamente preciso. Se o documento contiver datas no formato brasileiro (ex: 17/05/2026 ou 17/5/2026), converta corretamente para YYYY-MM-DD (ex: 2026-05-17). Não invente datas como o último dia do ano se não estiver explícito.
 7. Se a data de validade extraída for anterior à 'Data Atual', classifique obrigatoriamente o status como 'Vencido' e defina is_expired como true.
 8. Se os dados de CNPJ/CPF numéricos ou Nome não corresponderem, classifique como 'Rejected' com os devidos detalhes em explanation e forneça o motivo específico e claro em português no campo rejection_reason.
 

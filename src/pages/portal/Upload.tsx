@@ -35,6 +35,7 @@ export default function PortalUpload() {
   const [submitting, setSubmitting] = useState(false)
   const [validating, setValidating] = useState(false)
   const [progressValue, setProgressValue] = useState(0)
+  const [isReuploading, setIsReuploading] = useState(false)
 
   useEffect(() => {
     let interval: NodeJS.Timeout
@@ -87,6 +88,9 @@ export default function PortalUpload() {
             toast.info('Documento em análise manual.')
           }
         }
+
+        setIsReuploading(false)
+        setFile(null)
       }
     } catch (err) {
       console.error(err)
@@ -205,12 +209,37 @@ export default function PortalUpload() {
                   Enviado em {new Date(existingDoc.created).toLocaleDateString('pt-BR')}
                 </CardDescription>
               </div>
-              <Button variant="outline" size="sm" asChild className="shrink-0 gap-2">
-                <a href={fileUrl} target="_blank" rel="noopener noreferrer">
-                  <Eye className="w-4 h-4" />
-                  Visualizar
-                </a>
-              </Button>
+              <div className="flex gap-2 shrink-0">
+                <Button variant="outline" size="sm" asChild className="gap-2">
+                  <a
+                    href={fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Eye className="w-4 h-4" />
+                    Visualizar
+                  </a>
+                </Button>
+                <input
+                  type="file"
+                  id="reupload-input"
+                  className="hidden"
+                  accept={definition.allowed_formats?.replace(/\s/g, '') || '.pdf,.jpg,.jpeg,.png'}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      setFile(e.target.files[0])
+                      setIsReuploading(true)
+                    }
+                  }}
+                />
+                <Button size="sm" variant="secondary" asChild className="gap-2 cursor-pointer">
+                  <label htmlFor="reupload-input" onClick={(e) => e.stopPropagation()}>
+                    <FileText className="w-4 h-4" />
+                    Reenviar Documento
+                  </label>
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -295,71 +324,80 @@ export default function PortalUpload() {
         </Card>
       )}
 
-      <Card className={cn(isErrorState && 'border-rose-200 shadow-sm shadow-rose-100')}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-primary" />
-            {existingDoc ? 'Reenviar Documento' : definition.name}
-          </CardTitle>
-          <CardDescription>
-            {definition.is_mandatory && (
-              <span className="font-semibold text-primary mr-1">Obrigatório.</span>
-            )}
-            Formatos permitidos: {definition.allowed_formats || 'Todos'}.
-            {definition.validity_days ? ` Validade: ${definition.validity_days} dias.` : ''}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {definition.ai_validation_instructions && (
-            <div className="p-3 bg-muted rounded-md text-sm">
-              <span className="font-medium text-foreground">Instruções de validação: </span>
-              {definition.ai_validation_instructions}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Arquivo do Documento</label>
-            <FileUploader
-              file={file}
-              onFileSelect={setFile}
-              accept={definition.allowed_formats?.replace(/\s/g, '') || '.pdf,.jpg,.jpeg,.png'}
-              maxSizeMb={definition.max_size_mb || 20}
-            />
-          </div>
-
-          {validating || progressValue > 0 ? (
-            <div className="space-y-3 pt-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium text-primary animate-pulse">
-                  {submitting ? 'Enviando documento...' : 'A IA está analisando seu documento...'}
-                </span>
-                <span className="text-muted-foreground">{Math.round(progressValue)}%</span>
+      {(!existingDoc || isReuploading) && (
+        <Card className={cn(isErrorState && 'border-rose-200 shadow-sm shadow-rose-100')}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" />
+              {existingDoc ? 'Confirmar Reenvio de Documento' : definition.name}
+            </CardTitle>
+            <CardDescription>
+              {definition.is_mandatory && (
+                <span className="font-semibold text-primary mr-1">Obrigatório.</span>
+              )}
+              Formatos permitidos: {definition.allowed_formats || 'Todos'}.
+              {definition.validity_days ? ` Validade: ${definition.validity_days} dias.` : ''}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {definition.ai_validation_instructions && (
+              <div className="p-3 bg-muted rounded-md text-sm">
+                <span className="font-medium text-foreground">Instruções de validação: </span>
+                {definition.ai_validation_instructions}
               </div>
-              <Progress value={progressValue} className="h-2" />
-              <p className="text-xs text-muted-foreground text-center">
-                Isso pode levar alguns segundos. Por favor, não feche esta página.
-              </p>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Arquivo do Documento</label>
+              <FileUploader
+                file={file}
+                onFileSelect={setFile}
+                accept={definition.allowed_formats?.replace(/\s/g, '') || '.pdf,.jpg,.jpeg,.png'}
+                maxSizeMb={definition.max_size_mb || 20}
+              />
             </div>
-          ) : (
-            <div className="flex justify-end gap-3 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => navigate(-1)}
-                disabled={submitting || validating || (isPending && !file)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={!file || submitting || validating || isPending}
-                className="min-w-[140px]"
-              >
-                Enviar Documento
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+            {validating || progressValue > 0 ? (
+              <div className="space-y-3 pt-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium text-primary animate-pulse">
+                    {submitting ? 'Enviando documento...' : 'A IA está analisando seu documento...'}
+                  </span>
+                  <span className="text-muted-foreground">{Math.round(progressValue)}%</span>
+                </div>
+                <Progress value={progressValue} className="h-2" />
+                <p className="text-xs text-muted-foreground text-center">
+                  Isso pode levar alguns segundos. Por favor, não feche esta página.
+                </p>
+              </div>
+            ) : (
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (existingDoc) {
+                      setIsReuploading(false)
+                      setFile(null)
+                    } else {
+                      navigate(-1)
+                    }
+                  }}
+                  disabled={submitting || validating || (isPending && !file)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={!file || submitting || validating || isPending}
+                  className="min-w-[140px]"
+                >
+                  Enviar Documento
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
