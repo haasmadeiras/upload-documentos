@@ -9,6 +9,7 @@ import {
   AlertCircle,
   ChevronsUpDown,
   Check,
+  X,
 } from 'lucide-react'
 import { cn, formatCPF, formatCNPJ, isValidCPF, isValidCNPJ } from '@/lib/utils'
 import { SupplierImportDialog } from '@/components/admin/SupplierImportDialog'
@@ -180,9 +181,21 @@ export default function AdminSuppliers() {
   const fetchSuppliers = async () => {
     try {
       setLoading(true)
-      const [data, fData] = await Promise.all([getSuppliers(), getForestAreas()])
+      let filterStr = undefined
+      if (forestFilter !== 'all') {
+        if (forestFilter === 'none') {
+          filterStr = `forest_area:length = 0 || forest_area = null || forest_area = ""`
+        } else {
+          filterStr = `forest_area ~ "${forestFilter}"`
+        }
+      }
+
+      const [data, fData] = await Promise.all([
+        getSuppliers(filterStr),
+        forests.length === 0 ? getForestAreas() : Promise.resolve(forests),
+      ])
       setSuppliers(data)
-      setForests(fData)
+      if (forests.length === 0) setForests(fData)
     } catch (error) {
       toast.error('Erro ao carregar fornecedores')
     } finally {
@@ -194,7 +207,7 @@ export default function AdminSuppliers() {
     if (isMaster) {
       fetchSuppliers()
     }
-  }, [isMaster])
+  }, [isMaster, forestFilter])
 
   useRealtime(
     'suppliers',
@@ -208,6 +221,7 @@ export default function AdminSuppliers() {
     'forest_areas',
     () => {
       if (isMaster) {
+        getForestAreas().then(setForests).catch(console.error)
         fetchSuppliers()
         if (editingId) {
           fetchForestHistory(editingId)
@@ -397,17 +411,8 @@ export default function AdminSuppliers() {
       s.legal_name?.toLowerCase().includes(search.toLowerCase())
 
     const matchUf = ufFilter === 'all' || s.uf === ufFilter
-    const supplierForests = Array.isArray(s.forest_area)
-      ? s.forest_area
-      : s.forest_area
-        ? [s.forest_area]
-        : []
-    const matchForest =
-      forestFilter === 'all' ||
-      (forestFilter !== 'none' && supplierForests.includes(forestFilter)) ||
-      (forestFilter === 'none' && supplierForests.length === 0)
 
-    return matchSearch && matchUf && matchForest
+    return matchSearch && matchUf
   })
 
   if (!isMaster) return null
@@ -690,20 +695,42 @@ export default function AdminSuppliers() {
                     render={({ field }) => (
                       <FormItem className="flex flex-col justify-end">
                         <FormLabel>Florestas (Opcional)</FormLabel>
+                        {field.value && field.value.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {field.value.map((id) => {
+                              const f = forests.find((f) => f.id === id)
+                              if (!f) return null
+                              return (
+                                <Badge
+                                  key={id}
+                                  variant="secondary"
+                                  className="flex items-center gap-1 px-2 py-1"
+                                >
+                                  {f.name}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      field.onChange(field.value?.filter((v) => v !== id))
+                                    }}
+                                    className="ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                  >
+                                    <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                                  </button>
+                                </Badge>
+                              )
+                            })}
+                          </div>
+                        )}
                         <Popover>
                           <PopoverTrigger asChild>
                             <FormControl>
                               <Button
                                 variant="outline"
                                 role="combobox"
-                                className={cn(
-                                  'w-full justify-between font-normal',
-                                  !field.value?.length && 'text-muted-foreground',
-                                )}
+                                className={cn('w-full justify-between font-normal')}
                               >
-                                {field.value?.length
-                                  ? `${field.value.length} floresta(s) selecionada(s)`
-                                  : 'Selecione as florestas'}
+                                Selecione as florestas
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                               </Button>
                             </FormControl>
@@ -714,29 +741,20 @@ export default function AdminSuppliers() {
                               <CommandList>
                                 <CommandEmpty>Nenhuma floresta encontrada.</CommandEmpty>
                                 <CommandGroup>
-                                  {forests.map((f) => {
-                                    const isSelected = field.value?.includes(f.id)
-                                    return (
+                                  {forests
+                                    .filter((f) => !field.value?.includes(f.id))
+                                    .map((f) => (
                                       <CommandItem
                                         key={f.id}
                                         value={f.name}
                                         onSelect={() => {
-                                          const newValues = isSelected
-                                            ? field.value?.filter((id) => id !== f.id)
-                                            : [...(field.value || []), f.id]
-                                          field.onChange(newValues)
+                                          field.onChange([...(field.value || []), f.id])
                                         }}
                                       >
-                                        <Check
-                                          className={cn(
-                                            'mr-2 h-4 w-4',
-                                            isSelected ? 'opacity-100' : 'opacity-0',
-                                          )}
-                                        />
+                                        <Plus className="mr-2 h-4 w-4" />
                                         {f.name}
                                       </CommandItem>
-                                    )
-                                  })}
+                                    ))}
                                 </CommandGroup>
                               </CommandList>
                             </Command>
@@ -830,6 +848,20 @@ export default function AdminSuppliers() {
           />
         </div>
         <div className="flex gap-2 w-full md:w-auto">
+          {(search !== '' || ufFilter !== 'all' || forestFilter !== 'all') && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setSearch('')
+                setUfFilter('all')
+                setForestFilter('all')
+              }}
+              className="px-3"
+            >
+              Limpar
+              <X className="ml-2 h-4 w-4" />
+            </Button>
+          )}
           <Select value={ufFilter} onValueChange={setUfFilter}>
             <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Estado (UF)" />
