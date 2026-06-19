@@ -93,7 +93,7 @@ export function FileUploader({
 
       toast({
         title: 'Formato inválido',
-        description: `O formato ${extension.toUpperCase()} não é permitido. Por favor, envie arquivos nos formatos: ${formattedAccept}.`,
+        description: `Este formato de arquivo não é permitido. Por favor, envie arquivos nos formatos: ${formattedAccept}.`,
         variant: 'destructive',
       })
       return
@@ -102,7 +102,7 @@ export function FileUploader({
     if (maxSizeMb && selectedFile.size > maxSizeMb * 1024 * 1024) {
       toast({
         title: 'Tamanho excedido',
-        description: `O arquivo selecionado (${(selectedFile.size / 1024 / 1024).toFixed(2)}MB) excede o limite permitido de ${maxSizeMb}MB para este documento.`,
+        description: `O arquivo excede o limite de ${maxSizeMb} MB. O arquivo selecionado tem ${(selectedFile.size / 1024 / 1024).toFixed(2)} MB.`,
         variant: 'destructive',
       })
       return
