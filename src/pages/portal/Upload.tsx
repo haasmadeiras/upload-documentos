@@ -54,7 +54,9 @@ export default function PortalUpload() {
 
           if (docs[0].status === 'Rejected' || docs[0].status === 'Vencido') {
             toast.error('O documento foi rejeitado pela análise.', {
-              description: docs[0].rejection_reason,
+              description:
+                docs[0].rejection_reason ||
+                'Documento rejeitado. Por favor, verifique os dados e tente novamente.',
             })
           } else if (docs[0].status === 'Approved') {
             toast.success('Documento analisado e aceito com sucesso!')
@@ -203,11 +205,15 @@ export default function PortalUpload() {
             )}
 
             {(isErrorState || existingDoc.rejection_reason) && (
-              <Alert variant="destructive" className="bg-white/80 border-rose-200 text-rose-800">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Atenção</AlertTitle>
-                <AlertDescription className="mt-1">
-                  {existingDoc.rejection_reason || 'Verifique as informações do documento.'}
+              <Alert
+                variant="destructive"
+                className="bg-rose-50 border-rose-500 text-rose-900 shadow-sm"
+              >
+                <AlertCircle className="h-5 w-5 text-rose-600" />
+                <AlertTitle className="text-rose-800 font-semibold">Motivo da Rejeição</AlertTitle>
+                <AlertDescription className="mt-2 text-rose-700 font-medium">
+                  {existingDoc.rejection_reason ||
+                    'Documento rejeitado. Por favor, verifique os dados e tente novamente.'}
                 </AlertDescription>
               </Alert>
             )}

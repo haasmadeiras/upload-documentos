@@ -57,7 +57,7 @@ Instruções:
 5. Siga rigorosamente as 'Instruções Específicas de Validação' se houver.
 6. Extraia a data de validade (expiration_date) presente no documento no formato YYYY-MM-DD.
 7. Se a data de validade extraída for anterior à 'Data Atual', classifique obrigatoriamente o status como 'Vencido' e defina is_expired como true.
-8. Se os dados de CNPJ/CPF numéricos ou Nome não corresponderem, classifique como 'Rejected' com os devidos detalhes em explanation.
+8. Se os dados de CNPJ/CPF numéricos ou Nome não corresponderem, classifique como 'Rejected' com os devidos detalhes em explanation e forneça o motivo específico e claro em português no campo rejection_reason.
 
 RETORNE APENAS um JSON estrito. Não adicione texto antes ou depois do JSON. Não envolva com crases (markdown).`
 
@@ -87,6 +87,10 @@ RETORNE APENAS um JSON estrito. Não adicione texto antes ou depois do JSON. Nã
                     type: 'string',
                     enum: ['Approved', 'Rejected', 'Aguardando Aprovação', 'Vencido'],
                   },
+                  rejection_reason: {
+                    type: 'string',
+                    description: 'Motivo detalhado da rejeição se o status não for Approved.',
+                  },
                   explanation: { type: 'string' },
                   extracted_expiration_date: { type: 'string' },
                   is_expired: { type: 'boolean' },
@@ -99,6 +103,7 @@ RETORNE APENAS um JSON estrito. Não adicione texto antes ou depois do JSON. Nã
                 },
                 required: [
                   'status',
+                  'rejection_reason',
                   'explanation',
                   'extracted_expiration_date',
                   'is_expired',
@@ -142,6 +147,7 @@ RETORNE APENAS um JSON estrito. Não adicione texto antes ou depois do JSON. Nã
     if (!analysisResult) {
       analysisResult = {
         status: 'Aguardando Aprovação',
+        rejection_reason: 'Falha ao processar resposta da IA. Documento será revisado manualmente.',
         explanation: 'Falha ao processar resposta da IA. Documento será revisado manualmente.',
         extracted_expiration_date: '',
         is_expired: false,
@@ -159,15 +165,23 @@ RETORNE APENAS um JSON estrito. Não adicione texto antes ou depois do JSON. Nã
       docRecord.set('rejection_reason', '')
     } else if (analysisResult.status === 'Rejected') {
       docRecord.set('status', 'Rejected')
-      docRecord.set('rejection_reason', analysisResult.explanation || 'Documento inválido.')
+      docRecord.set(
+        'rejection_reason',
+        analysisResult.rejection_reason || analysisResult.explanation || 'Documento inválido.',
+      )
     } else if (analysisResult.status === 'Vencido' || analysisResult.is_expired) {
       docRecord.set('status', 'Vencido')
-      docRecord.set('rejection_reason', analysisResult.explanation || 'Documento vencido.')
+      docRecord.set(
+        'rejection_reason',
+        analysisResult.rejection_reason || analysisResult.explanation || 'Documento vencido.',
+      )
     } else {
       docRecord.set('status', 'Aguardando Aprovação')
       docRecord.set(
         'rejection_reason',
-        analysisResult.explanation || 'Necessita de revisão humana.',
+        analysisResult.rejection_reason ||
+          analysisResult.explanation ||
+          'Necessita de revisão humana.',
       )
     }
 
