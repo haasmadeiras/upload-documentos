@@ -16,6 +16,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { FileUploader } from '@/components/FileUploader'
@@ -36,6 +43,7 @@ export default function PortalUpload() {
   const [validating, setValidating] = useState(false)
   const [progressValue, setProgressValue] = useState(0)
   const [isReuploading, setIsReuploading] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   useEffect(() => {
     let interval: NodeJS.Timeout
@@ -210,16 +218,17 @@ export default function PortalUpload() {
                 </CardDescription>
               </div>
               <div className="flex gap-2 shrink-0">
-                <Button variant="outline" size="sm" asChild className="gap-2">
-                  <a
-                    href={fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Eye className="w-4 h-4" />
-                    Visualizar
-                  </a>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setPreviewOpen(true)
+                  }}
+                >
+                  <Eye className="w-4 h-4" />
+                  Visualizar
                 </Button>
                 <input
                   type="file"
@@ -317,6 +326,20 @@ export default function PortalUpload() {
                       </span>
                     </div>
                   )}
+                  {existingDoc.analysis_log.extracted_expiration_date &&
+                    existingDoc.analysis_log.extracted_expiration_date !== 'null' && (
+                      <div className="col-span-2 mt-1">
+                        <span className="font-medium block">Data de Validade Extraída:</span>
+                        <span className="text-muted-foreground">
+                          {(() => {
+                            const d = existingDoc.analysis_log.extracted_expiration_date
+                            const parts = d.split('-')
+                            if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`
+                            return d
+                          })()}
+                        </span>
+                      </div>
+                    )}
                 </div>
               </div>
             )}
@@ -397,6 +420,25 @@ export default function PortalUpload() {
             )}
           </CardContent>
         </Card>
+      )}
+      {existingDoc && (
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent className="max-w-4xl w-[90vw] h-[85vh] flex flex-col p-4 gap-4">
+            <DialogHeader className="shrink-0">
+              <DialogTitle>Visualização do Documento</DialogTitle>
+              <DialogDescription>{definition?.name}</DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-hidden rounded-md border min-h-0 bg-muted/10">
+              {fileUrl.match(/\.(jpeg|jpg|gif|png)$/i) ? (
+                <div className="w-full h-full flex items-center justify-center p-2 overflow-auto">
+                  <img src={fileUrl} alt="Preview" className="max-w-full h-auto object-contain" />
+                </div>
+              ) : (
+                <iframe src={fileUrl} className="w-full h-full border-0" title="Document Preview" />
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )
