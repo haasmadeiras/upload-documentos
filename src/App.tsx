@@ -73,6 +73,10 @@ const App = () => (
                 <Route path="/portal/fornecedor" element={<PortalDashboard />} />
                 <Route path="/portal/veiculos" element={<PortalDashboard />} />
                 <Route path="/portal/contratados" element={<SupplierDocuments />} />
+                <Route
+                  path="/portal/documents/category/:categoryId"
+                  element={<SupplierDocuments />}
+                />
                 <Route path="/portal/florestas" element={<PortalDashboard />} />
               </Route>
             </Route>

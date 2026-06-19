@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { AlertCircle, XCircle, FileUp, ChevronRight, Download, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -23,6 +23,7 @@ import { StatusBadge } from '@/components/StatusBadge'
 import { downloadDocument, deleteDocument } from '@/services/documents'
 
 export default function SupplierDocuments() {
+  const { categoryId } = useParams()
   const { user } = useAuth()
   const [definitions, setDefinitions] = useState<any[]>([])
   const [documents, setDocuments] = useState<any[]>([])
@@ -41,8 +42,11 @@ export default function SupplierDocuments() {
   const loadData = async () => {
     if (!user) return
     try {
+      const defsFilter = categoryId ? `category = "${categoryId}"` : ''
+
       const [defsRes, docsRes] = await Promise.all([
         pb.collection('document_definitions').getFullList({
+          filter: defsFilter,
           sort: '-is_mandatory,name',
         }),
         pb.collection('documents').getFullList({
@@ -54,9 +58,10 @@ export default function SupplierDocuments() {
       const userPersonType = user.person_type || 'PJ'
       const filteredDefs = defsRes.filter(
         (def) =>
-          !def.target_person_type ||
-          def.target_person_type === 'Both' ||
-          def.target_person_type === userPersonType,
+          (!def.target_person_type ||
+            def.target_person_type === 'Both' ||
+            def.target_person_type === userPersonType) &&
+          (!def.target_role || def.target_role === 'all'),
       )
 
       setDefinitions(filteredDefs)
@@ -70,7 +75,7 @@ export default function SupplierDocuments() {
 
   useEffect(() => {
     loadData()
-  }, [user])
+  }, [user, categoryId])
 
   useRealtime('documents', () => {
     loadData()
@@ -100,7 +105,27 @@ export default function SupplierDocuments() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {definitions.map((def) => {
           const doc = getLatestDoc(def.id)
-          const status = doc?.status?.toLowerCase() || 'missing'
+          let status = doc?.status?.toLowerCase() || 'missing'
+
+          let isExpiringSoon = false
+          let isExpired = false
+
+          if (doc && (status === 'approved' || status === 'aprovado') && def.validity_days) {
+            const updatedDate = new Date(doc.updated)
+            const expiryDate = new Date(
+              updatedDate.getTime() + def.validity_days * 24 * 60 * 60 * 1000,
+            )
+            const daysToExpiry = Math.ceil(
+              (expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24),
+            )
+
+            if (daysToExpiry <= 0) {
+              isExpired = true
+              status = 'vencido'
+            } else if (daysToExpiry <= 30) {
+              isExpiringSoon = true
+            }
+          }
 
           return (
             <Card key={def.id} className="flex flex-col">
@@ -129,6 +154,13 @@ export default function SupplierDocuments() {
                       >
                         <AlertCircle className="w-3.5 h-3.5" /> Não Enviado
                       </Badge>
+                    ) : status === 'vencido' ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-rose-100 text-rose-800 border-rose-200 gap-1.5 font-medium"
+                      >
+                        <XCircle className="w-3.5 h-3.5" /> Vencido
+                      </Badge>
                     ) : (
                       <StatusBadge status={doc.status} />
                     )}
@@ -140,24 +172,41 @@ export default function SupplierDocuments() {
                       <span>{doc.rejection_reason}</span>
                     </div>
                   )}
+
+                  {isExpiringSoon && !isExpired && (
+                    <div className="text-sm p-2.5 bg-amber-50 text-amber-800 rounded-md border border-amber-200 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>Este documento expira em breve.</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-2 mt-2">
                   <Button
                     asChild
-                    variant={status === 'approved' || status === 'pending' ? 'outline' : 'default'}
+                    variant={
+                      status === 'approved' ||
+                      status === 'aprovado' ||
+                      status === 'pending' ||
+                      status === 'aguardando aprovação'
+                        ? 'outline'
+                        : 'default'
+                    }
                     className="flex-1 justify-between group"
                   >
                     <Link to={`/portal/upload/${def.id}`}>
-                      {status === 'approved'
+                      {status === 'approved' || status === 'aprovado'
                         ? 'Visualizar ou Reenviar'
                         : status === 'missing' ||
                             status === 'rejected' ||
-                            status === 'aguardando aprovação' ||
+                            status === 'rejeitado' ||
                             status === 'vencido'
                           ? 'Fazer Upload'
                           : 'Visualizar'}
-                      {status === 'approved' || status === 'pending' ? (
+                      {status === 'approved' ||
+                      status === 'aprovado' ||
+                      status === 'pending' ||
+                      status === 'aguardando aprovação' ? (
                         <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                       ) : (
                         <FileUp className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" />

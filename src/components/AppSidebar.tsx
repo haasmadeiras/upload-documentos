@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import {
   LayoutDashboard,
   Settings,
@@ -9,7 +10,10 @@ import {
   Truck,
   Briefcase,
   TreePine,
+  Folder,
 } from 'lucide-react'
+import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
 import {
   Sidebar,
   SidebarContent,
@@ -30,11 +34,41 @@ import logoUrl from '@/assets/image-bb79d.png'
 export function AppSidebar() {
   const location = useLocation()
   const { user } = useAuth()
+  const [categories, setCategories] = useState<any[]>([])
+
+  useEffect(() => {
+    pb.collection('document_categories')
+      .getFullList({ sort: 'name' })
+      .then((data) => setCategories(data))
+      .catch(() => {})
+  }, [])
+
+  useRealtime('document_categories', (e) => {
+    if (e.action === 'create') {
+      setCategories((prev) => [...prev, e.record].sort((a, b) => a.name.localeCompare(b.name)))
+    } else if (e.action === 'update') {
+      setCategories((prev) =>
+        prev
+          .map((c) => (c.id === e.record.id ? e.record : c))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      )
+    } else if (e.action === 'delete') {
+      setCategories((prev) => prev.filter((c) => c.id !== e.record.id))
+    }
+  })
 
   const adminMenu = [
     { title: 'Dashboard', icon: LayoutDashboard, path: '/admin' },
     { title: 'Usuários', icon: UserCog, path: '/admin/users' },
     { title: 'Regras de Documentos', icon: Settings, path: '/admin/config' },
+    {
+      title: 'Documentos por Categoria',
+      icon: Folder,
+      subItems: categories.map((c) => ({
+        title: c.name,
+        path: `/admin/documents/category/${c.id}`,
+      })),
+    },
     { title: 'Fornecedores', icon: Users, path: '/admin/suppliers' },
     { title: 'Funcionários', icon: Users, path: '/admin/employees' },
     { title: 'Veículos', icon: Truck, path: '/admin/vehicles' },
@@ -47,14 +81,12 @@ export function AppSidebar() {
     {
       title: 'Meus Documentos',
       icon: FileText,
-      subItems: [
-        { title: 'FORNECEDOR', path: '/portal/fornecedor' },
-        { title: 'FUNCIONÁRIOS', path: '/portal/employees' },
-        { title: 'VEÍCULOS', path: '/portal/veiculos' },
-        { title: 'CONTRATADOS', path: '/portal/contratados' },
-        { title: 'FLORESTAS', path: '/portal/florestas' },
-      ],
+      subItems: categories.map((c) => ({
+        title: c.name,
+        path: `/portal/documents/category/${c.id}`,
+      })),
     },
+    { title: 'Funcionários', icon: Users, path: '/portal/employees' },
   ]
 
   const isAdmin = user?.isAdmin === true || user?.role === 'Admin'

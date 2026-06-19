@@ -46,30 +46,25 @@ export function AppSidebar() {
   const isMaster = user?.isAdmin === true || user?.role === 'Admin'
 
   useEffect(() => {
-    if (!isMaster) return
     pb.collection('document_categories')
       .getFullList({ sort: 'name' })
       .then((data) => setCategories(data))
       .catch(() => {})
-  }, [isMaster])
+  }, [])
 
-  useRealtime(
-    'document_categories',
-    (e) => {
-      if (e.action === 'create') {
-        setCategories((prev) => [...prev, e.record].sort((a, b) => a.name.localeCompare(b.name)))
-      } else if (e.action === 'update') {
-        setCategories((prev) =>
-          prev
-            .map((c) => (c.id === e.record.id ? e.record : c))
-            .sort((a, b) => a.name.localeCompare(b.name)),
-        )
-      } else if (e.action === 'delete') {
-        setCategories((prev) => prev.filter((c) => c.id !== e.record.id))
-      }
-    },
-    isMaster,
-  )
+  useRealtime('document_categories', (e) => {
+    if (e.action === 'create') {
+      setCategories((prev) => [...prev, e.record].sort((a, b) => a.name.localeCompare(b.name)))
+    } else if (e.action === 'update') {
+      setCategories((prev) =>
+        prev
+          .map((c) => (c.id === e.record.id ? e.record : c))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      )
+    } else if (e.action === 'delete') {
+      setCategories((prev) => prev.filter((c) => c.id !== e.record.id))
+    }
+  })
 
   const masterItems = [
     { title: 'Dashboard', url: '/admin', icon: LayoutDashboard },
@@ -96,14 +91,12 @@ export function AppSidebar() {
     {
       title: 'Meus Documentos',
       icon: FileText,
-      subItems: [
-        { title: 'FORNECEDOR', url: '/portal/fornecedor' },
-        { title: 'FUNCIONÁRIOS', url: '/portal/employees' },
-        { title: 'VEÍCULOS', url: '/portal/veiculos' },
-        { title: 'CONTRATADOS', url: '/portal/contratados' },
-        { title: 'FLORESTAS', url: '/portal/florestas' },
-      ],
+      subItems: categories.map((c) => ({
+        title: c.name,
+        url: `/portal/documents/category/${c.id}`,
+      })),
     },
+    { title: 'Funcionários', url: '/portal/employees', icon: Users },
   ]
 
   const items = isMaster ? masterItems : stakeholderItems
