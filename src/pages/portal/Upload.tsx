@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Progress } from '@/components/ui/progress'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { FileUploader } from '@/components/FileUploader'
@@ -33,6 +34,25 @@ export default function PortalUpload() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [validating, setValidating] = useState(false)
+  const [progressValue, setProgressValue] = useState(0)
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    if (validating) {
+      setProgressValue(0)
+      interval = setInterval(() => {
+        setProgressValue((prev) => {
+          if (prev >= 90) return prev
+          return prev + Math.random() * 15
+        })
+      }, 800)
+    } else if (progressValue > 0) {
+      setProgressValue(100)
+      const timeout = setTimeout(() => setProgressValue(0), 1500)
+      return () => clearTimeout(timeout)
+    }
+    return () => clearInterval(interval)
+  }, [validating])
 
   const loadData = async () => {
     if (!user || !id) return
@@ -49,7 +69,9 @@ export default function PortalUpload() {
       if (docs.length > 0) {
         setExistingDoc(docs[0])
 
-        if (validating && docs[0].status !== 'Pending') {
+        if (docs[0].status === 'Pending') {
+          setValidating(true)
+        } else if (validating && docs[0].status !== 'Pending') {
           setValidating(false)
 
           if (docs[0].status === 'Rejected' || docs[0].status === 'Vencido') {
@@ -86,6 +108,7 @@ export default function PortalUpload() {
     if (!file || !user || !definition) return
 
     setSubmitting(true)
+    setValidating(true)
     try {
       const formData = new FormData()
       formData.append('title', definition.name)
@@ -103,7 +126,6 @@ export default function PortalUpload() {
         await createDocument(formData)
       }
 
-      setValidating(true)
       toast.info('Documento enviado. Em análise pela IA...')
       setFile(null)
     } catch (err: any) {
@@ -111,6 +133,7 @@ export default function PortalUpload() {
       toast.error('Erro ao enviar documento.', {
         description: err?.message || 'Tente novamente.',
       })
+      setValidating(false)
     } finally {
       setSubmitting(false)
     }
@@ -186,6 +209,19 @@ export default function PortalUpload() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {existingDoc.status === 'Aguardando Aprovação' && (
+              <Alert className="bg-amber-50 border-amber-500 text-amber-900 shadow-sm">
+                <AlertCircle className="h-5 w-5 text-amber-600" />
+                <AlertTitle className="text-amber-800 font-semibold">
+                  Análise Manual Necessária
+                </AlertTitle>
+                <AlertDescription className="mt-2 text-amber-700 font-medium">
+                  A validação automática não pôde ser concluída ou os dados requerem verificação
+                  adicional. O documento será revisado manualmente por nossa equipe.
+                </AlertDescription>
+              </Alert>
+            )}
+
             {existingDoc.expiration_date && (
               <div className="flex items-center gap-2 text-sm">
                 <span className="font-medium">Data de Validade:</span>
@@ -283,29 +319,37 @@ export default function PortalUpload() {
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              variant="outline"
-              onClick={() => navigate(-1)}
-              disabled={submitting || validating || (isPending && !file)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={!file || submitting || validating || isPending}
-              className="min-w-[140px]"
-            >
-              {submitting || validating ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {validating ? 'Analisando...' : 'Enviando...'}
-                </>
-              ) : (
-                'Enviar Documento'
-              )}
-            </Button>
-          </div>
+          {validating || progressValue > 0 ? (
+            <div className="space-y-3 pt-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-primary animate-pulse">
+                  {submitting ? 'Enviando documento...' : 'A IA está analisando seu documento...'}
+                </span>
+                <span className="text-muted-foreground">{Math.round(progressValue)}%</span>
+              </div>
+              <Progress value={progressValue} className="h-2" />
+              <p className="text-xs text-muted-foreground text-center">
+                Isso pode levar alguns segundos. Por favor, não feche esta página.
+              </p>
+            </div>
+          ) : (
+            <div className="flex justify-end gap-3 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => navigate(-1)}
+                disabled={submitting || validating || (isPending && !file)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={!file || submitting || validating || isPending}
+                className="min-w-[140px]"
+              >
+                Enviar Documento
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
