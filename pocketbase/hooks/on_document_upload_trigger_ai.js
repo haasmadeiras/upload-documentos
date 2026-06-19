@@ -36,9 +36,7 @@ onRecordAfterCreateSuccess((e) => {
       }
     } catch (err) {}
 
-    const result = $ai.agent('document-analyst').chat({
-      user_id: userId,
-      message: `Por favor, analise o documento recém-enviado.
+    const promptMessage = `Por favor, analise o documento recém-enviado.
 ID do Registro do Documento: ${docId}
 Tipo de Documento Esperado: ${defName}
 Instruções Específicas de Validação: ${defInstructions ? defInstructions : 'Nenhuma instrução específica.'}
@@ -56,33 +54,95 @@ Instruções:
 7. Se a data de validade extraída for anterior à 'Data Atual', classifique obrigatoriamente o status como 'Vencido' e defina is_expired como true.
 8. Se os dados de CNPJ/CPF numéricos ou Nome não corresponderem, classifique como 'Rejected' com os devidos detalhes em explanation.
 
-RETORNE APENAS um JSON estrito no seguinte formato e nada mais:
-{
-  "status": "Approved" | "Rejected" | "Aguardando Aprovação" | "Vencido",
-  "explanation": "Explicação detalhada em caso de rejeição, vencimento ou dúvida. Vazio se Approved.",
-  "extracted_expiration_date": "YYYY-MM-DD",
-  "is_expired": boolean,
-  "extracted_tax_id": "string",
-  "extracted_name": "string",
-  "match_confidence": "High" | "Medium" | "Low"
-}`,
-    })
+RETORNE APENAS um JSON estrito. Não adicione texto antes ou depois do JSON. Não envolva com crases (markdown).`
 
-    let analysisResult = {}
-    try {
-      const jsonMatch = result.content.match(/\{[\s\S]*\}/)
-      analysisResult = JSON.parse(jsonMatch ? jsonMatch[0] : result.content)
+    let analysisResult = null
+    let rawContent = ''
+    let attempts = 0
+    let lastError = null
 
-      if (
-        !['Approved', 'Rejected', 'Aguardando Aprovação', 'Vencido'].includes(analysisResult.status)
-      ) {
-        analysisResult.status = 'Aguardando Aprovação'
+    while (attempts < 2 && !analysisResult) {
+      attempts++
+      try {
+        const result = $ai.agent('document-analyst').chat({
+          user_id: userId,
+          message:
+            attempts === 1
+              ? promptMessage
+              : `A resposta anterior não foi um JSON válido. Por favor, retorne APENAS um JSON estrito. Erro: ${lastError.message}`,
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'document_analysis',
+              strict: true,
+              schema: {
+                type: 'object',
+                properties: {
+                  status: {
+                    type: 'string',
+                    enum: ['Approved', 'Rejected', 'Aguardando Aprovação', 'Vencido'],
+                  },
+                  explanation: { type: 'string' },
+                  extracted_expiration_date: { type: 'string' },
+                  is_expired: { type: 'boolean' },
+                  extracted_tax_id: { type: 'string' },
+                  extracted_name: { type: 'string' },
+                  match_confidence: {
+                    type: 'string',
+                    enum: ['High', 'Medium', 'Low'],
+                  },
+                },
+                required: [
+                  'status',
+                  'explanation',
+                  'extracted_expiration_date',
+                  'is_expired',
+                  'extracted_tax_id',
+                  'extracted_name',
+                  'match_confidence',
+                ],
+                additionalProperties: false,
+              },
+            },
+          },
+        })
+
+        rawContent = result.content
+        let jsonStr = rawContent.trim()
+
+        if (jsonStr.startsWith('```')) {
+          jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
+        }
+
+        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          jsonStr = jsonMatch[0]
+        }
+
+        analysisResult = JSON.parse(jsonStr)
+
+        if (
+          !['Approved', 'Rejected', 'Aguardando Aprovação', 'Vencido'].includes(
+            analysisResult.status,
+          )
+        ) {
+          analysisResult.status = 'Aguardando Aprovação'
+        }
+      } catch (err) {
+        lastError = err
+        console.log(`Tentativa ${attempts} falhou ao parsear JSON:`, err.message, rawContent)
       }
-    } catch (err) {
+    }
+
+    if (!analysisResult) {
       analysisResult = {
         status: 'Aguardando Aprovação',
-        reason: 'Falha ao processar resposta da IA.',
-        raw: result.content,
+        explanation: 'Falha ao processar resposta da IA. Documento será revisado manualmente.',
+        extracted_expiration_date: '',
+        is_expired: false,
+        extracted_tax_id: '',
+        extracted_name: '',
+        match_confidence: 'Low',
       }
     }
 
@@ -94,21 +154,15 @@ RETORNE APENAS um JSON estrito no seguinte formato e nada mais:
       docRecord.set('rejection_reason', '')
     } else if (analysisResult.status === 'Rejected') {
       docRecord.set('status', 'Rejected')
-      docRecord.set(
-        'rejection_reason',
-        analysisResult.explanation || analysisResult.reason || 'Documento inválido.',
-      )
+      docRecord.set('rejection_reason', analysisResult.explanation || 'Documento inválido.')
     } else if (analysisResult.status === 'Vencido' || analysisResult.is_expired) {
       docRecord.set('status', 'Vencido')
-      docRecord.set(
-        'rejection_reason',
-        analysisResult.explanation || analysisResult.reason || 'Documento vencido.',
-      )
+      docRecord.set('rejection_reason', analysisResult.explanation || 'Documento vencido.')
     } else {
       docRecord.set('status', 'Aguardando Aprovação')
       docRecord.set(
         'rejection_reason',
-        analysisResult.explanation || analysisResult.reason || 'Necessita de revisão humana.',
+        analysisResult.explanation || 'Necessita de revisão humana.',
       )
     }
 
