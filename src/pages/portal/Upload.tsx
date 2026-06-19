@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   FileText,
@@ -44,6 +44,7 @@ export default function PortalUpload() {
   const [progressValue, setProgressValue] = useState(0)
   const [isReuploading, setIsReuploading] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     let interval: NodeJS.Timeout
@@ -173,7 +174,7 @@ export default function PortalUpload() {
     existingDoc?.status === 'Pending' || existingDoc?.status === 'Aguardando Aprovação'
 
   const fileUrl = existingDoc
-    ? `${import.meta.env.VITE_POCKETBASE_URL}/api/files/${existingDoc.collectionId}/${existingDoc.id}/${existingDoc.file}`
+    ? `${import.meta.env.VITE_POCKETBASE_URL}/api/files/${existingDoc.collectionId}/${existingDoc.id}/${existingDoc.file}?token=${pb.authStore.token}`
     : ''
 
   return (
@@ -223,6 +224,7 @@ export default function PortalUpload() {
                   size="sm"
                   className="gap-2"
                   onClick={(e) => {
+                    e.preventDefault()
                     e.stopPropagation()
                     setPreviewOpen(true)
                   }}
@@ -232,7 +234,7 @@ export default function PortalUpload() {
                 </Button>
                 <input
                   type="file"
-                  id="reupload-input"
+                  ref={fileInputRef}
                   className="hidden"
                   accept={definition.allowed_formats?.replace(/\s/g, '') || '.pdf,.jpg,.jpeg,.png'}
                   onChange={(e) => {
@@ -242,11 +244,18 @@ export default function PortalUpload() {
                     }
                   }}
                 />
-                <Button size="sm" variant="secondary" asChild className="gap-2 cursor-pointer">
-                  <label htmlFor="reupload-input" onClick={(e) => e.stopPropagation()}>
-                    <FileText className="w-4 h-4" />
-                    Reenviar Documento
-                  </label>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="gap-2 cursor-pointer"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    fileInputRef.current?.click()
+                  }}
+                >
+                  <FileText className="w-4 h-4" />
+                  Reenviar Documento
                 </Button>
               </div>
             </div>

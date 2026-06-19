@@ -1,10 +1,10 @@
-onRecordAfterUpdateSuccess((e) => {
-  if (e.record.getString('status') !== 'Pending') return e.next()
+// @deps pdf-parse@1.1.1, buffer@6.0.3
+onRecordAfterUpdateSuccess(async (e) => {
+  const originalStatus = e.record.original().getString('status')
+  const newStatus = e.record.getString('status')
 
-  const fileChanged = e.record.getString('file') !== e.record.original().getString('file')
-  const statusChanged = e.record.getString('status') !== e.record.original().getString('status')
-
-  if (!fileChanged && !statusChanged) return e.next()
+  if (newStatus !== 'Pending') return e.next()
+  if (originalStatus === 'Pending') return e.next()
 
   try {
     const docId = e.record.id
@@ -41,6 +41,28 @@ onRecordAfterUpdateSuccess((e) => {
       }
     } catch (err) {}
 
+    let fileText = ''
+    const fileName = e.record.getString('file')
+    if (fileName.toLowerCase().endsWith('.pdf')) {
+      try {
+        const pdfParse = require('pdf-parse')
+        const { Buffer } = require('buffer')
+        const url = `${$secrets.get('PB_INSTANCE_URL')}/api/files/${e.record.collectionId}/${docId}/${fileName}`
+        const res = $http.send({
+          url,
+          method: 'GET',
+          headers: { Authorization: 'Bearer ' + $secrets.get('PB_SUPERUSER_TOKEN') },
+        })
+        if (res.statusCode === 200) {
+          const buffer = Buffer.from(res.body)
+          const data = await pdfParse(buffer)
+          fileText = data.text
+        }
+      } catch (err) {
+        console.log('PDF extraction error:', err.message)
+      }
+    }
+
     const promptMessage = `Por favor, analise o documento recém-enviado.
 ID do Registro do Documento: ${docId}
 Tipo de Documento Esperado: ${defName}
@@ -49,13 +71,18 @@ CNPJ/CPF Esperado: ${expectedTaxId}
 Nome/Razão Social Esperado: ${expectedName}
 Data Atual: ${new Date().toISOString().split('T')[0]}
 
+Conteúdo de Texto Extraído do Arquivo PDF:
+"""
+${fileText}
+"""
+
 Instruções:
-1. Use a ferramenta 'documents' para ler o registro do documento fornecido e analisar o arquivo anexado (use capacidades de visão).
+1. Use o 'Conteúdo de Texto Extraído do Arquivo PDF' fornecido acima para análise. Se o documento for uma imagem, use a ferramenta 'documents' para analisar o arquivo usando capacidades de visão.
 2. Verifique se o documento corresponde ao 'Tipo de Documento Esperado'.
 3. Extraia o CNPJ/CPF do documento. REMOVA todas as pontuações (pontos, traços, barras) do CNPJ/CPF extraído e do 'CNPJ/CPF Esperado'. Compare apenas os dígitos numéricos. Especificamente para Certidão Negativa de Débitos (CND Estadual, etc), se a raiz (primeiros 8 dígitos numéricos) coincidir, considere válido.
 4. Extraia o Nome/Razão Social e verifique se corresponde ao esperado usando fuzzy matching (tolere pequenas diferenças e abreviações).
 5. Siga rigorosamente as 'Instruções Específicas de Validação' se houver.
-6. Extraia a data de validade (expiration_date) presente no documento no formato YYYY-MM-DD. Procure especificamente por termos como "válida até", "validade:", "vencimento em". Seja extremamente preciso. Se o documento contiver datas no formato brasileiro (ex: 17/05/2026 ou 17/5/2026), converta corretamente para YYYY-MM-DD (ex: 2026-05-17). Não invente datas como o último dia do ano se não estiver explícito.
+6. Extraia a data de validade (expiration_date) presente no documento no formato YYYY-MM-DD. PRIORIZE buscar pelos campos "Esta certidão é válida até", "válida até", "validade:", "vencimento em" ou similares. Seja extremamente preciso ao capturar a data. Se o documento contiver datas no formato brasileiro (ex: 17/05/2026 ou 17/5/2026), converta corretamente para YYYY-MM-DD (ex: 2026-05-17). Não invente datas como o último dia do ano se não estiver explícito.
 7. Se a data de validade extraída for anterior à 'Data Atual', classifique obrigatoriamente o status como 'Vencido' e defina is_expired como true.
 8. Se os dados de CNPJ/CPF numéricos ou Nome não corresponderem, classifique como 'Rejected' com os devidos detalhes em explanation e forneça o motivo específico e claro em português no campo rejection_reason.
 
