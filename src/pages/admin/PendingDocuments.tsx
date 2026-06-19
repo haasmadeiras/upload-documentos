@@ -57,7 +57,7 @@ export default function AdminPendingDocuments() {
   const fetchPendingDocs = async () => {
     try {
       const records = await pb.collection('documents').getFullList({
-        filter: "status = 'Pending'",
+        filter: "status = 'Pending' || status = 'Aguardando Aprovação'",
         expand: 'supplier,definition,user',
         sort: '-created',
       })
@@ -121,10 +121,10 @@ export default function AdminPendingDocuments() {
     }
     try {
       await pb.collection('documents').update(selectedDoc.id, {
-        status: 'Aguardando Aprovação',
+        status: 'Rejected',
         rejection_reason: rejectionReason,
       })
-      toast.success('Status atualizado para Aguardando Aprovação!')
+      toast.success('Documento rejeitado com sucesso!')
       setIsRejectOpen(false)
       setSelectedDoc(null)
       setRejectionReason('')
@@ -331,7 +331,7 @@ export default function AdminPendingDocuments() {
               </Button>
               <div className="flex gap-2">
                 <Button variant="destructive" onClick={() => setIsRejectOpen(true)}>
-                  <X className="w-4 h-4 mr-2" /> Aguardando Aprovação
+                  <X className="w-4 h-4 mr-2" /> Rejeitar
                 </Button>
                 <Button
                   onClick={() => handleApprove(selectedDoc)}
@@ -348,8 +348,10 @@ export default function AdminPendingDocuments() {
       <Dialog open={isRejectOpen} onOpenChange={setIsRejectOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Aguardando Aprovação</DialogTitle>
-            <DialogDescription>Informe o motivo ou orientação para o documento.</DialogDescription>
+            <DialogTitle>Rejeitar Documento</DialogTitle>
+            <DialogDescription>
+              Informe o motivo ou orientação para rejeitar o documento.
+            </DialogDescription>
           </DialogHeader>
           <Textarea
             placeholder="Ex: CNPJ Divergente, Documento Ilegível..."
@@ -362,7 +364,7 @@ export default function AdminPendingDocuments() {
               Cancelar
             </Button>
             <Button variant="destructive" onClick={handleReject}>
-              Confirmar
+              Rejeitar
             </Button>
           </DialogFooter>
         </DialogContent>

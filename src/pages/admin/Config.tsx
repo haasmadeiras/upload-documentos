@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Plus, Trash2, Pencil, ShieldAlert, Users } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -342,13 +343,46 @@ export default function AdminConfig() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="allowed_formats">Formatos Permitidos</Label>
-              <Input
-                id="allowed_formats"
-                value={formData.allowed_formats}
-                onChange={(e) => setFormData({ ...formData, allowed_formats: e.target.value })}
-                placeholder="Ex: pdf, jpg, png"
-              />
+              <Label>Formatos Permitidos</Label>
+              <div className="flex flex-wrap gap-4 mt-2">
+                {['PDF', 'JPG', 'PNG', 'XLS', 'XLSX'].map((format) => {
+                  const isChecked = formData.allowed_formats
+                    .toLowerCase()
+                    .split(',')
+                    .map((s) => s.trim())
+                    .includes(format.toLowerCase())
+                  return (
+                    <div key={format} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`format-${format}`}
+                        checked={isChecked}
+                        onCheckedChange={(checked) => {
+                          let formats = formData.allowed_formats
+                            .split(',')
+                            .map((s) => s.trim())
+                            .filter(Boolean)
+                          if (checked) {
+                            if (!formats.find((f) => f.toLowerCase() === format.toLowerCase())) {
+                              formats.push(format)
+                            }
+                          } else {
+                            formats = formats.filter(
+                              (f) => f.toLowerCase() !== format.toLowerCase(),
+                            )
+                          }
+                          setFormData({ ...formData, allowed_formats: formats.join(', ') })
+                        }}
+                      />
+                      <label
+                        htmlFor={`format-${format}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        {format}
+                      </label>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
 
             <div className="space-y-2">

@@ -58,10 +58,10 @@ RETORNE APENAS um JSON estrito no seguinte formato e nada mais (sem blocos markd
     docRecord.set('analysis_log', analysisResult)
 
     if (analysisResult.status === 'valid') {
-      docRecord.set('status', 'Pending')
+      docRecord.set('status', 'Aguardando Aprovação')
       docRecord.set('rejection_reason', '')
     } else {
-      docRecord.set('status', 'Aguardando Aprovação')
+      docRecord.set('status', 'Rejected')
       docRecord.set('rejection_reason', analysisResult.reason || 'Falha na validação do documento.')
     }
 
@@ -70,10 +70,10 @@ RETORNE APENAS um JSON estrito no seguinte formato e nada mais (sem blocos markd
     console.log('Failed to trigger AI analyst:', err.message)
     try {
       const docRecord = $app.findRecordById('documents', e.record.id)
-      docRecord.set('status', 'Aguardando Aprovação')
+      docRecord.set('status', 'Pending')
       docRecord.set(
         'rejection_reason',
-        'Erro interno na análise automática. Por favor, tente novamente.',
+        'Erro interno na análise automática. Será analisado manualmente.',
       )
       docRecord.set('analysis_log', { error: err.message })
       $app.save(docRecord)
