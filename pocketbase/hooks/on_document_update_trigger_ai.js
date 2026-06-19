@@ -1,5 +1,10 @@
-onRecordAfterCreateSuccess((e) => {
+onRecordAfterUpdateSuccess((e) => {
   if (e.record.getString('status') !== 'Pending') return e.next()
+
+  const fileChanged = e.record.getString('file') !== e.record.original().getString('file')
+  const statusChanged = e.record.getString('status') !== e.record.original().getString('status')
+
+  if (!fileChanged && !statusChanged) return e.next()
 
   try {
     const docId = e.record.id

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { AlertCircle, XCircle, FileUp, ChevronRight, Download, Trash2 } from 'lucide-react'
+import { AlertCircle, XCircle, FileUp, ChevronRight, Download, Trash2, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -179,6 +179,17 @@ export default function SupplierDocuments() {
                       <span>Este documento expira em breve.</span>
                     </div>
                   )}
+
+                  {doc?.expiration_date && status !== 'rejected' && status !== 'rejeitado' && (
+                    <div className="text-sm p-2.5 bg-blue-50 text-blue-800 rounded-md border border-blue-100 flex items-start gap-2">
+                      <Clock className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>
+                        Validade extraída:{' '}
+                        {new Date(doc.expiration_date).toLocaleDateString('pt-BR')}
+                        <span className="ml-1 text-xs font-semibold">(Sugerido por IA)</span>
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-2 mt-2">
@@ -188,6 +199,7 @@ export default function SupplierDocuments() {
                       status === 'approved' ||
                       status === 'aprovado' ||
                       status === 'pending' ||
+                      status === 'pendente' ||
                       status === 'aguardando aprovação'
                         ? 'outline'
                         : 'default'
@@ -206,6 +218,7 @@ export default function SupplierDocuments() {
                       {status === 'approved' ||
                       status === 'aprovado' ||
                       status === 'pending' ||
+                      status === 'pendente' ||
                       status === 'aguardando aprovação' ? (
                         <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                       ) : (

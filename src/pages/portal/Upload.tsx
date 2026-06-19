@@ -36,7 +36,7 @@ export default function PortalUpload() {
       formData.append('file', file)
       formData.append('user', user.id)
       formData.append('definition', definition.id)
-      formData.append('status', 'Aguardando Aprovação')
+      formData.append('status', 'Pending')
       if (user.supplier) {
         formData.append('supplier', user.supplier)
       }

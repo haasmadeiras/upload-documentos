@@ -32,7 +32,18 @@ export function StatusBadge({ status }: StatusBadgeProps) {
         variant="outline"
         className="bg-amber-50 text-amber-600 border-amber-200 gap-1.5 font-medium"
       >
-        <RefreshCw className="w-3.5 h-3.5" /> Aguardando Aprovação
+        <Search className="w-3.5 h-3.5" /> Aguardando Revisão Humana
+      </Badge>
+    )
+  }
+
+  if (norm === 'pending' || norm === 'pendente') {
+    return (
+      <Badge
+        variant="outline"
+        className="bg-blue-50 text-blue-600 border-blue-200 gap-1.5 font-medium animate-pulse"
+      >
+        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Em Análise pela IA
       </Badge>
     )
   }
@@ -64,7 +75,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
       variant="outline"
       className="bg-slate-50 text-slate-600 border-slate-200 gap-1.5 font-medium"
     >
-      <Clock className="w-3.5 h-3.5" /> Pendente
+      <Clock className="w-3.5 h-3.5" /> {status}
     </Badge>
   )
 }
