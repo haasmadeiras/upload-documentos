@@ -1,6 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { FileText, ArrowLeft, Loader2, AlertCircle } from 'lucide-react'
+import {
+  FileText,
+  ArrowLeft,
+  Loader2,
+  AlertCircle,
+  Eye,
+  FileCheck2,
+  Clock,
+  XCircle,
+  FileWarning,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -10,6 +20,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { FileUploader } from '@/components/FileUploader'
 import { createDocument, updateDocument } from '@/services/documents'
 import { useRealtime } from '@/hooks/use-realtime'
+import { cn } from '@/lib/utils'
 
 export default function PortalUpload() {
   const { id } = useParams()
@@ -38,7 +49,6 @@ export default function PortalUpload() {
       if (docs.length > 0) {
         setExistingDoc(docs[0])
 
-        // If we are waiting for AI validation and the status changes from Pending
         if (validating && docs[0].status !== 'Pending') {
           setValidating(false)
 
@@ -46,10 +56,11 @@ export default function PortalUpload() {
             toast.error('O documento foi rejeitado pela análise.', {
               description: docs[0].rejection_reason,
             })
-            // Intercept navigation - keep user on page to review error and re-upload
-          } else {
+          } else if (docs[0].status === 'Approved') {
             toast.success('Documento analisado e aceito com sucesso!')
             setTimeout(() => navigate('/portal/contratados'), 1500)
+          } else {
+            toast.info('Documento em análise manual.')
           }
         }
       }
@@ -92,6 +103,7 @@ export default function PortalUpload() {
 
       setValidating(true)
       toast.info('Documento enviado. Em análise pela IA...')
+      setFile(null)
     } catch (err: any) {
       console.error(err)
       toast.error('Erro ao enviar documento.', {
@@ -119,6 +131,13 @@ export default function PortalUpload() {
   }
 
   const isErrorState = existingDoc?.status === 'Rejected' || existingDoc?.status === 'Vencido'
+  const isApproved = existingDoc?.status === 'Approved'
+  const isPending =
+    existingDoc?.status === 'Pending' || existingDoc?.status === 'Aguardando Aprovação'
+
+  const fileUrl = existingDoc
+    ? `${import.meta.env.VITE_POCKETBASE_URL}/api/files/${existingDoc.collectionId}/${existingDoc.id}/${existingDoc.file}`
+    : ''
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
@@ -132,34 +151,112 @@ export default function PortalUpload() {
         </div>
       </div>
 
-      {existingDoc && isErrorState && !validating && (
-        <Alert variant="destructive" className="bg-rose-50 border-rose-200 text-rose-800">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Documento Rejeitado ou Vencido</AlertTitle>
-          <AlertDescription className="mt-1">
-            <span className="block mb-2 font-medium">{existingDoc.rejection_reason}</span>
-            {existingDoc.analysis_log?.explanation && (
-              <span className="block text-sm opacity-90 border-t border-rose-200 pt-2 mt-2">
-                Análise da IA: {existingDoc.analysis_log.explanation}
-              </span>
+      {existingDoc && (
+        <Card
+          className={cn(
+            'overflow-hidden transition-colors border-l-4',
+            isErrorState
+              ? 'border-l-rose-500 bg-rose-50/50'
+              : isApproved
+                ? 'border-l-emerald-500 bg-emerald-50/50'
+                : 'border-l-amber-500 bg-amber-50/50',
+          )}
+        >
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  {isApproved && <FileCheck2 className="w-5 h-5 text-emerald-600" />}
+                  {isErrorState && <XCircle className="w-5 h-5 text-rose-600" />}
+                  {isPending && <Clock className="w-5 h-5 text-amber-600" />}
+                  Status Atual: {existingDoc.status}
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Enviado em {new Date(existingDoc.created).toLocaleDateString('pt-BR')}
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" asChild className="shrink-0 gap-2">
+                <a href={fileUrl} target="_blank" rel="noopener noreferrer">
+                  <Eye className="w-4 h-4" />
+                  Visualizar
+                </a>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {existingDoc.expiration_date && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-medium">Data de Validade:</span>
+                <span
+                  className={cn(
+                    'px-2 py-0.5 rounded-md',
+                    existingDoc.status === 'Vencido'
+                      ? 'bg-rose-100 text-rose-700 font-semibold'
+                      : 'bg-muted',
+                  )}
+                >
+                  {new Date(existingDoc.expiration_date).toLocaleDateString('pt-BR', {
+                    timeZone: 'UTC',
+                  })}
+                </span>
+              </div>
             )}
-            Por favor, verifique os erros acima e reenvie um documento válido.
-          </AlertDescription>
-        </Alert>
+
+            {(isErrorState || existingDoc.rejection_reason) && (
+              <Alert variant="destructive" className="bg-white/80 border-rose-200 text-rose-800">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Atenção</AlertTitle>
+                <AlertDescription className="mt-1">
+                  {existingDoc.rejection_reason || 'Verifique as informações do documento.'}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {existingDoc.analysis_log?.explanation && (
+              <div className="rounded-md border bg-card p-4 space-y-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                  <FileWarning className="w-4 h-4" />
+                  Justificativa da IA
+                </div>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {existingDoc.analysis_log.explanation}
+                </p>
+                <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t text-xs">
+                  {existingDoc.analysis_log.extracted_tax_id && (
+                    <div>
+                      <span className="font-medium block">CNPJ/CPF Extraído:</span>
+                      <span className="text-muted-foreground">
+                        {existingDoc.analysis_log.extracted_tax_id}
+                      </span>
+                    </div>
+                  )}
+                  {existingDoc.analysis_log.extracted_name && (
+                    <div>
+                      <span className="font-medium block">Nome Extraído:</span>
+                      <span className="text-muted-foreground">
+                        {existingDoc.analysis_log.extracted_name}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
-      <Card>
+      <Card className={cn(isErrorState && 'border-rose-200 shadow-sm shadow-rose-100')}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-primary" />
-            {definition.name}
+            {existingDoc ? 'Reenviar Documento' : definition.name}
           </CardTitle>
           <CardDescription>
             {definition.is_mandatory && (
               <span className="font-semibold text-primary mr-1">Obrigatório.</span>
             )}
             Formatos permitidos: {definition.allowed_formats || 'Todos'}.
-            {definition.validity_days && ` Validade: ${definition.validity_days} dias.`}
+            {definition.validity_days ? ` Validade: ${definition.validity_days} dias.` : ''}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -184,13 +281,13 @@ export default function PortalUpload() {
             <Button
               variant="outline"
               onClick={() => navigate(-1)}
-              disabled={submitting || validating}
+              disabled={submitting || validating || (isPending && !file)}
             >
               Cancelar
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={!file || submitting || validating}
+              disabled={!file || submitting || validating || isPending}
               className="min-w-[140px]"
             >
               {submitting || validating ? (

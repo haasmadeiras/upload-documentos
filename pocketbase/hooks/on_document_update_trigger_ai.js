@@ -54,12 +54,12 @@ Data Atual: ${new Date().toISOString().split('T')[0]}
 Instruções:
 1. Use a ferramenta 'documents' para ler o registro do documento fornecido e analisar o arquivo anexado (use capacidades de visão).
 2. Verifique se o documento corresponde ao 'Tipo de Documento Esperado'.
-3. Extraia o CNPJ/CPF. Especificamente para Certidão Negativa de Débitos (CND), extraia o CNPJ base/raiz (8 primeiros dígitos) e valide com o CNPJ/CPF Esperado considerando correspondência fuzzy/base.
+3. Extraia o CNPJ/CPF do documento. REMOVA todas as pontuações (pontos, traços, barras) do CNPJ/CPF extraído e do 'CNPJ/CPF Esperado'. Compare apenas os dígitos numéricos. Especificamente para Certidão Negativa de Débitos (CND Estadual, etc), se a raiz (primeiros 8 dígitos numéricos) coincidir, considere válido.
 4. Extraia o Nome/Razão Social e verifique se corresponde ao esperado usando fuzzy matching (tolere pequenas diferenças e abreviações).
 5. Siga rigorosamente as 'Instruções Específicas de Validação' se houver.
-6. Extraia a data de validade (expiration_date) no formato YYYY-MM-DD.
-7. Se a data de validade extraída for anterior à 'Data Atual', defina is_expired como true e classifique o status como 'Vencido'.
-8. Se os dados de CNPJ/CPF ou Nome não corresponderem, classifique como 'Rejected' com os devidos detalhes em explanation.
+6. Extraia a data de validade (expiration_date) presente no documento no formato YYYY-MM-DD.
+7. Se a data de validade extraída for anterior à 'Data Atual', classifique obrigatoriamente o status como 'Vencido' e defina is_expired como true.
+8. Se os dados de CNPJ/CPF numéricos ou Nome não corresponderem, classifique como 'Rejected' com os devidos detalhes em explanation.
 
 RETORNE APENAS um JSON estrito no seguinte formato e nada mais:
 {
@@ -77,6 +77,12 @@ RETORNE APENAS um JSON estrito no seguinte formato e nada mais:
     try {
       const jsonMatch = result.content.match(/\{[\s\S]*\}/)
       analysisResult = JSON.parse(jsonMatch ? jsonMatch[0] : result.content)
+
+      if (
+        !['Approved', 'Rejected', 'Aguardando Aprovação', 'Vencido'].includes(analysisResult.status)
+      ) {
+        analysisResult.status = 'Aguardando Aprovação'
+      }
     } catch (err) {
       analysisResult = {
         status: 'Aguardando Aprovação',
