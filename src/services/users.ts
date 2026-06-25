@@ -18,6 +18,7 @@ export interface User {
       legal_name?: string
       address?: string
       phone?: string
+      email?: string
     }
   }
   created: string

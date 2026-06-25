@@ -285,6 +285,7 @@ export default function AdminUsers() {
     (u) =>
       (u.name || '').toLowerCase().includes(search.toLowerCase()) ||
       (u.email || '').toLowerCase().includes(search.toLowerCase()) ||
+      (u.expand?.supplier?.email || '').toLowerCase().includes(search.toLowerCase()) ||
       (searchClean !== '' && u.tax_id?.replace(/\D/g, '').includes(searchClean)) ||
       (u.legal_name || '').toLowerCase().includes(search.toLowerCase()) ||
       (u.expand?.supplier?.legal_name || '').toLowerCase().includes(search.toLowerCase()),
@@ -294,7 +295,10 @@ export default function AdminUsers() {
     let valA: any = a[sortField]
     let valB: any = b[sortField]
 
-    if (sortField === 'last_login') {
+    if (sortField === 'email') {
+      valA = (a.email || a.expand?.supplier?.email || '').toLowerCase()
+      valB = (b.email || b.expand?.supplier?.email || '').toLowerCase()
+    } else if (sortField === 'last_login') {
       valA = valA ? new Date(valA).getTime() : 0
       valB = valB ? new Date(valB).getTime() : 0
     } else if (typeof valA === 'string') {
@@ -669,7 +673,7 @@ export default function AdminUsers() {
           <TableHeader>
             <TableRow>
               <TableHead
-                className="cursor-pointer hover:bg-muted/50 transition-colors min-w-[200px]"
+                className="cursor-pointer hover:bg-muted/50 transition-colors w-full min-w-[200px]"
                 onClick={() => handleSort('name')}
               >
                 <div className="flex items-center gap-1">
@@ -806,13 +810,16 @@ export default function AdminUsers() {
             ) : (
               sortedUsers.map((u) => (
                 <TableRow key={u.id}>
-                  <TableCell className="font-medium">
-                    <div className="truncate max-w-[200px] lg:max-w-[250px]" title={u.name}>
+                  <TableCell className="font-medium w-full">
+                    <div
+                      className="truncate min-w-[150px] max-w-[300px] lg:max-w-[400px]"
+                      title={u.name}
+                    >
                       {u.name}
                     </div>
                     {(u.legal_name || u.expand?.supplier?.legal_name) && (
                       <div
-                        className="text-xs text-muted-foreground mt-0.5 truncate max-w-[200px] lg:max-w-[250px]"
+                        className="text-xs text-muted-foreground mt-0.5 truncate min-w-[150px] max-w-[300px] lg:max-w-[400px]"
                         title={u.legal_name || u.expand?.supplier?.legal_name}
                       >
                         {u.legal_name || u.expand?.supplier?.legal_name}
@@ -882,8 +889,11 @@ export default function AdminUsers() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    <div className="truncate max-w-[150px] lg:max-w-[200px]" title={u.email}>
-                      {u.email || '-'}
+                    <div
+                      className="truncate max-w-[150px] lg:max-w-[200px]"
+                      title={u.email || u.expand?.supplier?.email}
+                    >
+                      {u.email || u.expand?.supplier?.email || '-'}
                     </div>
                   </TableCell>
                   <TableCell>
