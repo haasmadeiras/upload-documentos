@@ -243,6 +243,7 @@ export default function AdminCategoryDocuments() {
   const [selectedDoc, setSelectedDoc] = useState<any>(null)
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const [rejectionReason, setRejectionReason] = useState('')
+  const [expirationDate, setExpirationDate] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
   const [manualData, setManualData] = useState({
     cnpj: '',
@@ -281,6 +282,9 @@ export default function AdminCategoryDocuments() {
     if (selectedDoc) {
       setRejectionReason(selectedDoc.rejection_reason || '')
       setSelectedStatus(selectedDoc.status || 'Pending')
+      setExpirationDate(
+        selectedDoc.expiration_date ? selectedDoc.expiration_date.split('T')[0] : '',
+      )
       const ex = selectedDoc.analysis_log?.extracted || {}
       setManualData({
         cnpj: ex.cnpj || '',
@@ -325,6 +329,7 @@ export default function AdminCategoryDocuments() {
       await updateDocument(selectedDoc.id, {
         status: selectedStatus,
         rejection_reason: requiresReason ? rejectionReason : '',
+        expiration_date: expirationDate ? new Date(expirationDate).toISOString() : null,
         analysis_log: updatedLog,
       })
       toast.success('Status do documento atualizado com sucesso!')
@@ -529,7 +534,7 @@ export default function AdminCategoryDocuments() {
             </div>
 
             {/* Actions & AI Analysis Panel */}
-            <div className="w-full md:w-[450px] flex flex-col h-full overflow-y-auto bg-background">
+            <div className="w-full md:w-1/2 lg:w-[45%] shrink-0 flex flex-col h-full overflow-y-auto bg-background">
               <div className="p-6 flex-1 space-y-6 flex flex-col">
                 <div className="space-y-4 shrink-0">
                   <div className="grid grid-cols-2 gap-4">
@@ -673,20 +678,32 @@ export default function AdminCategoryDocuments() {
                 </div>
 
                 <div className="pt-4 border-t shrink-0 mt-auto space-y-4">
-                  <div className="space-y-2">
-                    <Label>Atualizar Status</Label>
-                    <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Pending">Pendente</SelectItem>
-                        <SelectItem value="Approved">Aprovado</SelectItem>
-                        <SelectItem value="Rejected">Rejeitado</SelectItem>
-                        <SelectItem value="Aguardando Aprovação">Aguardando Aprovação</SelectItem>
-                        <SelectItem value="Vencido">Vencido</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Atualizar Status</Label>
+                      <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Pending">Pendente</SelectItem>
+                          <SelectItem value="Approved">Aprovado</SelectItem>
+                          <SelectItem value="Rejected">Rejeitado</SelectItem>
+                          <SelectItem value="Aguardando Aprovação">Aguardando Aprovação</SelectItem>
+                          <SelectItem value="Vencido">Vencido</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Data de Validade (Opcional)</Label>
+                      <Input
+                        type="date"
+                        value={expirationDate}
+                        onChange={(e) => setExpirationDate(e.target.value)}
+                        className="h-10"
+                      />
+                    </div>
                   </div>
 
                   {(selectedStatus === 'Rejected' || selectedStatus === 'Aguardando Aprovação') && (
