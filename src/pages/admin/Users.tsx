@@ -25,6 +25,8 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Download } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 
 type SortField = 'name' | 'email' | 'role' | 'active' | 'tax_id' | 'phone' | 'last_login'
 type SortOrder = 'asc' | 'desc'
@@ -122,6 +124,10 @@ export default function AdminUsers() {
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null)
   const [sortField, setSortField] = useState<SortField>('last_login')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  const [roleFilter, setRoleFilter] = useState<string>('All')
+  const [statusFilter, setStatusFilter] = useState<string>('All')
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
+  const [batchAction, setBatchAction] = useState<boolean | null>(null)
 
   const isMaster = user?.isAdmin === true || user?.role === 'Admin'
   const isColaborador = user?.role === 'Colaborador'
@@ -281,15 +287,22 @@ export default function AdminUsers() {
 
   const searchClean = search.replace(/\D/g, '')
 
-  const filteredUsers = (users as ExtendedUser[]).filter(
-    (u) =>
+  const filteredUsers = (users as ExtendedUser[]).filter((u) => {
+    const matchSearch =
       (u.name || '').toLowerCase().includes(search.toLowerCase()) ||
       (u.email || '').toLowerCase().includes(search.toLowerCase()) ||
       (u.expand?.supplier?.email || '').toLowerCase().includes(search.toLowerCase()) ||
       (searchClean !== '' && u.tax_id?.replace(/\D/g, '').includes(searchClean)) ||
       (u.legal_name || '').toLowerCase().includes(search.toLowerCase()) ||
-      (u.expand?.supplier?.legal_name || '').toLowerCase().includes(search.toLowerCase()),
-  )
+      (u.expand?.supplier?.legal_name || '').toLowerCase().includes(search.toLowerCase())
+
+    const matchRole = roleFilter === 'All' || u.role === roleFilter
+
+    const matchStatus =
+      statusFilter === 'All' || (statusFilter === 'Ativo' ? u.active !== false : u.active === false)
+
+    return matchSearch && matchRole && matchStatus
+  })
 
   const sortedUsers = [...filteredUsers].sort((a, b) => {
     let valA: any = a[sortField]
@@ -333,6 +346,48 @@ export default function AdminUsers() {
       toast.error('Erro ao excluir usuário.')
     } finally {
       setDeleteUserId(null)
+    }
+  }
+
+  const handleExportCSV = () => {
+    const headers = ['Nome', 'Papel', 'Status', 'Último Acesso', 'CNPJ/CPF', 'E-mail', 'Telefone']
+    const rows = sortedUsers.map((u) => [
+      u.name || '',
+      u.role || (u.isAdmin ? 'Admin' : 'N/A'),
+      u.active !== false ? 'Ativo' : 'Inativo',
+      u.last_login ? format(new Date(u.last_login), 'dd/MM/yyyy HH:mm') : 'Nunca acessou',
+      u.person_type === 'PF' ? formatCPF(u.tax_id || '') : formatCNPJ(u.tax_id || ''),
+      u.email || u.expand?.supplier?.email || '',
+      u.phone || u.expand?.supplier?.phone || '',
+    ])
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row) => row.map((cell) => `"${(cell || '').replace(/"/g, '""')}"`).join(',')),
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', 'usuarios.csv')
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const handleConfirmBatchAction = async () => {
+    if (batchAction === null) return
+    try {
+      setLoading(true)
+      await Promise.all(selectedUserIds.map((id) => updateUser(id, { active: batchAction })))
+      toast.success(`Usuários ${batchAction ? 'ativados' : 'inativados'} com sucesso.`)
+      setSelectedUserIds([])
+      fetchUsers()
+    } catch (error) {
+      toast.error('Erro ao atualizar usuários em lote.')
+    } finally {
+      setBatchAction(null)
+      setLoading(false)
     }
   }
 
@@ -659,19 +714,60 @@ export default function AdminUsers() {
         </Dialog>
       </div>
 
-      <div className="flex items-center gap-2 max-w-md">
-        <Search className="w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por nome, e-mail ou documento..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+        <div className="flex items-center gap-2 max-w-md w-full relative">
+          <Search className="w-4 h-4 text-muted-foreground absolute left-3" />
+          <Input
+            placeholder="Buscar por nome, e-mail ou documento..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Papel" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">Todos os Papéis</SelectItem>
+              <SelectItem value="Admin">Admin</SelectItem>
+              <SelectItem value="Colaborador">Colaborador</SelectItem>
+              <SelectItem value="Fornecedor">Fornecedor</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">Todos os Status</SelectItem>
+              <SelectItem value="Ativo">Ativo</SelectItem>
+              <SelectItem value="Inativo">Inativo</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Button variant="outline" onClick={handleExportCSV}>
+            <Download className="w-4 h-4 mr-2" />
+            Exportar
+          </Button>
+        </div>
       </div>
 
       <div className="border rounded-md">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={selectedUserIds.length === sortedUsers.length && sortedUsers.length > 0}
+                  onCheckedChange={(checked) =>
+                    setSelectedUserIds(checked ? sortedUsers.map((u) => u.id) : [])
+                  }
+                  aria-label="Selecionar todos"
+                />
+              </TableHead>
               <TableHead
                 className="cursor-pointer hover:bg-muted/50 transition-colors w-full min-w-[200px]"
                 onClick={() => handleSort('name')}
@@ -797,19 +893,30 @@ export default function AdminUsers() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center h-24">
+                <TableCell colSpan={9} className="text-center h-24">
                   Carregando usuários...
                 </TableCell>
               </TableRow>
             ) : sortedUsers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center h-24">
+                <TableCell colSpan={9} className="text-center h-24">
                   Nenhum usuário encontrado.
                 </TableCell>
               </TableRow>
             ) : (
               sortedUsers.map((u) => (
                 <TableRow key={u.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedUserIds.includes(u.id)}
+                      onCheckedChange={(checked) =>
+                        setSelectedUserIds((prev) =>
+                          checked ? [...prev, u.id] : prev.filter((id) => id !== u.id),
+                        )
+                      }
+                      aria-label={`Selecionar usuário ${u.name}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium w-full">
                     <div
                       className="truncate min-w-[150px] max-w-[300px] lg:max-w-[400px]"
@@ -927,6 +1034,36 @@ export default function AdminUsers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={batchAction !== null} onOpenChange={(o) => !o && setBatchAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmação de Ação em Lote</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja {batchAction ? 'ativar' : 'inativar'} {selectedUserIds.length}{' '}
+              usuário(s)?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmBatchAction}>Confirmar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {selectedUserIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-background border shadow-lg rounded-full px-6 py-3 flex items-center gap-4 z-50 animate-in slide-in-from-bottom-10">
+          <span className="text-sm font-medium">{selectedUserIds.length} selecionado(s)</span>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setBatchAction(true)} size="sm">
+              Ativar Selecionados
+            </Button>
+            <Button variant="destructive" onClick={() => setBatchAction(false)} size="sm">
+              Inativar Selecionados
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
