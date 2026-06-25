@@ -283,11 +283,11 @@ export default function AdminUsers() {
 
   const filteredUsers = (users as ExtendedUser[]).filter(
     (u) =>
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
+      (u.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (u.email || '').toLowerCase().includes(search.toLowerCase()) ||
       (searchClean !== '' && u.tax_id?.replace(/\D/g, '').includes(searchClean)) ||
-      u.legal_name?.toLowerCase().includes(search.toLowerCase()) ||
-      u.expand?.supplier?.legal_name?.toLowerCase().includes(search.toLowerCase()),
+      (u.legal_name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (u.expand?.supplier?.legal_name || '').toLowerCase().includes(search.toLowerCase()),
   )
 
   const sortedUsers = [...filteredUsers].sort((a, b) => {
@@ -883,7 +883,7 @@ export default function AdminUsers() {
                   </TableCell>
                   <TableCell>
                     <div className="truncate max-w-[150px] lg:max-w-[200px]" title={u.email}>
-                      {u.email}
+                      {u.email || '-'}
                     </div>
                   </TableCell>
                   <TableCell>
