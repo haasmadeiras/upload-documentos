@@ -40,6 +40,9 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { StatusBadge } from '@/components/StatusBadge'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { CheckCircle2 } from 'lucide-react'
 
 export default function AdminPendingDocuments() {
   const { user, isAuthenticated } = useAuth()
@@ -57,6 +60,12 @@ export default function AdminPendingDocuments() {
     razao_social: '',
     expiration_date: '',
   })
+
+  // Batch actions state
+  const [selectedDocs, setSelectedDocs] = useState<string[]>([])
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [bulkRejectOpen, setBulkRejectOpen] = useState(false)
+  const [bulkRejectReason, setBulkRejectReason] = useState('')
 
   const isMaster = user?.isAdmin === true || user?.role === 'Admin' || user?.role === 'Colaborador'
 
@@ -146,6 +155,72 @@ export default function AdminPendingDocuments() {
     }
   }
 
+  const allSelected = documents.length > 0 && selectedDocs.length === documents.length
+  const someSelected = selectedDocs.length > 0 && selectedDocs.length < documents.length
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedDocs(documents.map((d) => d.id))
+    } else {
+      setSelectedDocs([])
+    }
+  }
+
+  const handleSelectOne = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedDocs((prev) => [...prev, id])
+    } else {
+      setSelectedDocs((prev) => prev.filter((docId) => docId !== id))
+    }
+  }
+
+  const handleBulkApprove = async () => {
+    try {
+      setBulkLoading(true)
+      await Promise.all(
+        selectedDocs.map((id) =>
+          pb.collection('documents').update(id, {
+            status: 'Approved',
+          }),
+        ),
+      )
+      toast.success(`${selectedDocs.length} documentos aprovados com sucesso!`)
+      setSelectedDocs([])
+    } catch (err) {
+      console.error(err)
+      toast.error('Erro ao aprovar documentos selecionados')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  const handleBulkReject = async () => {
+    if (!bulkRejectReason.trim()) {
+      toast.error('Por favor, informe o motivo para rejeição.')
+      return
+    }
+    try {
+      setBulkLoading(true)
+      await Promise.all(
+        selectedDocs.map((id) =>
+          pb.collection('documents').update(id, {
+            status: 'Rejected',
+            rejection_reason: bulkRejectReason,
+          }),
+        ),
+      )
+      toast.success(`${selectedDocs.length} documentos rejeitados com sucesso!`)
+      setSelectedDocs([])
+      setBulkRejectOpen(false)
+      setBulkRejectReason('')
+    } catch (err) {
+      console.error(err)
+      toast.error('Erro ao rejeitar documentos selecionados')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
   const isUnidentified = (val: string) =>
     !val ||
     val.toLowerCase() === 'não identificado' ||
@@ -218,6 +293,13 @@ export default function AdminPendingDocuments() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px] text-center">
+                  <Checkbox
+                    checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                    onCheckedChange={handleSelectAll}
+                    aria-label="Selecionar todos"
+                  />
+                </TableHead>
                 <TableHead>Documento</TableHead>
                 <TableHead>Fornecedor</TableHead>
                 <TableHead>Data</TableHead>
@@ -228,7 +310,7 @@ export default function AdminPendingDocuments() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center h-32">
+                  <TableCell colSpan={6} className="text-center h-32">
                     <div className="flex items-center justify-center">
                       <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
                       <span>Carregando...</span>
@@ -237,13 +319,23 @@ export default function AdminPendingDocuments() {
                 </TableRow>
               ) : documents.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center h-32 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center h-32 text-muted-foreground">
                     Nenhum documento pendente encontrado.
                   </TableCell>
                 </TableRow>
               ) : (
                 documents.map((doc) => (
-                  <TableRow key={doc.id}>
+                  <TableRow
+                    key={doc.id}
+                    className={selectedDocs.includes(doc.id) ? 'bg-muted/50' : ''}
+                  >
+                    <TableCell className="text-center">
+                      <Checkbox
+                        checked={selectedDocs.includes(doc.id)}
+                        onCheckedChange={(checked) => handleSelectOne(doc.id, !!checked)}
+                        aria-label={`Selecionar ${doc.title}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">
                       {doc.title || doc.expand?.definition?.name || 'Sem nome'}
                     </TableCell>
@@ -268,6 +360,71 @@ export default function AdminPendingDocuments() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Floating Batch Actions Toolbar */}
+      {selectedDocs.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-popover border shadow-lg rounded-full px-4 py-3 flex items-center gap-4 z-50 animate-in slide-in-from-bottom-5">
+          <span className="text-sm font-medium bg-muted px-2 py-1 rounded-full">
+            {selectedDocs.length} selecionado(s)
+          </span>
+          <div className="w-px h-6 bg-border" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200"
+            onClick={handleBulkApprove}
+            disabled={bulkLoading}
+          >
+            <CheckCircle2 className="w-4 h-4 mr-2" />
+            Aprovar Selecionados
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
+            onClick={() => setBulkRejectOpen(true)}
+            disabled={bulkLoading}
+          >
+            <X className="w-4 h-4 mr-2" />
+            Rejeitar Selecionados
+          </Button>
+        </div>
+      )}
+
+      {/* Bulk Reject Dialog */}
+      <Dialog open={bulkRejectOpen} onOpenChange={setBulkRejectOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rejeitar {selectedDocs.length} Documentos</DialogTitle>
+            <DialogDescription>
+              Informe o motivo para a rejeição destes documentos. O motivo será o mesmo para todos.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Motivo da Rejeição</Label>
+              <Textarea
+                placeholder="Ex: Documentos ilegíveis ou vencidos..."
+                value={bulkRejectReason}
+                onChange={(e) => setBulkRejectReason(e.target.value)}
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setBulkRejectOpen(false)}
+              disabled={bulkLoading}
+            >
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleBulkReject} disabled={bulkLoading}>
+              Confirmar Rejeição
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!selectedDoc} onOpenChange={(o) => !o && setSelectedDoc(null)}>
         <DialogContent className="max-w-[95vw] lg:max-w-7xl h-[95vh] flex flex-col p-0 gap-0 overflow-hidden bg-slate-50">

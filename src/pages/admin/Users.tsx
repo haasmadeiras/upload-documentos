@@ -26,7 +26,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-type SortField = 'name' | 'email' | 'role' | 'active' | 'tax_id' | 'last_login'
+type SortField = 'name' | 'email' | 'role' | 'active' | 'tax_id' | 'phone' | 'last_login'
 type SortOrder = 'asc' | 'desc'
 type ExtendedUser = User & { last_login?: string }
 import { Switch } from '@/components/ui/switch'
@@ -669,7 +669,7 @@ export default function AdminUsers() {
           <TableHeader>
             <TableRow>
               <TableHead
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                className="cursor-pointer hover:bg-muted/50 transition-colors min-w-[200px]"
                 onClick={() => handleSort('name')}
               >
                 <div className="flex items-center gap-1">
@@ -686,7 +686,7 @@ export default function AdminUsers() {
                 </div>
               </TableHead>
               <TableHead
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                className="cursor-pointer hover:bg-muted/50 transition-colors max-w-[200px]"
                 onClick={() => handleSort('email')}
               >
                 <div className="flex items-center gap-1">
@@ -703,11 +703,11 @@ export default function AdminUsers() {
                 </div>
               </TableHead>
               <TableHead
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                className="cursor-pointer hover:bg-muted/50 transition-colors w-[100px]"
                 onClick={() => handleSort('role')}
               >
                 <div className="flex items-center gap-1">
-                  Role
+                  Papel
                   {sortField === 'role' ? (
                     sortOrder === 'asc' ? (
                       <ArrowUp className="w-3 h-3" />
@@ -720,7 +720,7 @@ export default function AdminUsers() {
                 </div>
               </TableHead>
               <TableHead
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                className="cursor-pointer hover:bg-muted/50 transition-colors w-[100px]"
                 onClick={() => handleSort('active')}
               >
                 <div className="flex items-center gap-1">
@@ -737,7 +737,7 @@ export default function AdminUsers() {
                 </div>
               </TableHead>
               <TableHead
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                className="cursor-pointer hover:bg-muted/50 transition-colors w-[140px]"
                 onClick={() => handleSort('tax_id')}
               >
                 <div className="flex items-center gap-1">
@@ -754,7 +754,24 @@ export default function AdminUsers() {
                 </div>
               </TableHead>
               <TableHead
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                className="cursor-pointer hover:bg-muted/50 transition-colors w-[130px]"
+                onClick={() => handleSort('phone')}
+              >
+                <div className="flex items-center gap-1">
+                  Telefone
+                  {sortField === 'phone' ? (
+                    sortOrder === 'asc' ? (
+                      <ArrowUp className="w-3 h-3" />
+                    ) : (
+                      <ArrowDown className="w-3 h-3" />
+                    )
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 text-muted-foreground/30" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50 transition-colors w-[150px]"
                 onClick={() => handleSort('last_login')}
               >
                 <div className="flex items-center gap-1">
@@ -770,19 +787,19 @@ export default function AdminUsers() {
                   )}
                 </div>
               </TableHead>
-              <TableHead className="text-right">Ações</TableHead>
+              <TableHead className="text-right w-[80px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center h-24">
+                <TableCell colSpan={8} className="text-center h-24">
                   Carregando usuários...
                 </TableCell>
               </TableRow>
             ) : sortedUsers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center h-24">
+                <TableCell colSpan={8} className="text-center h-24">
                   Nenhum usuário encontrado.
                 </TableCell>
               </TableRow>
@@ -790,14 +807,23 @@ export default function AdminUsers() {
               sortedUsers.map((u) => (
                 <TableRow key={u.id}>
                   <TableCell className="font-medium">
-                    {u.name}
+                    <div className="truncate max-w-[200px] lg:max-w-[250px]" title={u.name}>
+                      {u.name}
+                    </div>
                     {(u.legal_name || u.expand?.supplier?.legal_name) && (
-                      <div className="text-xs text-muted-foreground mt-0.5">
+                      <div
+                        className="text-xs text-muted-foreground mt-0.5 truncate max-w-[200px] lg:max-w-[250px]"
+                        title={u.legal_name || u.expand?.supplier?.legal_name}
+                      >
                         {u.legal_name || u.expand?.supplier?.legal_name}
                       </div>
                     )}
                   </TableCell>
-                  <TableCell>{u.email}</TableCell>
+                  <TableCell>
+                    <div className="truncate max-w-[150px] lg:max-w-[200px]" title={u.email}>
+                      {u.email}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <Badge
                       variant={
@@ -820,17 +846,26 @@ export default function AdminUsers() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {u.person_type === 'PF'
-                      ? formatCPF(u.tax_id || '')
-                      : formatCNPJ(u.tax_id || '')}
+                    <span className="whitespace-nowrap">
+                      {u.person_type === 'PF'
+                        ? formatCPF(u.tax_id || '')
+                        : formatCNPJ(u.tax_id || '')}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="whitespace-nowrap text-sm">
+                      {u.phone || u.expand?.supplier?.phone || '-'}
+                    </span>
                   </TableCell>
                   <TableCell>
                     {u.last_login ? (
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-sm text-muted-foreground whitespace-nowrap">
                         {format(new Date(u.last_login), 'dd/MM/yyyy HH:mm')}
                       </span>
                     ) : (
-                      <span className="text-sm text-muted-foreground italic">Nunca acessou</span>
+                      <span className="text-sm text-muted-foreground italic whitespace-nowrap">
+                        Nunca acessou
+                      </span>
                     )}
                   </TableCell>
                   <TableCell className="text-right">
