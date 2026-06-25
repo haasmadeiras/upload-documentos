@@ -9,8 +9,6 @@ import {
 import {
   Trash2,
   FileText,
-  CheckCircle2,
-  XCircle,
   Loader2,
   AlertTriangle,
   ExternalLink,
@@ -462,17 +460,17 @@ export default function AdminCategoryDocuments() {
 
       {/* Review Dialog */}
       <Dialog open={!!selectedDoc} onOpenChange={(open) => !open && setSelectedDoc(null)}>
-        <DialogContent className="max-w-6xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
-          <DialogHeader className="p-6 pb-4 border-b shrink-0">
+        <DialogContent className="max-w-7xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-4 border-b shrink-0 bg-background z-10">
             <DialogTitle className="text-xl font-bold">Revisão de Documento</DialogTitle>
             <DialogDescription className="text-base text-foreground mt-1">
               Upload: {selectedDoc?.title || selectedDoc?.expand?.definition?.name}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+          <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1fr)_550px]">
             {/* Preview Panel */}
-            <div className="flex-1 bg-muted/30 border-r relative p-4 h-full flex flex-col">
+            <div className="bg-muted/30 border-b lg:border-b-0 lg:border-r relative p-4 flex flex-col h-full min-h-0 overflow-hidden">
               <div className="flex justify-between items-center mb-2 shrink-0">
                 <h3 className="text-sm font-medium">Visualização do Arquivo</h3>
                 <div className="flex gap-2">
@@ -527,16 +525,16 @@ export default function AdminCategoryDocuments() {
                 </div>
               </div>
               {selectedDoc && (
-                <div className="flex-1 border rounded-md overflow-hidden bg-white relative">
+                <div className="flex-1 border rounded-md overflow-hidden bg-white relative min-h-0">
                   <FileViewer doc={selectedDoc} />
                 </div>
               )}
             </div>
 
             {/* Actions & AI Analysis Panel */}
-            <div className="w-full md:w-1/2 lg:w-[45%] shrink-0 flex flex-col h-full overflow-y-auto bg-background">
-              <div className="p-6 flex-1 space-y-6 flex flex-col">
-                <div className="space-y-4 shrink-0">
+            <div className="flex flex-col h-full bg-background overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <h4 className="text-sm text-muted-foreground mb-1">Status Atual</h4>
@@ -562,11 +560,9 @@ export default function AdminCategoryDocuments() {
                   </div>
                 </div>
 
-                <div className="flex-1 flex flex-col min-h-[200px]">
-                  <h4 className="text-base font-semibold mb-2 shrink-0">
-                    Análise da IA de Validação
-                  </h4>
-                  <div className="flex-1 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border overflow-y-auto">
+                <div className="flex flex-col">
+                  <h4 className="text-base font-semibold mb-2">Análise da IA de Validação</h4>
+                  <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border">
                     {selectedDoc?.analysis_log ? (
                       (() => {
                         const log = selectedDoc.analysis_log
@@ -670,71 +666,67 @@ export default function AdminCategoryDocuments() {
                         )
                       })()
                     ) : (
-                      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                      <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
                         Nenhuma análise disponível.
                       </div>
                     )}
                   </div>
                 </div>
+              </div>
 
-                <div className="pt-4 border-t shrink-0 mt-auto space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Atualizar Status</Label>
-                      <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Pending">Pendente</SelectItem>
-                          <SelectItem value="Approved">Aprovado</SelectItem>
-                          <SelectItem value="Rejected">Rejeitado</SelectItem>
-                          <SelectItem value="Aguardando Aprovação">Aguardando Aprovação</SelectItem>
-                          <SelectItem value="Vencido">Vencido</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Data de Validade (Opcional)</Label>
-                      <Input
-                        type="date"
-                        value={expirationDate}
-                        onChange={(e) => setExpirationDate(e.target.value)}
-                        className="h-10"
-                      />
-                    </div>
+              <div className="p-6 pt-4 border-t bg-muted/10 shrink-0 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Atualizar Status</Label>
+                    <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Pending">Pendente</SelectItem>
+                        <SelectItem value="Approved">Aprovado</SelectItem>
+                        <SelectItem value="Rejected">Rejeitado</SelectItem>
+                        <SelectItem value="Aguardando Aprovação">Aguardando Aprovação</SelectItem>
+                        <SelectItem value="Vencido">Vencido</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  {(selectedStatus === 'Rejected' || selectedStatus === 'Aguardando Aprovação') && (
-                    <div className="space-y-2 animate-fade-in-up">
-                      <Label className="text-destructive font-medium">Motivo</Label>
-                      <textarea
-                        placeholder="Descreva claramente o motivo para orientar o fornecedor..."
-                        value={rejectionReason}
-                        onChange={(e) => setRejectionReason(e.target.value)}
-                        className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      />
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 pt-2">
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => setSelectedDoc(null)}
-                      disabled={actionLoading}
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      className="w-full"
-                      onClick={handleUpdateStatus}
-                      disabled={actionLoading}
-                    >
-                      Salvar Alterações
-                    </Button>
+                  <div className="space-y-2">
+                    <Label>Data de Validade (Opcional)</Label>
+                    <Input
+                      type="date"
+                      value={expirationDate}
+                      onChange={(e) => setExpirationDate(e.target.value)}
+                      className="h-10"
+                    />
                   </div>
+                </div>
+
+                {(selectedStatus === 'Rejected' || selectedStatus === 'Aguardando Aprovação') && (
+                  <div className="space-y-2 animate-fade-in-up">
+                    <Label className="text-destructive font-medium">Motivo</Label>
+                    <textarea
+                      placeholder="Descreva claramente o motivo para orientar o fornecedor..."
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setSelectedDoc(null)}
+                    disabled={actionLoading}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button className="w-full" onClick={handleUpdateStatus} disabled={actionLoading}>
+                    Salvar Alterações
+                  </Button>
                 </div>
               </div>
             </div>
