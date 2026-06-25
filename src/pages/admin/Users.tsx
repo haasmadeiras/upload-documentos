@@ -686,23 +686,6 @@ export default function AdminUsers() {
                 </div>
               </TableHead>
               <TableHead
-                className="cursor-pointer hover:bg-muted/50 transition-colors max-w-[200px]"
-                onClick={() => handleSort('email')}
-              >
-                <div className="flex items-center gap-1">
-                  E-mail
-                  {sortField === 'email' ? (
-                    sortOrder === 'asc' ? (
-                      <ArrowUp className="w-3 h-3" />
-                    ) : (
-                      <ArrowDown className="w-3 h-3" />
-                    )
-                  ) : (
-                    <ArrowUpDown className="w-3 h-3 text-muted-foreground/30" />
-                  )}
-                </div>
-              </TableHead>
-              <TableHead
                 className="cursor-pointer hover:bg-muted/50 transition-colors w-[100px]"
                 onClick={() => handleSort('role')}
               >
@@ -736,6 +719,24 @@ export default function AdminUsers() {
                   )}
                 </div>
               </TableHead>
+              <TableHead className="w-[100px]">Ações</TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50 transition-colors w-[150px]"
+                onClick={() => handleSort('last_login')}
+              >
+                <div className="flex items-center gap-1">
+                  Último Acesso
+                  {sortField === 'last_login' ? (
+                    sortOrder === 'asc' ? (
+                      <ArrowUp className="w-3 h-3" />
+                    ) : (
+                      <ArrowDown className="w-3 h-3" />
+                    )
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 text-muted-foreground/30" />
+                  )}
+                </div>
+              </TableHead>
               <TableHead
                 className="cursor-pointer hover:bg-muted/50 transition-colors w-[140px]"
                 onClick={() => handleSort('tax_id')}
@@ -743,6 +744,23 @@ export default function AdminUsers() {
                 <div className="flex items-center gap-1">
                   CNPJ/CPF
                   {sortField === 'tax_id' ? (
+                    sortOrder === 'asc' ? (
+                      <ArrowUp className="w-3 h-3" />
+                    ) : (
+                      <ArrowDown className="w-3 h-3" />
+                    )
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 text-muted-foreground/30" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50 transition-colors max-w-[200px]"
+                onClick={() => handleSort('email')}
+              >
+                <div className="flex items-center gap-1">
+                  E-mail
+                  {sortField === 'email' ? (
                     sortOrder === 'asc' ? (
                       <ArrowUp className="w-3 h-3" />
                     ) : (
@@ -770,24 +788,6 @@ export default function AdminUsers() {
                   )}
                 </div>
               </TableHead>
-              <TableHead
-                className="cursor-pointer hover:bg-muted/50 transition-colors w-[150px]"
-                onClick={() => handleSort('last_login')}
-              >
-                <div className="flex items-center gap-1">
-                  Último Acesso
-                  {sortField === 'last_login' ? (
-                    sortOrder === 'asc' ? (
-                      <ArrowUp className="w-3 h-3" />
-                    ) : (
-                      <ArrowDown className="w-3 h-3" />
-                    )
-                  ) : (
-                    <ArrowUpDown className="w-3 h-3 text-muted-foreground/30" />
-                  )}
-                </div>
-              </TableHead>
-              <TableHead className="text-right w-[80px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -820,11 +820,6 @@ export default function AdminUsers() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="truncate max-w-[150px] lg:max-w-[200px]" title={u.email}>
-                      {u.email}
-                    </div>
-                  </TableCell>
-                  <TableCell>
                     <Badge
                       variant={
                         u.role === 'Admin' || u.isAdmin
@@ -846,31 +841,8 @@ export default function AdminUsers() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <span className="whitespace-nowrap">
-                      {u.person_type === 'PF'
-                        ? formatCPF(u.tax_id || '')
-                        : formatCNPJ(u.tax_id || '')}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="whitespace-nowrap text-sm">
-                      {u.phone || u.expand?.supplier?.phone || '-'}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    {u.last_login ? (
-                      <span className="text-sm text-muted-foreground whitespace-nowrap">
-                        {format(new Date(u.last_login), 'dd/MM/yyyy HH:mm')}
-                      </span>
-                    ) : (
-                      <span className="text-sm text-muted-foreground italic whitespace-nowrap">
-                        Nunca acessou
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
                     {canEditOrDelete(u) && (
-                      <div className="flex justify-end gap-2">
+                      <div className="flex gap-2">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -890,6 +862,34 @@ export default function AdminUsers() {
                         </Button>
                       </div>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    {u.last_login ? (
+                      <span className="text-sm text-muted-foreground whitespace-nowrap">
+                        {format(new Date(u.last_login), 'dd/MM/yyyy HH:mm')}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground italic whitespace-nowrap">
+                        Nunca acessou
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <span className="whitespace-nowrap">
+                      {u.person_type === 'PF'
+                        ? formatCPF(u.tax_id || '')
+                        : formatCNPJ(u.tax_id || '')}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="truncate max-w-[150px] lg:max-w-[200px]" title={u.email}>
+                      {u.email}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="whitespace-nowrap text-sm">
+                      {u.phone || u.expand?.supplier?.phone || '-'}
+                    </span>
                   </TableCell>
                 </TableRow>
               ))
