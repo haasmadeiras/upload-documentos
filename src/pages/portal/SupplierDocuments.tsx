@@ -188,6 +188,14 @@ export default function SupplierDocuments() {
                       >
                         <XCircle className="w-3.5 h-3.5" /> Vencido
                       </Badge>
+                    ) : status === 'pending' || status === 'pendente' ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-blue-50 text-blue-700 border-blue-200 gap-1.5 font-medium animate-pulse"
+                      >
+                        <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />
+                        Analisando Documento
+                      </Badge>
                     ) : (
                       <StatusBadge status={doc.status} />
                     )}
@@ -237,6 +245,36 @@ export default function SupplierDocuments() {
                             <span className="text-muted-foreground">Nome Identificado:</span>
                             <span className="font-medium line-clamp-2">
                               {doc.analysis_log.extracted_name}
+                            </span>
+                          </div>
+                        )}
+                        {doc.analysis_log.extracted_plate && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Placa Identificada:</span>
+                            <span className="font-medium">{doc.analysis_log.extracted_plate}</span>
+                          </div>
+                        )}
+                        {doc.analysis_log.control_code && (
+                          <div className="flex flex-col">
+                            <span className="text-muted-foreground">Código de Controle:</span>
+                            <span className="font-medium truncate">
+                              {doc.analysis_log.control_code}
+                            </span>
+                          </div>
+                        )}
+                        {doc.analysis_log.has_signature !== undefined && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Assinado:</span>
+                            <span className="font-medium">
+                              {doc.analysis_log.has_signature ? 'Sim' : 'Não'}
+                            </span>
+                          </div>
+                        )}
+                        {doc.analysis_log.is_legible !== undefined && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Legível:</span>
+                            <span className="font-medium">
+                              {doc.analysis_log.is_legible ? 'Sim' : 'Não'}
                             </span>
                           </div>
                         )}

@@ -5,22 +5,29 @@ onRecordAfterCreateSuccess(async (e) => {
     const docId = e.record.id
     const userId = e.record.getString('user')
 
-    let expectedTaxId = ''
-    let expectedName = ''
+    let contextText = ''
 
     try {
       if (e.record.getString('supplier')) {
         const supplier = $app.findRecordById('suppliers', e.record.getString('supplier'))
-        expectedTaxId = supplier.getString('tax_id')
-        expectedName = supplier.getString('legal_name') || supplier.getString('name')
+        const taxId = supplier.getString('tax_id')
+        const name = supplier.getString('legal_name') || supplier.getString('name')
+        contextText = `Entidade do Documento: Fornecedor (PJ/PF)\nCNPJ/CPF Esperado: ${taxId}\nNome/Razão Social Esperada: ${name}`
       } else if (e.record.getString('employee')) {
         const emp = $app.findRecordById('employees', e.record.getString('employee'))
-        expectedTaxId = emp.getString('tax_id')
-        expectedName = emp.getString('name')
+        const taxId = emp.getString('tax_id')
+        const name = emp.getString('name')
+        contextText = `Entidade do Documento: Colaborador\nCPF Esperado: ${taxId}\nNome Esperado: ${name}`
+      } else if (e.record.getString('vehicle')) {
+        const veh = $app.findRecordById('vehicles', e.record.getString('vehicle'))
+        const plate = veh.getString('plate')
+        const model = veh.getString('model')
+        contextText = `Entidade do Documento: Veículo\nPlaca Esperada: ${plate}\nModelo Esperado: ${model}`
       } else {
         const userRecord = $app.findRecordById('users', userId)
-        expectedTaxId = userRecord.getString('tax_id')
-        expectedName = userRecord.getString('legal_name') || userRecord.getString('name')
+        const taxId = userRecord.getString('tax_id')
+        const name = userRecord.getString('legal_name') || userRecord.getString('name')
+        contextText = `Entidade do Documento: Usuário Geral\nCPF/CNPJ Esperado: ${taxId}\nNome Esperado: ${name}`
       }
     } catch (err) {
       console.log('Error fetching context:', err.message)
@@ -36,25 +43,30 @@ onRecordAfterCreateSuccess(async (e) => {
       }
     } catch (err) {}
 
-    const promptMessage = `Por favor, analise o documento recém-enviado.
-ID do Registro do Documento: ${docId}
-Tipo de Documento Esperado: ${defName}
-Instruções Específicas de Validação: ${defInstructions ? defInstructions : 'Nenhuma instrução específica.'}
-CNPJ/CPF Esperado: ${expectedTaxId}
-Nome/Razão Social Esperado: ${expectedName}
-Data Atual: ${new Date().toISOString().split('T')[0]}
+    const promptMessage = `Analise o documento enviado.
+ID do Documento: ${docId}
+Tipo Esperado: ${defName}
 
-Instruções:
-1. Use a ferramenta 'documents' ou de leitura para buscar e analisar o arquivo associado ao documento de ID ${docId}.
-2. Verifique se o documento corresponde ao 'Tipo de Documento Esperado'.
-3. Extraia o CNPJ/CPF do documento. REMOVA todas as pontuações (pontos, traços, barras) do CNPJ/CPF extraído e do 'CNPJ/CPF Esperado'. Compare apenas os dígitos numéricos. Especificamente para Certidão Negativa de Débitos (CND Estadual, etc), se a raiz (primeiros 8 dígitos numéricos) coincidir, considere válido.
-4. Extraia o Nome/Razão Social e verifique se corresponde ao esperado usando fuzzy matching (tolere pequenas diferenças e abreviações).
-5. Siga rigorosamente as 'Instruções Específicas de Validação' se houver.
-6. Extraia a data de validade (expiration_date) presente no documento no formato YYYY-MM-DD. PRIORIZE buscar pelos campos "Esta certidão é válida até", "válida até", "validade:", "vencimento em" ou similares. Seja extremamente preciso ao capturar a data. Se o documento contiver datas no formato brasileiro (ex: 17/05/2026 ou 17/5/2026), converta corretamente para YYYY-MM-DD (ex: 2026-05-17). Não invente datas como o último dia do ano se não estiver explícito.
-7. Se a data de validade extraída for anterior à 'Data Atual', classifique obrigatoriamente o status como 'Vencido' e defina is_expired como true.
-8. Se os dados de CNPJ/CPF numéricos ou Nome não corresponderem, classifique como 'Rejected' com os devidos detalhes em explanation e forneça o motivo específico e claro em português no campo rejection_reason.
+Instruções Específicas:
+${defInstructions || 'Nenhuma instrução adicional.'}
 
-RETORNE APENAS um JSON estrito. Não adicione texto antes ou depois do JSON. Não envolva com crases (markdown).`
+${contextText}
+
+Data Atual (Referência): ${new Date().toISOString().split('T')[0]}
+
+Instruções da Análise:
+1. Acesse o arquivo associado ao registro de documento com ID ${docId}.
+2. Legibilidade/Qualidade: Se o arquivo estiver ilegível, muito cortado, com resolução ruim ou orientação que impeça a leitura total, classifique como 'Rejected' imediatamente.
+3. Correspondência de Tipo: Verifique se o arquivo realmente é do 'Tipo Esperado'.
+4. Identificadores: 
+   - Se Fornecedor/PJ: Extraia o CNPJ e compare. Considere válido se os primeiros 8 dígitos (raiz) baterem. 
+   - Se Colaborador: Compare CPF/Nome.
+   - Se Veículo: Extraia e compare a Placa (ou Chassi).
+5. Autenticidade: Verifique se possui código de controle (control code), QR Code ou assinaturas caso seja comum para o tipo (ex: CND, contratos). 
+6. Validade: Extraia a data de vencimento/validade no formato YYYY-MM-DD. Se a data for anterior à 'Data Atual', o status DEVE ser 'Vencido' e 'is_expired' = true.
+7. Regra Final de Decisão: Retorne 'Approved' se todos os critérios essenciais estiverem atendidos; 'Rejected' se algo crítico falhar (ex. documento diferente, ilegível, divergência de CNPJ raiz); 'Vencido' se expirado; 'Aguardando Aprovação' em casos duvidosos ou que dependam de revisão humana.
+
+RETORNE EXCLUSIVAMENTE UM JSON DE ACORDO COM O SCHEMA ESTABELECIDO, SEM CRASES DE MARKDOWN.`
 
     let analysisResult = null
     let rawContent = ''
@@ -69,7 +81,7 @@ RETORNE APENAS um JSON estrito. Não adicione texto antes ou depois do JSON. Nã
           message:
             attempts === 1
               ? promptMessage
-              : `A resposta anterior não foi um JSON válido. Por favor, retorne APENAS um JSON estrito. Erro: ${lastError.message}`,
+              : `Retorne APENAS um JSON válido estrito. Erro anterior: ${lastError.message}`,
           response_format: {
             type: 'json_schema',
             json_schema: {
@@ -82,15 +94,31 @@ RETORNE APENAS um JSON estrito. Não adicione texto antes ou depois do JSON. Nã
                     type: 'string',
                     enum: ['Approved', 'Rejected', 'Aguardando Aprovação', 'Vencido'],
                   },
-                  rejection_reason: {
-                    type: 'string',
-                    description: 'Motivo detalhado da rejeição se o status não for Approved.',
-                  },
+                  rejection_reason: { type: 'string' },
                   explanation: { type: 'string' },
-                  extracted_expiration_date: { type: 'string' },
+                  extracted_expiration_date: {
+                    type: 'string',
+                    description: 'YYYY-MM-DD ou string vazia',
+                  },
                   is_expired: { type: 'boolean' },
-                  extracted_tax_id: { type: 'string' },
-                  extracted_name: { type: 'string' },
+                  extracted_tax_id: {
+                    type: 'string',
+                    description: 'CNPJ/CPF extraído ou string vazia',
+                  },
+                  extracted_name: {
+                    type: 'string',
+                    description: 'Nome/Razão Social extraída ou string vazia',
+                  },
+                  extracted_plate: {
+                    type: 'string',
+                    description: 'Placa extraída ou string vazia',
+                  },
+                  control_code: {
+                    type: 'string',
+                    description: 'Código de validação, autenticação ou string vazia',
+                  },
+                  has_signature: { type: 'boolean' },
+                  is_legible: { type: 'boolean' },
                   match_confidence: {
                     type: 'string',
                     enum: ['High', 'Medium', 'Low'],
@@ -104,6 +132,10 @@ RETORNE APENAS um JSON estrito. Não adicione texto antes ou depois do JSON. Nã
                   'is_expired',
                   'extracted_tax_id',
                   'extracted_name',
+                  'extracted_plate',
+                  'control_code',
+                  'has_signature',
+                  'is_legible',
                   'match_confidence',
                 ],
                 additionalProperties: false,
@@ -114,15 +146,12 @@ RETORNE APENAS um JSON estrito. Não adicione texto antes ou depois do JSON. Nã
 
         rawContent = result.content
         let jsonStr = rawContent.trim()
-
         if (jsonStr.startsWith('```')) {
           jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
         }
 
         const jsonMatch = jsonStr.match(/\{[\s\S]*\}/)
-        if (jsonMatch) {
-          jsonStr = jsonMatch[0]
-        }
+        if (jsonMatch) jsonStr = jsonMatch[0]
 
         analysisResult = JSON.parse(jsonStr)
 
@@ -142,12 +171,16 @@ RETORNE APENAS um JSON estrito. Não adicione texto antes ou depois do JSON. Nã
     if (!analysisResult) {
       analysisResult = {
         status: 'Aguardando Aprovação',
-        rejection_reason: 'Falha ao processar resposta da IA. Documento será revisado manualmente.',
-        explanation: 'Falha ao processar resposta da IA. Documento será revisado manualmente.',
+        rejection_reason: 'Falha ao processar resposta da IA. Revisão manual necessária.',
+        explanation: 'Falha no parser do JSON.',
         extracted_expiration_date: '',
         is_expired: false,
         extracted_tax_id: '',
         extracted_name: '',
+        extracted_plate: '',
+        control_code: '',
+        has_signature: false,
+        is_legible: true,
         match_confidence: 'Low',
       }
     }
@@ -162,7 +195,9 @@ RETORNE APENAS um JSON estrito. Não adicione texto antes ou depois do JSON. Nã
       docRecord.set('status', 'Rejected')
       docRecord.set(
         'rejection_reason',
-        analysisResult.rejection_reason || analysisResult.explanation || 'Documento inválido.',
+        analysisResult.rejection_reason ||
+          analysisResult.explanation ||
+          'Documento inválido ou ilegível.',
       )
     } else if (analysisResult.status === 'Vencido' || analysisResult.is_expired) {
       docRecord.set('status', 'Vencido')
@@ -182,7 +217,6 @@ RETORNE APENAS um JSON estrito. Não adicione texto antes ou depois do JSON. Nã
 
     if (
       analysisResult.extracted_expiration_date &&
-      analysisResult.extracted_expiration_date !== 'null' &&
       analysisResult.extracted_expiration_date.includes('-')
     ) {
       try {
@@ -192,7 +226,6 @@ RETORNE APENAS um JSON estrito. Não adicione texto antes ou depois do JSON. Nã
             'expiration_date',
             analysisResult.extracted_expiration_date + ' 12:00:00.000Z',
           )
-
           if (expDate < Date.now()) {
             docRecord.set('status', 'Vencido')
             docRecord.set(
