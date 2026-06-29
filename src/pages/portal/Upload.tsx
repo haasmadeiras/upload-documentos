@@ -28,6 +28,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { FileUploader } from '@/components/FileUploader'
 import { createDocument, updateDocument } from '@/services/documents'
 import { useRealtime } from '@/hooks/use-realtime'
+import { extractFieldErrors, getErrorMessage } from '@/lib/pocketbase/errors'
 import { cn } from '@/lib/utils'
 
 export default function PortalUpload() {
@@ -94,7 +95,9 @@ export default function PortalUpload() {
             toast.success('Documento analisado e aceito com sucesso!')
             setTimeout(() => navigate('/portal/contratados'), 1500)
           } else {
-            toast.info('Documento em análise manual.')
+            toast.info('Documento encaminhado para análise manual.', {
+              description: 'Nossa equipe irá revisar o documento em breve.',
+            })
           }
         }
 
@@ -143,9 +146,17 @@ export default function PortalUpload() {
       setFile(null)
     } catch (err: any) {
       console.error(err)
-      toast.error('Erro ao enviar documento.', {
-        description: err?.message || 'Tente novamente.',
-      })
+      const fieldErrors = extractFieldErrors(err)
+      const errorFields = Object.keys(fieldErrors)
+      if (errorFields.length > 0) {
+        toast.error('Erro de validação', {
+          description: errorFields.map((f) => `${f}: ${fieldErrors[f]}`).join('\n'),
+        })
+      } else {
+        toast.error('Erro ao enviar documento.', {
+          description: getErrorMessage(err),
+        })
+      }
       setValidating(false)
     } finally {
       setSubmitting(false)

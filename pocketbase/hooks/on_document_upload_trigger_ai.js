@@ -3,19 +3,12 @@ onRecordAfterCreateSuccess((e) => {
 
   function cleanJsonResponse(raw) {
     var str = (raw || '').trim()
-    str = str.replace(/```json/gi, '').replace(/```/gi, '')
-    str = str.replace(/^[^{]*\{/, '{')
-    var match = str.match(/\{[\s\S]*\}/)
-    if (match) str = match[0]
-    while (str.indexOf('{') !== str.lastIndexOf('{') && str.indexOf('}') !== str.lastIndexOf('}')) {
-      var firstOpen = str.indexOf('{')
-      var lastClose = str.lastIndexOf('}')
-      if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
-        str = str.substring(firstOpen, lastClose + 1)
-        break
-      } else {
-        break
-      }
+    str = str.replace(/```json\s*/gi, '').replace(/```\s*/gi, '')
+    str = str.replace(/```/gi, '')
+    var firstBrace = str.indexOf('{')
+    var lastBrace = str.lastIndexOf('}')
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      str = str.substring(firstBrace, lastBrace + 1)
     }
     return str.trim()
   }
@@ -182,7 +175,7 @@ onRecordAfterCreateSuccess((e) => {
           ctx.expectedName
 
     var systemPrompt =
-      'You are an expert legal and compliance analyst specialized in Brazilian documentation (CNPJ, CPF, CNH, CRLV, FGTS, certificates, contracts, etc.). You have vision capabilities to read and analyze uploaded document images and PDFs.\n\nYour task is to analyze the provided document file and determine its validity based on the context and specific instructions provided.\n\nAnalysis requirements:\n1. Use vision to read and extract ALL visible information from the document.\n2. Verify document type: Confirm the file corresponds to the expected document type.\n3. Verify identifiers:\n   - For Suppliers (PJ/PF): Extract CNPJ/CPF and compare with the expected value. For CNPJ, consider valid if the first 8 digits (root) match.\n   - For Employees: Extract and compare CPF and Name.\n   - For Vehicles: Extract and compare license plate and model.\n4. Check authenticity: Look for control codes, QR codes, digital signatures, watermarks, or seals typical for the document type.\n5. Check validity: Extract expiration/issue date in YYYY-MM-DD format. If before current date, document is expired.\n6. Assess quality: Verify the document is legible, not cut off, properly oriented, and has sufficient resolution.\n7. Apply specific instructions: Follow any document-type-specific instructions provided.\n\nStatus decision rules:\n- "Approved": All essential criteria met (correct type, matching IDs, valid date, legible, required signatures/codes present).\n- "Rejected": Critical failure (wrong document type, illegible, ID mismatch, missing required signature/code, cut off).\n- "Vencido": Document is expired (expiration date before current date).\n- "Aguardando Aprovação": Uncertain cases requiring human review (borderline quality, partial match, unusual format).\n\nReturn STRICTLY a JSON object with no markdown formatting, no code blocks, no extra text.'
+      'You are an expert legal and compliance analyst specialized in Brazilian documentation (CNPJ, CPF, CNH, CRLV, FGTS, certificates, contracts, etc.). You have vision capabilities to read and analyze uploaded document images and PDFs.\n\nYour task is to analyze the provided document file and determine its validity based on the context and specific instructions provided.\n\nAnalysis requirements:\n1. Use vision to read and extract ALL visible information from the document.\n2. Verify document type: Confirm the file corresponds to the expected document type.\n3. Verify identifiers:\n   - For Suppliers (PJ/PF): Extract CNPJ/CPF and compare with the expected value. For CNPJ, consider valid if the first 8 digits (root) match.\n   - For Employees: Extract and compare CPF and Name.\n   - For Vehicles: Extract and compare license plate and model.\n4. Check authenticity: Look for control codes, QR codes, digital signatures, watermarks, or seals typical for the document type.\n5. Check validity: Extract expiration/issue date in YYYY-MM-DD format. If before current date, document is expired.\n6. Assess quality: Verify the document is legible, not cut off, properly oriented, and has sufficient resolution.\n7. Apply specific instructions: Follow any document-type-specific instructions provided.\n\nStatus decision rules:\n- "Approved": All essential criteria met (correct type, matching IDs, valid date, legible, required signatures/codes present).\n- "Rejected": Critical failure (wrong document type, illegible, ID mismatch, missing required signature/code, cut off).\n- "Vencido": Document is expired (expiration date before current date).\n- "Aguardando Aprovação": Uncertain cases requiring human review (borderline quality, partial match, unusual format).\n\nReturn STRICTLY a JSON object with no markdown formatting, no code blocks, no extra text.\n\nThe JSON object must have exactly these fields:\n{\n  "status": "Approved" | "Rejected" | "Aguardando Aprovação" | "Vencido",\n  "rejection_reason": string,\n  "explanation": string,\n  "extracted_expiration_date": "YYYY-MM-DD" | "",\n  "is_expired": boolean,\n  "extracted_tax_id": string,\n  "extracted_name": string,\n  "extracted_plate": string,\n  "control_code": string,\n  "has_signature": boolean,\n  "is_legible": boolean,\n  "match_confidence": "High" | "Medium" | "Low"\n}\n\nAll fields are required. Return ONLY the JSON object, no other text.'
 
     var userPrompt =
       'Analise o documento enviado.\nID do Documento: ' +
@@ -200,55 +193,6 @@ onRecordAfterCreateSuccess((e) => {
         ? 'Examine o arquivo de imagem/PDF fornecido abaixo.'
         : 'Acesse o arquivo associado ao registro de documento com ID ' + docId + '.') +
       ' Use visão para ler todo o conteúdo visível.\n2. Legibilidade/Qualidade: Se o arquivo estiver ilegível, muito cortado, com resolução ruim, classifique como Rejected.\n3. Correspondência de Tipo: Verifique se o arquivo realmente é do Tipo Esperado.\n4. Identificadores: Se Fornecedor/PJ, extraia o CNPJ e compare (raiz 8 dígitos). Se Colaborador, compare CPF/Nome. Se Veículo, extraia e compare a Placa.\n5. Autenticidade: Verifique código de controle, QR Code ou assinaturas caso seja comum para o tipo.\n6. Validade: Extraia a data de vencimento no formato YYYY-MM-DD. Se anterior à Data Atual, o status DEVE ser Vencido e is_expired = true.\n7. Decisão: Approved se todos os critérios atendidos; Rejected se algo crítico falhar; Vencido se expirado; Aguardando Aprovação em casos duvidosos.\n\nRETORNE EXCLUSIVAMENTE UM JSON, SEM MARKDOWN, SEM CRASES.'
-
-    var jsonSchema = {
-      type: 'json_schema',
-      json_schema: {
-        name: 'document_analysis',
-        strict: true,
-        schema: {
-          type: 'object',
-          properties: {
-            status: {
-              type: 'string',
-              enum: ['Approved', 'Rejected', 'Aguardando Aprovação', 'Vencido'],
-            },
-            rejection_reason: { type: 'string' },
-            explanation: { type: 'string' },
-            extracted_expiration_date: {
-              type: 'string',
-              description: 'YYYY-MM-DD or empty string',
-            },
-            is_expired: { type: 'boolean' },
-            extracted_tax_id: { type: 'string', description: 'CNPJ/CPF extracted or empty string' },
-            extracted_name: {
-              type: 'string',
-              description: 'Name/Razao Social extracted or empty string',
-            },
-            extracted_plate: { type: 'string', description: 'Plate extracted or empty string' },
-            control_code: { type: 'string', description: 'Validation/auth code or empty string' },
-            has_signature: { type: 'boolean' },
-            is_legible: { type: 'boolean' },
-            match_confidence: { type: 'string', enum: ['High', 'Medium', 'Low'] },
-          },
-          required: [
-            'status',
-            'rejection_reason',
-            'explanation',
-            'extracted_expiration_date',
-            'is_expired',
-            'extracted_tax_id',
-            'extracted_name',
-            'extracted_plate',
-            'control_code',
-            'has_signature',
-            'is_legible',
-            'match_confidence',
-          ],
-          additionalProperties: false,
-        },
-      },
-    }
 
     var analysisResult = null
     var rawContent = ''
@@ -275,7 +219,6 @@ onRecordAfterCreateSuccess((e) => {
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userContent },
           ],
-          response_format: jsonSchema,
         }
 
         var result = $ai.chat(chatParams)
@@ -301,11 +244,10 @@ onRecordAfterCreateSuccess((e) => {
 
     if (!analysisResult) {
       analysisResult = {
-        status: 'Rejected',
-        rejection_reason: 'Erro no processamento técnico do documento',
+        status: 'Aguardando Aprovação',
+        rejection_reason: 'Necessita de revisão humana.',
         explanation:
-          'JSON parse failure after 3 attempts. Last error: ' +
-          (lastError ? lastError.message : 'unknown'),
+          'Não foi possível processar o documento automaticamente. O documento foi encaminhado para análise manual.',
         extracted_expiration_date: '',
         is_expired: false,
         extracted_tax_id: '',
@@ -381,16 +323,18 @@ onRecordAfterCreateSuccess((e) => {
     console.log('Failed to trigger AI analyst:', err.message)
     try {
       var docRecord = $app.findRecordById('documents', e.record.id)
-      docRecord.set('status', 'Rejected')
-      docRecord.set('rejection_reason', 'Erro no processamento técnico do documento')
+      docRecord.set('status', 'Aguardando Aprovação')
+      docRecord.set('rejection_reason', 'Necessita de revisão humana.')
       docRecord.set('analysis_log', {
-        status: 'Rejected',
-        rejection_reason: 'Erro no processamento técnico do documento',
-        explanation: 'Unexpected error: ' + err.message,
+        status: 'Aguardando Aprovação',
+        rejection_reason: 'Necessita de revisão humana.',
+        explanation:
+          'Não foi possível processar o documento automaticamente. O documento foi encaminhado para análise manual.',
         raw_ai_response: '',
         validation_errors: [],
         analyzed_at: new Date().toISOString(),
         error: err.message,
+        technical_error: true,
       })
       $app.save(docRecord)
     } catch (saveErr) {}
