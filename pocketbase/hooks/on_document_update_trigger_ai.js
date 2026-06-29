@@ -1,154 +1,180 @@
 onRecordAfterUpdateSuccess((e) => {
-  const originalStatus = e.record.original().getString('status')
-  const newStatus = e.record.getString('status')
-
+  var originalStatus = e.record.original().getString('status')
+  var newStatus = e.record.getString('status')
   if (newStatus !== 'Pending') return e.next()
   if (originalStatus === 'Pending') return e.next()
 
-  try {
-    const docId = e.record.id
-    const userId = e.record.getString('user')
+  function cleanJsonResponse(raw) {
+    var str = (raw || '').trim()
+    str = str.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
+    str = str.replace(/^```(?:json)?\r?\n/i, '').replace(/\r?\n```$/i, '')
+    var match = str.match(/\{[\s\S]*\}/)
+    if (match) str = match[0]
+    return str.trim()
+  }
 
-    let contextText = ''
+  function buildContext() {
+    var ctx = {
+      type: 'Unknown',
+      expectedTaxId: '',
+      expectedName: '',
+      expectedPlate: '',
+      expectedModel: '',
+    }
     try {
-      if (e.record.getString('supplier')) {
-        const supplier = $app.findRecordById('suppliers', e.record.getString('supplier'))
-        const taxId = supplier.getString('tax_id')
-        const name = supplier.getString('legal_name') || supplier.getString('name')
-        contextText = `Entidade do Documento: Fornecedor (PJ/PF)\nCNPJ/CPF Esperado: ${taxId}\nNome/Razão Social Esperada: ${name}`
-      } else if (e.record.getString('employee')) {
-        const emp = $app.findRecordById('employees', e.record.getString('employee'))
-        const taxId = emp.getString('tax_id')
-        const name = emp.getString('name')
-        contextText = `Entidade do Documento: Colaborador\nCPF Esperado: ${taxId}\nNome Esperado: ${name}`
-      } else if (e.record.getString('vehicle')) {
-        const veh = $app.findRecordById('vehicles', e.record.getString('vehicle'))
-        const plate = veh.getString('plate')
-        const model = veh.getString('model')
-        contextText = `Entidade do Documento: Veículo\nPlaca Esperada: ${plate}\nModelo Esperado: ${model}`
-      } else {
-        const userRecord = $app.findRecordById('users', userId)
-        const taxId = userRecord.getString('tax_id')
-        const name = userRecord.getString('legal_name') || userRecord.getString('name')
-        contextText = `Entidade do Documento: Usuário Geral\nCPF/CNPJ Esperado: ${taxId}\nNome Esperado: ${name}`
+      var supplierId = e.record.getString('supplier')
+      var employeeId = e.record.getString('employee')
+      var vehicleId = e.record.getString('vehicle')
+      var userId = e.record.getString('user')
+      if (supplierId) {
+        var s = $app.findRecordById('suppliers', supplierId)
+        ctx.type = 'Fornecedor'
+        ctx.expectedTaxId = s.getString('tax_id')
+        ctx.expectedName = s.getString('legal_name') || s.getString('name')
+      } else if (employeeId) {
+        var emp = $app.findRecordById('employees', employeeId)
+        ctx.type = 'Colaborador'
+        ctx.expectedTaxId = emp.getString('tax_id')
+        ctx.expectedName = emp.getString('name')
+      } else if (vehicleId) {
+        var v = $app.findRecordById('vehicles', vehicleId)
+        ctx.type = 'Veiculo'
+        ctx.expectedPlate = v.getString('plate')
+        ctx.expectedModel = v.getString('model')
+      } else if (userId) {
+        var u = $app.findRecordById('users', userId)
+        ctx.type = 'Usuario'
+        ctx.expectedTaxId = u.getString('tax_id')
+        ctx.expectedName = u.getString('legal_name') || u.getString('name')
       }
     } catch (err) {
-      console.log('Error fetching context:', err.message)
+      console.log('Context error:', err.message)
     }
+    return ctx
+  }
 
-    let defName = 'Documento'
-    let defInstructions = ''
+  function buildVisionContent(docId) {
     try {
-      if (e.record.getString('definition')) {
-        const def = $app.findRecordById('document_definitions', e.record.getString('definition'))
+      var pbUrl = $secrets.get('PB_INSTANCE_URL') || ''
+      var pbToken = $secrets.get('PB_SUPERUSER_TOKEN') || ''
+      var filename = e.record.getString('file')
+      if (!pbUrl || !pbToken || !filename) return null
+      var fileUrl = pbUrl + '/api/files/documents/' + docId + '/' + filename
+      var fileRes = $http.send({
+        url: fileUrl,
+        method: 'GET',
+        headers: { Authorization: pbToken },
+        timeout: 30,
+      })
+      if (fileRes.statusCode !== 200 || !fileRes.body) return null
+      var ext = filename.split('.').pop().toLowerCase()
+      var mimeMap = {
+        pdf: 'application/pdf',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        gif: 'image/gif',
+        webp: 'image/webp',
+        bmp: 'image/bmp',
+      }
+      var mimeType = mimeMap[ext] || 'application/octet-stream'
+      var bytes = fileRes.body
+      if (typeof bytes === 'string') {
+        var tmp = []
+        for (var i = 0; i < bytes.length; i++) tmp.push(bytes.charCodeAt(i) & 0xff)
+        bytes = tmp
+      }
+      if (!bytes || !bytes.length || bytes.length >= 10 * 1024 * 1024) return null
+      var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+      var base64 = ''
+      for (var i = 0; i < bytes.length; i += 3) {
+        var b1 = bytes[i]
+        var b2 = i + 1 < bytes.length ? bytes[i + 1] : 0
+        var b3 = i + 2 < bytes.length ? bytes[i + 2] : 0
+        base64 += chars[b1 >> 2]
+        base64 += chars[((b1 & 3) << 4) | (b2 >> 4)]
+        base64 += i + 1 < bytes.length ? chars[((b2 & 15) << 2) | (b3 >> 6)] : '='
+        base64 += i + 2 < bytes.length ? chars[b3 & 63] : '='
+      }
+      return { type: 'image_url', image_url: { url: 'data:' + mimeType + ';base64,' + base64 } }
+    } catch (err) {
+      console.log('Vision content error:', err.message)
+      return null
+    }
+  }
+
+  function validateExtractedData(result, ctx) {
+    var errors = []
+    if (ctx.expectedTaxId && result.extracted_tax_id) {
+      var expected = ctx.expectedTaxId.replace(/\D/g, '')
+      var extracted = result.extracted_tax_id.replace(/\D/g, '')
+      if (expected && extracted) {
+        if (expected.length >= 14 && extracted.length >= 14) {
+          if (expected.substring(0, 8) !== extracted.substring(0, 8)) errors.push('CNPJ divergente')
+        } else if (expected !== extracted) {
+          errors.push('CPF/Tax ID divergente')
+        }
+      }
+    }
+    if (ctx.expectedPlate && result.extracted_plate) {
+      var normExp = ctx.expectedPlate.toUpperCase().replace(/[^A-Z0-9]/g, '')
+      var normExt = result.extracted_plate.toUpperCase().replace(/[^A-Z0-9]/g, '')
+      if (normExp && normExt && normExp !== normExt) errors.push('Placa divergente')
+    }
+    return errors
+  }
+
+  try {
+    var docId = e.record.id
+    var ctx = buildContext()
+
+    var defName = 'Documento'
+    var defInstructions = ''
+    try {
+      var defId = e.record.getString('definition')
+      if (defId) {
+        var def = $app.findRecordById('document_definitions', defId)
         defName = def.getString('name')
         defInstructions = def.getString('ai_validation_instructions') || ''
       }
     } catch (err) {}
 
-    let visionContent = null
-    try {
-      const pbUrl = $secrets.get('PB_INSTANCE_URL') || ''
-      const pbToken = $secrets.get('PB_SUPERUSER_TOKEN') || ''
-      const filename = e.record.getString('file')
-      if (pbUrl && pbToken && filename) {
-        const fileUrl = pbUrl + '/api/files/documents/' + docId + '/' + filename
-        const fileRes = $http.send({
-          url: fileUrl,
-          method: 'GET',
-          headers: { Authorization: pbToken },
-          timeout: 30,
-        })
-        if (fileRes.statusCode === 200 && fileRes.body) {
-          const ext = filename.split('.').pop().toLowerCase()
-          let mimeType = 'application/octet-stream'
-          if (ext === 'pdf') mimeType = 'application/pdf'
-          else if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg'
-          else if (ext === 'png') mimeType = 'image/png'
-          else if (ext === 'gif') mimeType = 'image/gif'
-          else if (ext === 'webp') mimeType = 'image/webp'
-          else if (ext === 'bmp') mimeType = 'image/bmp'
+    var visionContent = buildVisionContent(docId)
+    var currentDate = new Date().toISOString().split('T')[0]
+    var contextText =
+      ctx.type === 'Veiculo'
+        ? 'Entidade: Veiculo\nPlaca Esperada: ' +
+          ctx.expectedPlate +
+          '\nModelo Esperado: ' +
+          ctx.expectedModel
+        : 'Entidade: ' +
+          ctx.type +
+          '\nCPF/CNPJ Esperado: ' +
+          ctx.expectedTaxId +
+          '\nNome Esperado: ' +
+          ctx.expectedName
 
-          let bytes = fileRes.body
-          if (typeof bytes === 'string') {
-            const tmp = []
-            for (let i = 0; i < bytes.length; i++) tmp.push(bytes.charCodeAt(i) & 0xff)
-            bytes = tmp
-          }
-          if (bytes && bytes.length && bytes.length < 10 * 1024 * 1024) {
-            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-            let base64 = ''
-            const len = bytes.length
-            for (let i = 0; i < len; i += 3) {
-              const b1 = bytes[i]
-              const b2 = i + 1 < len ? bytes[i + 1] : 0
-              const b3 = i + 2 < len ? bytes[i + 2] : 0
-              base64 += chars[b1 >> 2]
-              base64 += chars[((b1 & 3) << 4) | (b2 >> 4)]
-              base64 += i + 1 < len ? chars[((b2 & 15) << 2) | (b3 >> 6)] : '='
-              base64 += i + 2 < len ? chars[b3 & 63] : '='
-            }
-            visionContent = {
-              type: 'image_url',
-              image_url: { url: 'data:' + mimeType + ';base64,' + base64 },
-            }
-          }
-        }
-      }
-    } catch (fileErr) {
-      console.log('Failed to fetch file for vision:', fileErr.message)
-    }
+    var systemPrompt =
+      'You are an expert legal and compliance analyst specialized in Brazilian documentation (CNPJ, CPF, CNH, CRLV, FGTS, certificates, contracts, etc.). You have vision capabilities to read and analyze uploaded document images and PDFs.\n\nYour task is to analyze the provided document file and determine its validity based on the context and specific instructions provided.\n\nAnalysis requirements:\n1. Use vision to read and extract ALL visible information from the document.\n2. Verify document type: Confirm the file corresponds to the expected document type.\n3. Verify identifiers:\n   - For Suppliers (PJ/PF): Extract CNPJ/CPF and compare with the expected value. For CNPJ, consider valid if the first 8 digits (root) match.\n   - For Employees: Extract and compare CPF and Name.\n   - For Vehicles: Extract and compare license plate and model.\n4. Check authenticity: Look for control codes, QR codes, digital signatures, watermarks, or seals typical for the document type.\n5. Check validity: Extract expiration/issue date in YYYY-MM-DD format. If before current date, document is expired.\n6. Assess quality: Verify the document is legible, not cut off, properly oriented, and has sufficient resolution.\n7. Apply specific instructions: Follow any document-type-specific instructions provided.\n\nStatus decision rules:\n- "Approved": All essential criteria met (correct type, matching IDs, valid date, legible, required signatures/codes present).\n- "Rejected": Critical failure (wrong document type, illegible, ID mismatch, missing required signature/code, cut off).\n- "Vencido": Document is expired (expiration date before current date).\n- "Aguardando Aprovacao": Uncertain cases requiring human review (borderline quality, partial match, unusual format).\n\nReturn STRICTLY a JSON object with no markdown formatting, no code blocks, no extra text.'
 
-    const systemPrompt = `You are an expert legal and compliance analyst specialized in Brazilian documentation (CNPJ, CPF, CNH, CRLV, FGTS, certificates, contracts, etc.). You have vision capabilities to read and analyze uploaded document images and PDFs.
+    var userPrompt =
+      'Analise o documento enviado.\nID do Documento: ' +
+      docId +
+      '\nTipo Esperado: ' +
+      defName +
+      '\n\nInstrucoes Especificas:\n' +
+      (defInstructions || 'Nenhuma instrucao adicional.') +
+      '\n\n' +
+      contextText +
+      '\n\nData Atual (Referencia): ' +
+      currentDate +
+      '\n\nInstrucoes da Analise:\n1. ' +
+      (visionContent
+        ? 'Examine o arquivo de imagem/PDF fornecido abaixo.'
+        : 'Acesse o arquivo associado ao registro de documento com ID ' + docId + '.') +
+      ' Use visao para ler todo o conteudo visivel.\n2. Legibilidade/Qualidade: Se o arquivo estiver ilegivel, muito cortado, com resolucao ruim, classifique como Rejected.\n3. Correspondencia de Tipo: Verifique se o arquivo realmente e do Tipo Esperado.\n4. Identificadores: Se Fornecedor/PJ, extraia o CNPJ e compare (raiz 8 digitos). Se Colaborador, compare CPF/Nome. Se Veiculo, extraia e compare a Placa.\n5. Autenticidade: Verifique codigo de controle, QR Code ou assinaturas caso seja comum para o tipo.\n6. Validade: Extraia a data de vencimento no formato YYYY-MM-DD. Se anterior a Data Atual, o status DEVE ser Vencido e is_expired = true.\n7. Decisao: Approved se todos os criterios atendidos; Rejected se algo critico falhar; Vencido se expirado; Aguardando Aprovacao em casos duvidosos.\n\nRETORNE EXCLUSIVAMENTE UM JSON, SEM MARKDOWN, SEM CRASES.'
 
-Your task is to analyze the provided document file and determine its validity based on the context and specific instructions provided.
-
-Analysis requirements:
-1. Use vision to read and extract ALL visible information from the document.
-2. Verify document type: Confirm the file corresponds to the "Tipo Esperado" (Expected Document Type).
-3. Verify identifiers:
-   - For Suppliers (PJ/PF): Extract CNPJ/CPF and compare with the expected value. For CNPJ, consider valid if the first 8 digits (root) match.
-   - For Employees: Extract and compare CPF and Name.
-   - For Vehicles: Extract and compare license plate and model.
-4. Check authenticity: Look for control codes, QR codes, digital signatures, watermarks, or seals that are typical for the document type.
-5. Check validity: Extract expiration/issue date in YYYY-MM-DD format. If the date is before the current date, the document is expired.
-6. Assess quality: Verify the document is legible, not cut off, properly oriented, and has sufficient resolution.
-7. Apply specific instructions: Follow any document-type-specific instructions provided.
-
-Status decision rules:
-- "Approved": All essential criteria met (correct type, matching IDs, valid date, legible, required signatures/codes present).
-- "Rejected": Critical failure (wrong document type, illegible, ID mismatch, missing required signature/code, cut off).
-- "Vencido": Document is expired (expiration date before current date).
-- "Aguardando Aprovação": Uncertain cases requiring human review (borderline quality, partial match, unusual format).
-
-Return STRICTLY a JSON object with no markdown formatting.`
-
-    const promptMessage = `Analise o documento enviado.
-ID do Documento: ${docId}
-Tipo Esperado: ${defName}
-
-Instruções Específicas:
-${defInstructions || 'Nenhuma instrução adicional.'}
-
-${contextText}
-
-Data Atual (Referência): ${new Date().toISOString().split('T')[0]}
-
-Instruções da Análise:
-1. ${visionContent ? 'Examine o arquivo de imagem/PDF fornecido abaixo.' : 'Acesse o arquivo associado ao registro de documento com ID ' + docId + '.'} Use visão para ler todo o conteúdo visível.
-2. Legibilidade/Qualidade: Se o arquivo estiver ilegível, muito cortado, com resolução ruim ou orientação que impeça a leitura total, classifique como 'Rejected' imediatamente.
-3. Correspondência de Tipo: Verifique se o arquivo realmente é do 'Tipo Esperado'.
-4. Identificadores: 
-   - Se Fornecedor/PJ: Extraia o CNPJ e compare. Considere válido se os primeiros 8 dígitos (raiz) baterem. 
-   - Se Colaborador: Compare CPF/Nome.
-   - Se Veículo: Extraia e compare a Placa (ou Chassi).
-5. Autenticidade: Verifique se possui código de controle (control code), QR Code ou assinaturas caso seja comum para o tipo (ex: CND, contratos). 
-6. Validade: Extraia a data de vencimento/validade no formato YYYY-MM-DD. Se a data for anterior à 'Data Atual', o status DEVE ser 'Vencido' e 'is_expired' = true.
-7. Regra Final de Decisão: Retorne 'Approved' se todos os critérios essenciais estiverem atendidos; 'Rejected' se algo crítico falhar (ex. documento diferente, ilegível, divergência de CNPJ raiz); 'Vencido' se expirado; 'Aguardando Aprovação' em casos duvidosos ou que dependam de revisão humana.
-
-RETORNE EXCLUSIVAMENTE UM JSON DE ACORDO COM O SCHEMA ESTABELECIDO, SEM CRASES DE MARKDOWN.`
-
-    const jsonSchema = {
+    var jsonSchema = {
       type: 'json_schema',
       json_schema: {
         name: 'document_analysis',
@@ -164,19 +190,16 @@ RETORNE EXCLUSIVAMENTE UM JSON DE ACORDO COM O SCHEMA ESTABELECIDO, SEM CRASES D
             explanation: { type: 'string' },
             extracted_expiration_date: {
               type: 'string',
-              description: 'YYYY-MM-DD ou string vazia',
+              description: 'YYYY-MM-DD or empty string',
             },
             is_expired: { type: 'boolean' },
-            extracted_tax_id: { type: 'string', description: 'CNPJ/CPF extraído ou string vazia' },
+            extracted_tax_id: { type: 'string', description: 'CNPJ/CPF extracted or empty string' },
             extracted_name: {
               type: 'string',
-              description: 'Nome/Razão Social extraída ou string vazia',
+              description: 'Name/Razao Social extracted or empty string',
             },
-            extracted_plate: { type: 'string', description: 'Placa extraída ou string vazia' },
-            control_code: {
-              type: 'string',
-              description: 'Código de validação, autenticação ou string vazia',
-            },
+            extracted_plate: { type: 'string', description: 'Plate extracted or empty string' },
+            control_code: { type: 'string', description: 'Validation/auth code or empty string' },
             has_signature: { type: 'boolean' },
             is_legible: { type: 'boolean' },
             match_confidence: { type: 'string', enum: ['High', 'Medium', 'Low'] },
@@ -200,22 +223,26 @@ RETORNE EXCLUSIVAMENTE UM JSON DE ACORDO COM O SCHEMA ESTABELECIDO, SEM CRASES D
       },
     }
 
-    let analysisResult = null
-    let rawContent = ''
-    let attempts = 0
-    let lastError = null
+    var analysisResult = null
+    var rawContent = ''
+    var attempts = 0
+    var lastError = null
 
-    while (attempts < 2 && !analysisResult) {
+    while (attempts < 3 && !analysisResult) {
       attempts++
       try {
-        const retryMsg = `Retorne APENAS um JSON válido estrito. Erro anterior: ${lastError ? lastError.message : 'desconhecido'}`
-        const userContent = visionContent
-          ? [{ type: 'text', text: attempts === 1 ? promptMessage : retryMsg }, visionContent]
-          : attempts === 1
-            ? promptMessage
-            : retryMsg
+        var retryMsg =
+          attempts === 1
+            ? userPrompt
+            : 'Retorne APENAS um JSON valido estrito, sem markdown. Erro anterior: ' +
+              (lastError ? lastError.message : 'desconhecido') +
+              '\n\n' +
+              userPrompt
+        var userContent = visionContent
+          ? [{ type: 'text', text: retryMsg }, visionContent]
+          : retryMsg
 
-        const chatParams = {
+        var chatParams = {
           model: 'fast',
           messages: [
             { role: 'system', content: systemPrompt },
@@ -224,18 +251,12 @@ RETORNE EXCLUSIVAMENTE UM JSON DE ACORDO COM O SCHEMA ESTABELECIDO, SEM CRASES D
         }
         if (attempts === 1) chatParams.response_format = jsonSchema
 
-        const result = $ai.chat(chatParams)
+        var result = $ai.chat(chatParams)
         if (!result || !result.choices || !result.choices[0] || !result.choices[0].message) {
           throw new Error('Invalid AI response structure')
         }
         rawContent = result.choices[0].message.content
-
-        let jsonStr = rawContent.trim()
-        if (jsonStr.startsWith('```')) {
-          jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
-        }
-        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/)
-        if (jsonMatch) jsonStr = jsonMatch[0]
+        var jsonStr = cleanJsonResponse(rawContent)
         analysisResult = JSON.parse(jsonStr)
 
         if (
@@ -247,15 +268,15 @@ RETORNE EXCLUSIVAMENTE UM JSON DE ACORDO COM O SCHEMA ESTABELECIDO, SEM CRASES D
         }
       } catch (err) {
         lastError = err
-        console.log(`Tentativa ${attempts} falhou ao parsear JSON:`, err.message, rawContent)
+        console.log('Attempt ' + attempts + ' failed:', err.message, rawContent)
       }
     }
 
     if (!analysisResult) {
       analysisResult = {
         status: 'Aguardando Aprovação',
-        rejection_reason: 'Falha ao processar resposta da IA. Revisão manual necessária.',
-        explanation: 'Falha no parser do JSON.',
+        rejection_reason: 'Falha ao processar resposta da IA. Revisao manual necessaria.',
+        explanation: 'JSON parse failure.',
         extracted_expiration_date: '',
         is_expired: false,
         extracted_tax_id: '',
@@ -268,11 +289,33 @@ RETORNE EXCLUSIVAMENTE UM JSON DE ACORDO COM O SCHEMA ESTABELECIDO, SEM CRASES D
       }
     }
 
-    const docRecord = $app.findRecordById('documents', docId)
-    docRecord.set('analysis_log', analysisResult)
+    var validationErrors = validateExtractedData(analysisResult, ctx)
+    if (validationErrors.length > 0 && analysisResult.status === 'Approved') {
+      analysisResult.status = 'Rejected'
+      analysisResult.rejection_reason = validationErrors.join('; ')
+    }
+
+    var docRecord = $app.findRecordById('documents', docId)
+    docRecord.set('analysis_log', {
+      status: analysisResult.status,
+      rejection_reason: analysisResult.rejection_reason,
+      explanation: analysisResult.explanation,
+      extracted_expiration_date: analysisResult.extracted_expiration_date,
+      is_expired: analysisResult.is_expired,
+      extracted_tax_id: analysisResult.extracted_tax_id,
+      extracted_name: analysisResult.extracted_name,
+      extracted_plate: analysisResult.extracted_plate,
+      control_code: analysisResult.control_code,
+      has_signature: analysisResult.has_signature,
+      is_legible: analysisResult.is_legible,
+      match_confidence: analysisResult.match_confidence,
+      validation_errors: validationErrors,
+      raw_ai_response: rawContent ? rawContent.substring(0, 2000) : '',
+      analyzed_at: new Date().toISOString(),
+    })
 
     if (analysisResult.status === 'Approved') {
-      docRecord.set('status', 'Approved')
+      docRecord.set('status', 'Aguardando Aprovação')
       docRecord.set('rejection_reason', '')
     } else if (analysisResult.status === 'Rejected') {
       docRecord.set('status', 'Rejected')
@@ -280,7 +323,7 @@ RETORNE EXCLUSIVAMENTE UM JSON DE ACORDO COM O SCHEMA ESTABELECIDO, SEM CRASES D
         'rejection_reason',
         analysisResult.rejection_reason ||
           analysisResult.explanation ||
-          'Documento inválido ou ilegível.',
+          'Documento invalido ou ilegivel.',
       )
     } else if (analysisResult.status === 'Vencido' || analysisResult.is_expired) {
       docRecord.set('status', 'Vencido')
@@ -294,7 +337,7 @@ RETORNE EXCLUSIVAMENTE UM JSON DE ACORDO COM O SCHEMA ESTABELECIDO, SEM CRASES D
         'rejection_reason',
         analysisResult.rejection_reason ||
           analysisResult.explanation ||
-          'Necessita de revisão humana.',
+          'Necessita de revisao humana.',
       )
     }
 
@@ -303,7 +346,7 @@ RETORNE EXCLUSIVAMENTE UM JSON DE ACORDO COM O SCHEMA ESTABELECIDO, SEM CRASES D
       analysisResult.extracted_expiration_date.includes('-')
     ) {
       try {
-        const expDate = Date.parse(analysisResult.extracted_expiration_date)
+        var expDate = Date.parse(analysisResult.extracted_expiration_date)
         if (!isNaN(expDate)) {
           docRecord.set(
             'expiration_date',
@@ -313,24 +356,21 @@ RETORNE EXCLUSIVAMENTE UM JSON DE ACORDO COM O SCHEMA ESTABELECIDO, SEM CRASES D
             docRecord.set('status', 'Vencido')
             docRecord.set(
               'rejection_reason',
-              'O documento está vencido de acordo com a data extraída.',
+              'O documento esta vencido de acordo com a data extraida.',
             )
           }
         }
-      } catch (e) {}
+      } catch (dateErr) {}
     }
 
     $app.save(docRecord)
   } catch (err) {
     console.log('Failed to trigger AI analyst:', err.message)
     try {
-      const docRecord = $app.findRecordById('documents', e.record.id)
+      var docRecord = $app.findRecordById('documents', e.record.id)
       docRecord.set('status', 'Aguardando Aprovação')
-      docRecord.set(
-        'rejection_reason',
-        'Erro interno na análise automática. Será analisado manualmente.',
-      )
-      docRecord.set('analysis_log', { error: err.message })
+      docRecord.set('rejection_reason', 'Erro técnico no processamento da análise')
+      docRecord.set('analysis_log', { error: err.message, timestamp: new Date().toISOString() })
       $app.save(docRecord)
     } catch (saveErr) {}
   }
