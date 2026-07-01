@@ -46,6 +46,26 @@ export default function PortalUpload() {
   const [isReuploading, setIsReuploading] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const validatingRef = useRef(false)
+
+  useEffect(() => {
+    validatingRef.current = validating
+  }, [validating])
+
+  useEffect(() => {
+    if (!validating || !existingDoc) return
+    const pollInterval = setInterval(async () => {
+      try {
+        const doc = await pb.collection('documents').getOne(existingDoc.id)
+        if (doc.status !== 'Pending') {
+          loadData()
+        }
+      } catch {
+        /* intentionally ignored */
+      }
+    }, 5000)
+    return () => clearInterval(pollInterval)
+  }, [validating, existingDoc])
 
   useEffect(() => {
     let interval: NodeJS.Timeout
@@ -82,7 +102,7 @@ export default function PortalUpload() {
 
         if (docs[0].status === 'Pending') {
           setValidating(true)
-        } else if (validating && docs[0].status !== 'Pending') {
+        } else if (validatingRef.current && docs[0].status !== 'Pending') {
           setValidating(false)
 
           if (docs[0].status === 'Rejected' || docs[0].status === 'Vencido') {

@@ -51,7 +51,7 @@ onRecordAfterUpdateSuccess((e) => {
         ctx.expectedName = u.getString('legal_name') || u.getString('name')
       }
     } catch (err) {
-      console.log('Context error:', err.message)
+      $app.logger().warn('Context build error', 'docId', e.record.id, 'error', err.message)
     }
     return ctx
   }
@@ -62,6 +62,21 @@ onRecordAfterUpdateSuccess((e) => {
       var pbToken = $secrets.get('PB_SUPERUSER_TOKEN') || ''
       var filename = e.record.getString('file')
       if (!pbUrl || !pbToken || !filename) return null
+
+      var fsys = $app.newFilesystem()
+      var fileKey = e.record.baseFilesPath() + '/' + filename
+      var fileExists = false
+      try {
+        fileExists = fsys.exists(fileKey)
+      } catch (fsErr) {
+        $app.logger().warn('Filesystem check failed', 'docId', docId, 'error', fsErr.message)
+      }
+      fsys.close()
+      if (!fileExists) {
+        $app.logger().warn('File not found in storage', 'docId', docId, 'key', fileKey)
+        return null
+      }
+
       var fileUrl = pbUrl + '/api/files/documents/' + docId + '/' + filename
       var fileRes = $http.send({
         url: fileUrl,
@@ -69,7 +84,11 @@ onRecordAfterUpdateSuccess((e) => {
         headers: { Authorization: pbToken },
         timeout: 30,
       })
-      if (fileRes.statusCode !== 200 || !fileRes.body) return null
+      if (fileRes.statusCode !== 200 || !fileRes.body) {
+        $app.logger().warn('File fetch failed', 'docId', docId, 'statusCode', fileRes.statusCode)
+        return null
+      }
+
       var ext = filename.split('.').pop().toLowerCase()
       var mimeMap = {
         pdf: 'application/pdf',
@@ -81,27 +100,46 @@ onRecordAfterUpdateSuccess((e) => {
         bmp: 'image/bmp',
       }
       var mimeType = mimeMap[ext] || 'application/octet-stream'
-      var bytes = fileRes.body
-      if (typeof bytes === 'string') {
-        var tmp = []
-        for (var i = 0; i < bytes.length; i++) tmp.push(bytes.charCodeAt(i) & 0xff)
-        bytes = tmp
+
+      var rawBody = fileRes.body
+      var byteArr = []
+      if (typeof rawBody === 'string') {
+        for (var i = 0; i < rawBody.length; i++) {
+          byteArr.push(rawBody.charCodeAt(i) & 0xff)
+        }
+      } else if (rawBody && typeof rawBody.length === 'number') {
+        for (var i = 0; i < rawBody.length; i++) {
+          byteArr.push(rawBody[i] & 0xff)
+        }
+      } else {
+        $app.logger().warn('Unknown body type for file', 'docId', docId, 'type', typeof rawBody)
+        return null
       }
-      if (!bytes || !bytes.length || bytes.length >= 10 * 1024 * 1024) return null
+
+      if (!byteArr.length || byteArr.length > 10 * 1024 * 1024) {
+        $app.logger().warn('File size out of range for AI', 'docId', docId, 'size', byteArr.length)
+        return null
+      }
+
       var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-      var base64 = ''
-      for (var i = 0; i < bytes.length; i += 3) {
-        var b1 = bytes[i]
-        var b2 = i + 1 < bytes.length ? bytes[i + 1] : 0
-        var b3 = i + 2 < bytes.length ? bytes[i + 2] : 0
-        base64 += chars[b1 >> 2]
-        base64 += chars[((b1 & 3) << 4) | (b2 >> 4)]
-        base64 += i + 1 < bytes.length ? chars[((b2 & 15) << 2) | (b3 >> 6)] : '='
-        base64 += i + 2 < bytes.length ? chars[b3 & 63] : '='
+      var parts = []
+      for (var i = 0; i < byteArr.length; i += 3) {
+        var b1 = byteArr[i]
+        var b2 = i + 1 < byteArr.length ? byteArr[i + 1] : 0
+        var b3 = i + 2 < byteArr.length ? byteArr[i + 2] : 0
+        parts.push(chars[b1 >> 2])
+        parts.push(chars[((b1 & 3) << 4) | (b2 >> 4)])
+        parts.push(i + 1 < byteArr.length ? chars[((b2 & 15) << 2) | (b3 >> 6)] : '=')
+        parts.push(i + 2 < byteArr.length ? chars[b3 & 63] : '=')
       }
+      var base64 = parts.join('')
+
+      $app
+        .logger()
+        .info('Vision content built', 'docId', docId, 'size', byteArr.length, 'mime', mimeType)
       return { type: 'image_url', image_url: { url: 'data:' + mimeType + ';base64,' + base64 } }
     } catch (err) {
-      console.log('Vision content error:', err.message)
+      $app.logger().error('Vision content build failed', 'docId', docId, 'error', err.message)
       return null
     }
   }
@@ -160,7 +198,9 @@ onRecordAfterUpdateSuccess((e) => {
         defName = def.getString('name')
         defInstructions = def.getString('ai_validation_instructions') || ''
       }
-    } catch (err) {}
+    } catch (err) {
+      $app.logger().warn('Failed to load definition', 'docId', docId, 'error', err.message)
+    }
 
     var visionContent = buildVisionContent(docId)
     var currentDate = new Date().toISOString().split('T')[0]
@@ -216,15 +256,13 @@ onRecordAfterUpdateSuccess((e) => {
           ? [{ type: 'text', text: retryMsg }, visionContent]
           : retryMsg
 
-        var chatParams = {
+        var result = $ai.chat({
           model: 'fast',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userContent },
           ],
-        }
-
-        var result = $ai.chat(chatParams)
+        })
         if (!result || !result.choices || !result.choices[0] || !result.choices[0].message) {
           throw new Error('Invalid AI response structure')
         }
@@ -241,7 +279,17 @@ onRecordAfterUpdateSuccess((e) => {
         }
       } catch (err) {
         lastError = err
-        console.log('Attempt ' + attempts + ' failed:', err.message, rawContent)
+        $app
+          .logger()
+          .warn(
+            'AI parse attempt failed',
+            'docId',
+            docId,
+            'attempt',
+            attempts,
+            'error',
+            err.message,
+          )
       }
     }
 
@@ -322,8 +370,17 @@ onRecordAfterUpdateSuccess((e) => {
     }
 
     $app.save(docRecord)
+    $app
+      .logger()
+      .info(
+        'Document AI analysis completed',
+        'docId',
+        docId,
+        'status',
+        docRecord.getString('status'),
+      )
   } catch (err) {
-    console.log('Failed to trigger AI analyst:', err.message)
+    $app.logger().error('Failed to trigger AI analyst', 'docId', e.record.id, 'error', err.message)
     try {
       var docRecord = $app.findRecordById('documents', e.record.id)
       docRecord.set('status', 'Aguardando Aprovação')
@@ -339,8 +396,12 @@ onRecordAfterUpdateSuccess((e) => {
         error: err.message,
         technical_error: true,
       })
-      $app.save(docRecord)
-    } catch (saveErr) {}
+      $app.saveNoValidate(docRecord)
+    } catch (saveErr) {
+      $app
+        .logger()
+        .error('Fallback save also failed', 'docId', e.record.id, 'error', saveErr.message)
+    }
   }
 
   return e.next()
