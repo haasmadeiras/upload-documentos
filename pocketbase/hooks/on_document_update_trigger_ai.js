@@ -78,14 +78,56 @@ onRecordAfterUpdateSuccess((e) => {
       }
 
       var fileUrl = pbUrl + '/api/files/documents/' + docId + '/' + filename
-      var fileRes = $http.send({
-        url: fileUrl,
-        method: 'GET',
-        headers: { Authorization: pbToken },
-        timeout: 30,
-      })
-      if (fileRes.statusCode !== 200 || !fileRes.body) {
-        $app.logger().warn('File fetch failed', 'docId', docId, 'statusCode', fileRes.statusCode)
+      var rawBytes = null
+
+      try {
+        var tokenRes = $http.send({
+          url: pbUrl + '/api/files/token',
+          method: 'POST',
+          headers: { Authorization: pbToken },
+          timeout: 10,
+        })
+        var fileToken = ''
+        if (tokenRes.statusCode === 200 && tokenRes.json) {
+          fileToken = tokenRes.json.token || ''
+        }
+        if (fileToken) {
+          var tokenUrl = fileUrl + '?token=' + encodeURIComponent(fileToken)
+          var file = $filesystem.fileFromURL(tokenUrl, 30)
+          if (file && file.Bytes && file.Bytes.length > 0) {
+            rawBytes = file.Bytes
+            $app
+              .logger()
+              .info('File downloaded via fileFromURL', 'docId', docId, 'size', rawBytes.length)
+          }
+        }
+      } catch (fsErr) {
+        $app
+          .logger()
+          .warn('fileFromURL failed, falling back to http', 'docId', docId, 'error', fsErr.message)
+      }
+
+      if (!rawBytes) {
+        var fileRes = $http.send({
+          url: fileUrl,
+          method: 'GET',
+          headers: { Authorization: pbToken },
+          timeout: 30,
+        })
+        if (fileRes.statusCode === 200 && fileRes.body) {
+          rawBytes = fileRes.body
+          $app
+            .logger()
+            .info('File downloaded via http fallback', 'docId', docId, 'size', rawBytes.length)
+        }
+      }
+
+      if (!rawBytes || rawBytes.length === 0) {
+        $app.logger().warn('No file bytes retrieved', 'docId', docId)
+        return null
+      }
+      if (rawBytes.length > 10 * 1024 * 1024) {
+        $app.logger().warn('File too large for AI', 'docId', docId, 'size', rawBytes.length)
         return null
       }
 
@@ -101,24 +143,11 @@ onRecordAfterUpdateSuccess((e) => {
       }
       var mimeType = mimeMap[ext] || 'application/octet-stream'
 
-      var rawBody = fileRes.body
       var byteArr = []
-      if (typeof rawBody === 'string') {
-        for (var i = 0; i < rawBody.length; i++) {
-          byteArr.push(rawBody.charCodeAt(i) & 0xff)
-        }
-      } else if (rawBody && typeof rawBody.length === 'number') {
-        for (var i = 0; i < rawBody.length; i++) {
-          byteArr.push(rawBody[i] & 0xff)
-        }
-      } else {
-        $app.logger().warn('Unknown body type for file', 'docId', docId, 'type', typeof rawBody)
-        return null
-      }
-
-      if (!byteArr.length || byteArr.length > 10 * 1024 * 1024) {
-        $app.logger().warn('File size out of range for AI', 'docId', docId, 'size', byteArr.length)
-        return null
+      for (var i = 0; i < rawBytes.length; i++) {
+        byteArr.push(
+          typeof rawBytes === 'string' ? rawBytes.charCodeAt(i) & 0xff : rawBytes[i] & 0xff,
+        )
       }
 
       var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
@@ -144,11 +173,11 @@ onRecordAfterUpdateSuccess((e) => {
     }
   }
 
-  function validateExtractedData(result, ctx) {
+  function validateExtractedData(extraction, ctx) {
     var errors = []
-    if (ctx.expectedTaxId && result.extracted_tax_id) {
+    if (ctx.expectedTaxId && extraction.extracted_tax_id) {
       var expected = ctx.expectedTaxId.replace(/\D/g, '')
-      var extracted = result.extracted_tax_id.replace(/\D/g, '')
+      var extracted = extraction.extracted_tax_id.replace(/\D/g, '')
       if (expected && extracted) {
         if (expected.length >= 14 && extracted.length >= 14) {
           if (expected.substring(0, 8) !== extracted.substring(0, 8)) errors.push('CNPJ divergente')
@@ -157,32 +186,34 @@ onRecordAfterUpdateSuccess((e) => {
         }
       }
     }
-    if (ctx.expectedPlate && result.extracted_plate) {
+    if (ctx.expectedPlate && extraction.extracted_plate) {
       var normExp = ctx.expectedPlate.toUpperCase().replace(/[^A-Z0-9]/g, '')
-      var normExt = result.extracted_plate.toUpperCase().replace(/[^A-Z0-9]/g, '')
+      var normExt = extraction.extracted_plate.toUpperCase().replace(/[^A-Z0-9]/g, '')
       if (normExp && normExt && normExp !== normExt) errors.push('Placa divergente')
     }
     return errors
   }
 
-  function buildAnalysisLog(analysisResult, validationErrors, rawContent) {
-    return {
-      status: analysisResult.status,
-      rejection_reason: analysisResult.rejection_reason || '',
-      explanation: analysisResult.explanation || '',
-      extracted_expiration_date: analysisResult.extracted_expiration_date || '',
-      is_expired: !!analysisResult.is_expired,
-      extracted_tax_id: analysisResult.extracted_tax_id || '',
-      extracted_name: analysisResult.extracted_name || '',
-      extracted_plate: analysisResult.extracted_plate || '',
-      control_code: analysisResult.control_code || '',
-      has_signature: !!analysisResult.has_signature,
-      is_legible: analysisResult.is_legible !== false,
-      match_confidence: analysisResult.match_confidence || 'Low',
-      validation_errors: validationErrors,
-      raw_ai_response: rawContent ? rawContent.substring(0, 2000) : '',
-      analyzed_at: new Date().toISOString(),
+  function runAiChat(messages, maxAttempts) {
+    var result = null
+    var rawContent = ''
+    var lastError = null
+    var attempt = 0
+    while (attempt < maxAttempts && !result) {
+      attempt++
+      try {
+        var res = $ai.chat({ model: 'reasoning', messages: messages })
+        if (!res || !res.choices || !res.choices[0] || !res.choices[0].message) {
+          throw new Error('Invalid AI response structure')
+        }
+        rawContent = res.choices[0].message.content
+        result = JSON.parse(cleanJsonResponse(rawContent))
+      } catch (err) {
+        lastError = err
+        $app.logger().warn('AI parse attempt failed', 'attempt', attempt, 'error', err.message)
+      }
     }
+    return { result: result, rawContent: rawContent, error: lastError }
   }
 
   try {
@@ -217,147 +248,225 @@ onRecordAfterUpdateSuccess((e) => {
           '\nNome Esperado: ' +
           ctx.expectedName
 
-    var systemPrompt =
-      'You are an expert legal and compliance analyst specialized in Brazilian documentation (CNPJ, CPF, CNH, CRLV, FGTS, certificates, contracts, etc.). You have vision capabilities to read and analyze uploaded document images and PDFs.\n\nYour task is to analyze the provided document file and determine its validity based on the context and specific instructions provided.\n\nAnalysis requirements:\n1. Use vision to read and extract ALL visible information from the document.\n2. Verify document type: Confirm the file corresponds to the expected document type.\n3. Verify identifiers:\n   - For Suppliers (PJ/PF): Extract CNPJ/CPF and compare with the expected value. For CNPJ, consider valid if the first 8 digits (root) match.\n   - For Employees: Extract and compare CPF and Name.\n   - For Vehicles: Extract and compare license plate and model.\n4. Check authenticity: Look for control codes, QR codes, digital signatures, watermarks, or seals typical for the document type.\n5. Check validity: Extract expiration/issue date in YYYY-MM-DD format. If before current date, document is expired.\n6. Assess quality: Verify the document is legible, not cut off, properly oriented, and has sufficient resolution.\n7. Apply specific instructions: Follow any document-type-specific instructions provided.\n\nStatus decision rules:\n- "Approved": All essential criteria met (correct type, matching IDs, valid date, legible, required signatures/codes present).\n- "Rejected": Critical failure (wrong document type, illegible, ID mismatch, missing required signature/code, cut off).\n- "Vencido": Document is expired (expiration date before current date).\n- "Aguardando Aprovação": Uncertain cases requiring human review (borderline quality, partial match, unusual format).\n\nReturn STRICTLY a JSON object with no markdown formatting, no code blocks, no extra text.\n\nThe JSON object must have exactly these fields:\n{\n  "status": "Approved" | "Rejected" | "Aguardando Aprovação" | "Vencido",\n  "rejection_reason": string,\n  "explanation": string,\n  "extracted_expiration_date": "YYYY-MM-DD" | "",\n  "is_expired": boolean,\n  "extracted_tax_id": string,\n  "extracted_name": string,\n  "extracted_plate": string,\n  "control_code": string,\n  "has_signature": boolean,\n  "is_legible": boolean,\n  "match_confidence": "High" | "Medium" | "Low"\n}\n\nAll fields are required. Return ONLY the JSON object, no other text.'
+    if (!visionContent) {
+      var docRecord = $app.findRecordById('documents', docId)
+      docRecord.set('status', 'Aguardando Aprovação')
+      docRecord.set('rejection_reason', 'Análise Manual Necessária')
+      docRecord.set('analysis_log', {
+        status: 'Aguardando Aprovação',
+        rejection_reason: 'Análise Manual Necessária',
+        explanation: 'Não foi possível acessar o arquivo do documento para análise automática.',
+        analyzed_at: new Date().toISOString(),
+        model_used: 'reasoning',
+        error: 'File not accessible',
+      })
+      $app.saveNoValidate(docRecord)
+      $app.logger().info('No vision content - manual review', 'docId', docId)
+      return e.next()
+    }
 
-    var userPrompt =
-      'Analise o documento enviado.\nID do Documento: ' +
+    // Phase 1: Extraction (Vision)
+    var extractionSystemPrompt =
+      'You are a vision-capable AI specialized in reading and extracting information from Brazilian documents (CNPJ, CPF, CNH, CRLV, FGTS, certificates, contracts, etc.).\n\nYour task is to perform a "Vision" pass on the document and extract ALL relevant information. For multi-page PDFs, read and extract information from ALL pages.\n\nExtract:\n1. Document type\n2. Tax ID (CNPJ or CPF) - exactly as shown\n3. Name/Razão Social - exactly as shown\n4. License plate (if applicable)\n5. Expiration/issue date in YYYY-MM-DD format\n6. Control code, protocol number, or QR code content\n7. Whether document has a signature\n8. Whether document is legible\n9. Any watermarks or seals\n10. Summary of all visible text\n\nReturn STRICTLY a JSON object with no markdown formatting, no code blocks:\n{\n  "document_type": "string",\n  "extracted_tax_id": "string",\n  "extracted_name": "string",\n  "extracted_plate": "string",\n  "extracted_expiration_date": "YYYY-MM-DD or empty",\n  "is_expired": boolean,\n  "control_code": "string",\n  "has_signature": boolean,\n  "is_legible": boolean,\n  "has_watermark": boolean,\n  "raw_text_summary": "string",\n  "page_count": number,\n  "match_confidence": "High" | "Medium" | "Low"\n}\n\nAll fields are required. Return ONLY the JSON object, no other text.'
+
+    var extractionUserPrompt =
+      'Extraia TODAS as informações visíveis do documento abaixo.\nID do Documento: ' +
       docId +
       '\nTipo Esperado: ' +
       defName +
-      '\n\nInstruções Específicas:\n' +
+      '\n\n' +
+      contextText +
+      '\n\nData Atual: ' +
+      currentDate +
+      '\n\nPara PDFs com múltiplas páginas, leia TODAS as páginas e extraia as informações de cada uma.\n\nRETORNE EXCLUSIVAMENTE UM JSON, SEM MARKDOWN, SEM CRASES.'
+
+    var extractionMessages = [
+      { role: 'system', content: extractionSystemPrompt },
+      { role: 'user', content: [{ type: 'text', text: extractionUserPrompt }, visionContent] },
+    ]
+
+    $app.logger().info('Starting extraction phase', 'docId', docId)
+    var extractionRes = runAiChat(extractionMessages, 3)
+
+    if (!extractionRes.result) {
+      var docRecord = $app.findRecordById('documents', docId)
+      docRecord.set('status', 'Aguardando Aprovação')
+      docRecord.set('rejection_reason', 'Análise Manual Necessária')
+      docRecord.set('analysis_log', {
+        status: 'Aguardando Aprovação',
+        rejection_reason: 'Análise Manual Necessária',
+        explanation:
+          'Não foi possível extrair informações do documento automaticamente. O documento foi encaminhado para análise manual.',
+        raw_ai_response: extractionRes.rawContent
+          ? extractionRes.rawContent.substring(0, 2000)
+          : '',
+        analyzed_at: new Date().toISOString(),
+        model_used: 'reasoning',
+        error: extractionRes.error ? extractionRes.error.message : 'Unknown',
+      })
+      $app.saveNoValidate(docRecord)
+      $app.logger().warn('Extraction phase failed', 'docId', docId)
+      return e.next()
+    }
+
+    var extraction = extractionRes.result
+    $app
+      .logger()
+      .info('Extraction phase completed', 'docId', docId, 'document_type', extraction.document_type)
+
+    // Phase 2: Validation
+    var validationSystemPrompt =
+      'You are a compliance analyst specialized in Brazilian documentation.\n\nYour task is to validate the extracted document information against the provided rules and context.\n\nValidation rules:\n1. Verify the document type matches the expected type.\n2. For Suppliers (PJ/PF): Compare extracted CNPJ/CPF with expected value. For CNPJ, consider valid if the first 8 digits (root) match.\n3. For Employees: Compare extracted CPF and Name.\n4. For Vehicles: Compare extracted license plate.\n5. Check if the document is expired (expiration date before current date).\n6. Check if the document is legible and complete.\n7. Apply any specific validation instructions provided.\n8. Check for required signatures, codes, or seals.\n\nStatus decision:\n- "Approved": All essential criteria met (correct type, matching IDs, valid date, legible, required signatures/codes present).\n- "Rejected": Critical failure (wrong document type, illegible, ID mismatch, missing required signature/code).\n- "Vencido": Document is expired (expiration date before current date).\n- "Aguardando Aprovação": Uncertain cases requiring human review (borderline quality, partial match, unusual format).\n\nReturn STRICTLY a JSON object with no markdown formatting:\n{\n  "status": "Approved" | "Rejected" | "Aguardando Aprovação" | "Vencido",\n  "rejection_reason": "string (empty if Approved)",\n  "explanation": "string (detailed justification)",\n  "is_expired": boolean,\n  "match_confidence": "High" | "Medium" | "Low"\n}\n\nAll fields are required. Return ONLY the JSON object, no other text.'
+
+    var validationUserPrompt =
+      'Valide o documento com base nas informações extraídas.\n\nDados Extraídos:\n' +
+      JSON.stringify(extraction, null, 2) +
+      '\n\nTipo Esperado: ' +
+      defName +
+      '\n\nInstruções Específicas de Validação:\n' +
       (defInstructions || 'Nenhuma instrução adicional.') +
       '\n\n' +
       contextText +
-      '\n\nData Atual (Referência): ' +
+      '\n\nData Atual: ' +
       currentDate +
-      '\n\nInstruções da Análise:\n1. ' +
-      (visionContent
-        ? 'Examine o arquivo de imagem/PDF fornecido abaixo.'
-        : 'Acesse o arquivo associado ao registro de documento com ID ' + docId + '.') +
-      ' Use visão para ler todo o conteúdo visível.\n2. Legibilidade/Qualidade: Se o arquivo estiver ilegível, muito cortado, com resolução ruim, classifique como Rejected.\n3. Correspondência de Tipo: Verifique se o arquivo realmente é do Tipo Esperado.\n4. Identificadores: Se Fornecedor/PJ, extraia o CNPJ e compare (raiz 8 dígitos). Se Colaborador, compare CPF/Nome. Se Veículo, extraia e compare a Placa.\n5. Autenticidade: Verifique código de controle, QR Code ou assinaturas caso seja comum para o tipo.\n6. Validade: Extraia a data de vencimento no formato YYYY-MM-DD. Se anterior à Data Atual, o status DEVE ser Vencido e is_expired = true.\n7. Decisão: Approved se todos os critérios atendidos; Rejected se algo crítico falhar; Vencido se expirado; Aguardando Aprovação em casos duvidosos.\n\nRETORNE EXCLUSIVAMENTE UM JSON, SEM MARKDOWN, SEM CRASES.'
+      '\n\nRETORNE EXCLUSIVAMENTE UM JSON, SEM MARKDOWN, SEM CRASES.'
 
-    var analysisResult = null
-    var rawContent = ''
-    var attempts = 0
-    var lastError = null
+    var validationMessages = [
+      { role: 'system', content: validationSystemPrompt },
+      { role: 'user', content: validationUserPrompt },
+    ]
 
-    while (attempts < 3 && !analysisResult) {
-      attempts++
-      try {
-        var retryMsg =
-          attempts === 1
-            ? userPrompt
-            : 'Retorne APENAS um JSON válido estrito, sem markdown, sem texto adicional. Erro anterior: ' +
-              (lastError ? lastError.message : 'desconhecido') +
-              '\n\n' +
-              userPrompt
-        var userContent = visionContent
-          ? [{ type: 'text', text: retryMsg }, visionContent]
-          : retryMsg
+    $app.logger().info('Starting validation phase', 'docId', docId)
+    var validationRes = runAiChat(validationMessages, 3)
 
-        var result = $ai.chat({
-          model: 'fast',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userContent },
-          ],
-        })
-        if (!result || !result.choices || !result.choices[0] || !result.choices[0].message) {
-          throw new Error('Invalid AI response structure')
-        }
-        rawContent = result.choices[0].message.content
-        var jsonStr = cleanJsonResponse(rawContent)
-        analysisResult = JSON.parse(jsonStr)
-
-        if (
-          !['Approved', 'Rejected', 'Aguardando Aprovação', 'Vencido'].includes(
-            analysisResult.status,
-          )
-        ) {
-          analysisResult.status = 'Aguardando Aprovação'
-        }
-      } catch (err) {
-        lastError = err
-        $app
-          .logger()
-          .warn(
-            'AI parse attempt failed',
-            'docId',
-            docId,
-            'attempt',
-            attempts,
-            'error',
-            err.message,
-          )
-      }
-    }
-
-    if (!analysisResult) {
-      analysisResult = {
-        status: 'Aguardando Aprovação',
-        rejection_reason: 'Necessita de revisão humana.',
+    if (!validationRes.result) {
+      var validationErrors = validateExtractedData(extraction, ctx)
+      var fallbackStatus = validationErrors.length > 0 ? 'Rejected' : 'Aguardando Aprovação'
+      var docRecord = $app.findRecordById('documents', docId)
+      docRecord.set('status', fallbackStatus)
+      docRecord.set(
+        'rejection_reason',
+        fallbackStatus === 'Rejected' ? validationErrors.join('; ') : 'Análise Manual Necessária',
+      )
+      docRecord.set('analysis_log', {
+        status: fallbackStatus,
+        rejection_reason:
+          fallbackStatus === 'Rejected' ? validationErrors.join('; ') : 'Análise Manual Necessária',
         explanation:
-          'Não foi possível processar o documento automaticamente. O documento foi encaminhado para análise manual.',
-        extracted_expiration_date: '',
-        is_expired: false,
-        extracted_tax_id: '',
-        extracted_name: '',
-        extracted_plate: '',
-        control_code: '',
-        has_signature: false,
-        is_legible: true,
-        match_confidence: 'Low',
+          'A fase de validação automática falhou. ' +
+          (fallbackStatus === 'Rejected'
+            ? 'Discrepâncias detectadas na validação local.'
+            : 'Documento encaminhado para análise manual.'),
+        extracted_tax_id: extraction.extracted_tax_id || '',
+        extracted_name: extraction.extracted_name || '',
+        extracted_plate: extraction.extracted_plate || '',
+        extracted_expiration_date: extraction.extracted_expiration_date || '',
+        is_expired: !!extraction.is_expired,
+        control_code: extraction.control_code || '',
+        has_signature: !!extraction.has_signature,
+        is_legible: extraction.is_legible !== false,
+        match_confidence: extraction.match_confidence || 'Low',
+        validation_errors: validationErrors,
+        extraction_phase: extraction,
+        raw_extraction_response: extractionRes.rawContent
+          ? extractionRes.rawContent.substring(0, 2000)
+          : '',
+        raw_validation_response: validationRes.rawContent
+          ? validationRes.rawContent.substring(0, 2000)
+          : '',
+        analyzed_at: new Date().toISOString(),
+        model_used: 'reasoning',
+        validation_error: validationRes.error ? validationRes.error.message : 'Unknown',
+      })
+      if (
+        extraction.extracted_expiration_date &&
+        extraction.extracted_expiration_date.includes('-')
+      ) {
+        try {
+          var expDate = Date.parse(extraction.extracted_expiration_date)
+          if (!isNaN(expDate)) {
+            docRecord.set(
+              'expiration_date',
+              extraction.extracted_expiration_date + ' 12:00:00.000Z',
+            )
+            if (expDate < Date.now()) {
+              docRecord.set('status', 'Vencido')
+              docRecord.set('rejection_reason', 'Documento vencido.')
+            }
+          }
+        } catch (dateErr) {}
       }
+      $app.saveNoValidate(docRecord)
+      $app.logger().warn('Validation phase failed', 'docId', docId)
+      return e.next()
     }
 
-    var validationErrors = validateExtractedData(analysisResult, ctx)
-    if (validationErrors.length > 0 && analysisResult.status === 'Approved') {
-      analysisResult.status = 'Rejected'
-      analysisResult.rejection_reason = validationErrors.join('; ')
+    var validation = validationRes.result
+    $app.logger().info('Validation phase completed', 'docId', docId, 'status', validation.status)
+
+    var validationErrors = validateExtractedData(extraction, ctx)
+    if (validationErrors.length > 0 && validation.status === 'Approved') {
+      validation.status = 'Rejected'
+      validation.rejection_reason = validationErrors.join('; ')
+    }
+
+    var analysisLog = {
+      status: validation.status,
+      rejection_reason: validation.rejection_reason || '',
+      explanation: validation.explanation || '',
+      extracted_expiration_date: extraction.extracted_expiration_date || '',
+      is_expired: !!validation.is_expired || !!extraction.is_expired,
+      extracted_tax_id: extraction.extracted_tax_id || '',
+      extracted_name: extraction.extracted_name || '',
+      extracted_plate: extraction.extracted_plate || '',
+      control_code: extraction.control_code || '',
+      has_signature: !!extraction.has_signature,
+      is_legible: extraction.is_legible !== false,
+      match_confidence: validation.match_confidence || extraction.match_confidence || 'Low',
+      validation_errors: validationErrors,
+      extraction_phase: extraction,
+      validation_phase: validation,
+      raw_extraction_response: extractionRes.rawContent
+        ? extractionRes.rawContent.substring(0, 2000)
+        : '',
+      raw_validation_response: validationRes.rawContent
+        ? validationRes.rawContent.substring(0, 2000)
+        : '',
+      analyzed_at: new Date().toISOString(),
+      model_used: 'reasoning',
     }
 
     var docRecord = $app.findRecordById('documents', docId)
-    docRecord.set('analysis_log', buildAnalysisLog(analysisResult, validationErrors, rawContent))
+    docRecord.set('analysis_log', analysisLog)
 
-    if (analysisResult.status === 'Approved') {
+    if (validation.status === 'Approved') {
       docRecord.set('status', 'Approved')
       docRecord.set('rejection_reason', '')
-    } else if (analysisResult.status === 'Rejected') {
+    } else if (validation.status === 'Rejected') {
       docRecord.set('status', 'Rejected')
       docRecord.set(
         'rejection_reason',
-        analysisResult.rejection_reason ||
-          analysisResult.explanation ||
-          'Documento inválido ou ilegível.',
+        validation.rejection_reason || validation.explanation || 'Documento inválido ou ilegível.',
       )
-    } else if (analysisResult.status === 'Vencido' || analysisResult.is_expired) {
+    } else if (validation.status === 'Vencido' || validation.is_expired || extraction.is_expired) {
       docRecord.set('status', 'Vencido')
       docRecord.set(
         'rejection_reason',
-        analysisResult.rejection_reason || analysisResult.explanation || 'Documento vencido.',
+        validation.rejection_reason || validation.explanation || 'Documento vencido.',
       )
     } else {
       docRecord.set('status', 'Aguardando Aprovação')
-      docRecord.set(
-        'rejection_reason',
-        analysisResult.rejection_reason ||
-          analysisResult.explanation ||
-          'Necessita de revisão humana.',
-      )
+      docRecord.set('rejection_reason', 'Análise Manual Necessária')
     }
 
     if (
-      analysisResult.extracted_expiration_date &&
-      analysisResult.extracted_expiration_date.includes('-')
+      extraction.extracted_expiration_date &&
+      extraction.extracted_expiration_date.includes('-')
     ) {
       try {
-        var expDate = Date.parse(analysisResult.extracted_expiration_date)
+        var expDate = Date.parse(extraction.extracted_expiration_date)
         if (!isNaN(expDate)) {
-          docRecord.set(
-            'expiration_date',
-            analysisResult.extracted_expiration_date + ' 12:00:00.000Z',
-          )
+          docRecord.set('expiration_date', extraction.extracted_expiration_date + ' 12:00:00.000Z')
           if (expDate < Date.now()) {
             docRecord.set('status', 'Vencido')
             docRecord.set(
@@ -384,15 +493,14 @@ onRecordAfterUpdateSuccess((e) => {
     try {
       var docRecord = $app.findRecordById('documents', e.record.id)
       docRecord.set('status', 'Aguardando Aprovação')
-      docRecord.set('rejection_reason', 'Necessita de revisão humana.')
+      docRecord.set('rejection_reason', 'Análise Manual Necessária')
       docRecord.set('analysis_log', {
         status: 'Aguardando Aprovação',
-        rejection_reason: 'Necessita de revisão humana.',
+        rejection_reason: 'Análise Manual Necessária',
         explanation:
           'Não foi possível processar o documento automaticamente. O documento foi encaminhado para análise manual.',
-        raw_ai_response: '',
-        validation_errors: [],
         analyzed_at: new Date().toISOString(),
+        model_used: 'reasoning',
         error: err.message,
         technical_error: true,
       })

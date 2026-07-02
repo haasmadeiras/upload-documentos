@@ -141,6 +141,7 @@ export default function SupplierDocuments() {
 
           const isErrorState =
             status === 'rejected' || status === 'rejeitado' || status === 'vencido'
+          const isWarningState = status === 'aguardando aprovação'
 
           return (
             <Card
@@ -148,6 +149,7 @@ export default function SupplierDocuments() {
               className={cn(
                 'flex flex-col',
                 isErrorState && 'border-rose-300 shadow-sm ring-1 ring-rose-100',
+                isWarningState && 'border-amber-300 shadow-sm ring-1 ring-amber-100',
               )}
             >
               <CardHeader className="pb-3">
@@ -163,6 +165,12 @@ export default function SupplierDocuments() {
                   <div className="flex items-center gap-1.5 text-xs font-medium text-rose-600 bg-rose-50 px-2 py-1 rounded-md mt-2 w-fit">
                     <AlertCircle className="w-3.5 h-3.5" />
                     Atenção necessária
+                  </div>
+                )}
+                {isWarningState && (
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-md mt-2 w-fit">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Revisão manual pendente
                   </div>
                 )}
                 <CardDescription className="text-sm mt-1">
@@ -207,6 +215,18 @@ export default function SupplierDocuments() {
                       <div className="flex flex-col gap-1">
                         <span className="font-medium">Falha na validação</span>
                         <span className="text-rose-700">{doc.rejection_reason}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {status === 'aguardando aprovação' && (
+                    <div className="text-sm p-2.5 bg-amber-50 text-amber-800 rounded-md border border-amber-200 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium">Análise Manual Necessária</span>
+                        {doc?.analysis_log?.explanation && (
+                          <span className="text-amber-700">{doc.analysis_log.explanation}</span>
+                        )}
                       </div>
                     </div>
                   )}
