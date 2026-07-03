@@ -27,6 +27,7 @@ import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { FileUploader } from '@/components/FileUploader'
 import { createDocument, updateDocument } from '@/services/documents'
+import { extractDocumentText } from '@/lib/extractPdfText'
 import { useRealtime } from '@/hooks/use-realtime'
 import { extractFieldErrors, getErrorMessage } from '@/lib/pocketbase/errors'
 import { cn } from '@/lib/utils'
@@ -146,12 +147,16 @@ export default function PortalUpload() {
     setSubmitting(true)
     setValidating(true)
     try {
+      const extraction = await extractDocumentText(file)
+
       const formData = new FormData()
       formData.append('title', definition.name)
       formData.append('file', file)
       formData.append('user', user.id)
       formData.append('definition', definition.id)
       formData.append('status', 'Pending')
+      formData.append('extraction_method', extraction.method)
+      formData.append('extracted_text', extraction.text)
       if (user.supplier) {
         formData.append('supplier', user.supplier)
       }
