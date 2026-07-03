@@ -12,6 +12,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -54,6 +55,7 @@ export default function AdminConfig() {
     allowed_formats: string
     target_person_type: 'Both' | 'PF' | 'PJ'
     target_role: 'all' | 'motorista' | 'operador' | 'outros'
+    ai_validation_instructions: string
   }>({
     name: '',
     is_mandatory: true,
@@ -63,6 +65,7 @@ export default function AdminConfig() {
     allowed_formats: 'pdf, jpg, png',
     target_person_type: 'Both',
     target_role: 'all',
+    ai_validation_instructions: '',
   })
 
   const loadData = async () => {
@@ -109,6 +112,7 @@ export default function AdminConfig() {
         allowed_formats: def.allowed_formats || '',
         target_person_type: (def.target_person_type as any) || 'Both',
         target_role: def.target_role || 'all',
+        ai_validation_instructions: def.ai_validation_instructions || '',
       })
     } else {
       setEditingDef(null)
@@ -121,6 +125,7 @@ export default function AdminConfig() {
         allowed_formats: 'pdf, jpg, png',
         target_person_type: 'Both',
         target_role: 'all',
+        ai_validation_instructions: '',
       })
     }
     setIsDialogOpen(true)
@@ -454,6 +459,22 @@ export default function AdminConfig() {
                 </Select>
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="ai_validation_instructions">Critérios para IA</Label>
+              <Textarea
+                id="ai_validation_instructions"
+                value={formData.ai_validation_instructions}
+                onChange={(e) =>
+                  setFormData({ ...formData, ai_validation_instructions: e.target.value })
+                }
+                rows={4}
+                placeholder="Descreva livremente os critérios que a IA deve verificar neste documento. Ex: Deve ser uma CND Estadual válida, sem débitos, emitida nos últimos 90 dias e com o CNPJ do fornecedor."
+              />
+              <p className="text-xs text-muted-foreground">
+                A IA analisará o documento seguindo estes critérios ao recebê-lo.
+              </p>
+            </div>
 
             <div className="flex items-center justify-between border rounded-lg p-3 mt-2">
               <div className="space-y-0.5">

@@ -12,6 +12,7 @@ export interface DocumentDefinition {
   allowed_formats: string
   target_person_type?: 'PF' | 'PJ' | 'Both'
   target_role?: 'all' | 'motorista' | 'operador' | 'outros'
+  ai_validation_instructions?: string
   created: string
   updated: string
   expand?: {
