@@ -169,6 +169,11 @@ export default function PortalUpload() {
 
       toast.info('Documento enviado. Em análise pela IA...')
       setFile(null)
+      // O hook de análise roda de forma síncrona no create/update, então ao
+      // retornar o status já está final. Recarrega para refletir o resultado e
+      // desligar o loading (o poll/realtime sozinho não cobre o 1º upload, quando
+      // existingDoc ainda é null).
+      await loadData()
     } catch (err: any) {
       console.error(err)
       const fieldErrors = extractFieldErrors(err)
