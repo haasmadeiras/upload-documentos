@@ -48,6 +48,7 @@ export default function PortalUpload() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const validatingRef = useRef(false)
+  const resultShownRef = useRef<string | null>(null)
 
   useEffect(() => {
     validatingRef.current = validating
@@ -57,7 +58,7 @@ export default function PortalUpload() {
     if (!validating || !existingDoc) return
     const pollInterval = setInterval(async () => {
       try {
-        const doc = await pb.collection('documents').getOne(existingDoc.id)
+        const doc = await pb.collection('documents').getOne(existingDoc.id, { requestKey: null })
         if (doc.status !== 'Pending') {
           loadData()
         }
@@ -89,21 +90,23 @@ export default function PortalUpload() {
   const loadData = async () => {
     if (!user || !id) return
     try {
-      const def = await pb.collection('document_definitions').getOne(id)
+      const def = await pb.collection('document_definitions').getOne(id, { requestKey: null })
       setDefinition(def)
 
       const docs = await pb.collection('documents').getFullList({
         filter: `user = "${user.id}" && definition = "${id}"`,
         sort: '-created',
         limit: 1,
+        requestKey: null,
       })
 
       if (docs.length > 0) {
         setExistingDoc(docs[0])
 
         if (docs[0].status === 'Pending') {
-          setValidating(true)
-        } else if (validatingRef.current && docs[0].status !== 'Pending') {
+          if (resultShownRef.current !== docs[0].id) setValidating(true)
+        } else if (validatingRef.current && resultShownRef.current !== docs[0].id) {
+          resultShownRef.current = docs[0].id
           setValidating(false)
 
           if (docs[0].status === 'Rejected' || docs[0].status === 'Vencido') {
@@ -146,6 +149,7 @@ export default function PortalUpload() {
 
     setSubmitting(true)
     setValidating(true)
+    resultShownRef.current = null
     try {
       const extraction = await extractDocumentText(file)
 
@@ -161,19 +165,49 @@ export default function PortalUpload() {
         formData.append('supplier', user.supplier)
       }
 
+      let savedId: string
       if (existingDoc) {
-        await updateDocument(existingDoc.id, formData)
+        const updated = await updateDocument(existingDoc.id, formData)
+        savedId = updated.id
       } else {
-        await createDocument(formData)
+        const created = await createDocument(formData)
+        savedId = created.id
       }
 
-      toast.info('Documento enviado. Em análise pela IA...')
       setFile(null)
+
       // O hook de análise roda de forma síncrona no create/update, então ao
-      // retornar o status já está final. Recarrega para refletir o resultado e
-      // desligar o loading (o poll/realtime sozinho não cobre o 1º upload, quando
-      // existingDoc ainda é null).
-      await loadData()
+      // retornar o registro seu status já é final. Buscamos por id com
+      // requestKey: null (desativa o auto-cancelamento do PocketBase, que estava
+      // cancelando os reloads concorrentes de realtime/poll e travando o loading)
+      // e tratamos o resultado aqui, sem depender de outra chamada concorrente.
+      const fresh = await pb.collection('documents').getOne(savedId, { requestKey: null })
+      resultShownRef.current = fresh.id
+      setExistingDoc(fresh)
+      setIsReuploading(false)
+
+      if (fresh.status === 'Pending') {
+        // Caso raro: análise ainda em andamento. Mantém o loading; o poll (agora
+        // com existingDoc definido) assume a atualização.
+        resultShownRef.current = null
+        setValidating(true)
+      } else {
+        setValidating(false)
+        if (fresh.status === 'Rejected' || fresh.status === 'Vencido') {
+          toast.error('O documento foi rejeitado pela análise.', {
+            description:
+              fresh.rejection_reason ||
+              'Documento rejeitado. Por favor, verifique os dados e tente novamente.',
+          })
+        } else if (fresh.status === 'Approved') {
+          toast.success('Documento analisado e aceito com sucesso!')
+          setTimeout(() => navigate('/portal/contratados'), 1500)
+        } else {
+          toast.info('Documento encaminhado para análise manual.', {
+            description: 'Nossa equipe irá revisar o documento em breve.',
+          })
+        }
+      }
     } catch (err: any) {
       console.error(err)
       const fieldErrors = extractFieldErrors(err)
