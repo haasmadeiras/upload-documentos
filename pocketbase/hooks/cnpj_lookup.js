@@ -33,7 +33,7 @@ routerAdd(
       const res = $http.send({
         url: 'https://brasilapi.com.br/api/cnpj/v1/' + cnpj,
         method: 'GET',
-        timeout: 10,
+        timeout: 15,
       })
 
       if (res.statusCode === 200 && res.body) {
@@ -73,8 +73,18 @@ routerAdd(
     }
 
     if (apiResult) {
-      writeLog('success', 'BrasilAPI lookup success')
-      return e.json(200, apiResult)
+      const hasData =
+        apiResult.legal_name ||
+        apiResult.name ||
+        apiResult.address ||
+        apiResult.cep ||
+        apiResult.municipio ||
+        apiResult.uf
+      if (hasData) {
+        writeLog('success', 'BrasilAPI lookup success')
+        return e.json(200, apiResult)
+      }
+      apiError = 'BrasilAPI returned empty data'
     }
 
     // --- Fallback: Skip AI Gateway (fast model) ---

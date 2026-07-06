@@ -222,14 +222,12 @@ export default function AdminSuppliers() {
         )
         if (!hasValidData) {
           toast.error(
-            'Não foi possível consultar o CNPJ para preenchimento automático. Por favor, preencha manualmente.',
+            'Não foi possível localizar os dados automaticamente. Por favor, preencha os campos manualmente.',
           )
           return
         }
-        const isNew = !editingId
         const shouldSet = (field: string, value: string) => {
           if (!value) return false
-          if (isNew) return true
           const current = form.getValues(field as any)
           return !current || current.trim() === ''
         }
@@ -259,8 +257,7 @@ export default function AdminSuppliers() {
           injectedCount++
         }
         if (injectedCount > 0) {
-          const sourceLabel = result.source === 'ai' ? 'via IA' : 'via API'
-          toast.success(`Os dados do CNPJ foram preenchidos automaticamente (${sourceLabel}).`)
+          toast.success('Dados do CNPJ preenchidos automaticamente.')
         }
       })
       .catch((err: any) => {
@@ -270,7 +267,7 @@ export default function AdminSuppliers() {
           toast.error('CNPJ inválido. Verifique o número informado.')
         } else {
           toast.error(
-            'Não foi possível consultar o CNPJ para preenchimento automático. Por favor, preencha manualmente.',
+            'Não foi possível localizar os dados automaticamente. Por favor, preencha os campos manualmente.',
           )
         }
       })
@@ -748,7 +745,9 @@ export default function AdminSuppliers() {
                           </div>
                         </FormControl>
                         {cnpjLoading && personTypeValue === 'PJ' && (
-                          <p className="text-sm text-muted-foreground mt-1">Consultando CNPJ...</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Consultando CNPJ — aguarde, pode levar alguns segundos...
+                          </p>
                         )}
                         {taxIdValue && isTaxIdComplete && !isTaxIdValid && (
                           <p className="text-sm font-medium text-destructive mt-1">
@@ -769,7 +768,12 @@ export default function AdminSuppliers() {
                       <FormItem>
                         <FormLabel>Nome Completo ou Fantasia</FormLabel>
                         <FormControl>
-                          <Input placeholder="Nome" {...field} />
+                          <div className="relative">
+                            <Input placeholder="Nome" {...field} />
+                            {cnpjLoading && (
+                              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                            )}
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -787,7 +791,12 @@ export default function AdminSuppliers() {
                           )}
                         </FormLabel>
                         <FormControl>
-                          <Input placeholder="Razão social" {...field} />
+                          <div className="relative">
+                            <Input placeholder="Razão social" {...field} />
+                            {cnpjLoading && (
+                              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                            )}
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -803,7 +812,12 @@ export default function AdminSuppliers() {
                       <FormItem>
                         <FormLabel>Endereço Completo</FormLabel>
                         <FormControl>
-                          <Input placeholder="Rua, Número, Bairro..." {...field} />
+                          <div className="relative">
+                            <Input placeholder="Rua, Número, Bairro..." {...field} />
+                            {cnpjLoading && (
+                              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                            )}
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -832,15 +846,20 @@ export default function AdminSuppliers() {
                       <FormItem>
                         <FormLabel>CEP</FormLabel>
                         <FormControl>
-                          <Input
-                            placeholder="00000-000"
-                            {...field}
-                            onChange={(e) => {
-                              const raw = e.target.value.replace(/\D/g, '')
-                              field.onChange(raw.replace(/^(\d{5})(\d)/, '$1-$2').slice(0, 9))
-                            }}
-                          />
-                        </FormControl>
+                          <div className="relative">
+                            <Input
+                              placeholder="00000-000"
+                              {...field}
+                              onChange={(e) => {
+                                const raw = e.target.value.replace(/\D/g, '')
+                                field.onChange(raw.replace(/^(\d{5})(\d)/, '$1-$2').slice(0, 9))
+                              }}
+                            />
+                            {cnpjLoading && (
+                              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                            )}
+                          </div>
+                        </FormControl>{' '}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -852,7 +871,12 @@ export default function AdminSuppliers() {
                       <FormItem>
                         <FormLabel>Município</FormLabel>
                         <FormControl>
-                          <Input placeholder="Cidade" {...field} />
+                          <div className="relative">
+                            <Input placeholder="Cidade" {...field} />
+                            {cnpjLoading && (
+                              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                            )}
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -865,12 +889,17 @@ export default function AdminSuppliers() {
                       <FormItem>
                         <FormLabel>UF</FormLabel>
                         <FormControl>
-                          <Input
-                            placeholder="SP"
-                            maxLength={2}
-                            {...field}
-                            onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                          />
+                          <div className="relative">
+                            <Input
+                              placeholder="SP"
+                              maxLength={2}
+                              {...field}
+                              onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                            />
+                            {cnpjLoading && (
+                              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                            )}
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
