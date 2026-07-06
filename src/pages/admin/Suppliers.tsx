@@ -1019,12 +1019,12 @@ export default function AdminSuppliers() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome / Razão Social</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Email Autorizado</TableHead>
-                <TableHead>CPF/CNPJ</TableHead>
-                <TableHead>Florestas</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead className="w-[35%]">Nome / Razão Social</TableHead>
+                <TableHead className="w-[10%]">Tipo</TableHead>
+                <TableHead className="w-[20%]">Email Autorizado</TableHead>
+                <TableHead className="w-[15%]">CPF/CNPJ</TableHead>
+                <TableHead className="w-[15%]">Florestas</TableHead>
+                <TableHead className="w-[5%] text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1043,10 +1043,12 @@ export default function AdminSuppliers() {
               ) : (
                 filtered.map((s) => (
                   <TableRow key={s.id}>
-                    <TableCell className="font-medium">
-                      {s.name}
+                    <TableCell>
+                      <div className="font-semibold text-sm">{s.name}</div>
                       {s.legal_name && (
-                        <div className="text-xs text-muted-foreground mt-0.5">{s.legal_name}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5 uppercase tracking-wide">
+                          {s.legal_name}
+                        </div>
                       )}
                     </TableCell>
                     <TableCell>
@@ -1057,7 +1059,9 @@ export default function AdminSuppliers() {
                         {s.supplier_type || 'MATRIZ'}
                       </Badge>
                     </TableCell>
-                    <TableCell>{s.email}</TableCell>
+                    <TableCell className="max-w-[200px] truncate" title={s.email}>
+                      {s.email}
+                    </TableCell>
                     <TableCell>
                       {s.person_type === 'PF'
                         ? formatCPF(s.tax_id || '')
