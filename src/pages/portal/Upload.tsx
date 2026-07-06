@@ -373,18 +373,18 @@ export default function PortalUpload() {
               >
                 <AlertCircle className="h-5 w-5 text-rose-600" />
                 <AlertTitle className="text-rose-800 font-semibold">
-                  {existingDoc.status === 'Vencido' ? 'Documento Vencido' : 'Motivo da Rejeição'}
+                  {existingDoc.status === 'Vencido' ? 'DOCUMENTO VENCIDO' : 'Motivo da Rejeição'}
                 </AlertTitle>
                 <AlertDescription className="mt-2 text-rose-700 font-medium">
-                  {existingDoc.rejection_reason ||
-                    (existingDoc.status === 'Vencido'
-                      ? 'O documento anexado já passou da data de validade.'
-                      : 'Documento rejeitado. Por favor, verifique os dados e tente novamente.')}
+                  {existingDoc.status === 'Vencido'
+                    ? 'DOCUMENTO VENCIDO'
+                    : existingDoc.rejection_reason ||
+                      'Documento rejeitado. Por favor, verifique os dados e tente novamente.'}
                 </AlertDescription>
               </Alert>
             )}
 
-            {existingDoc.analysis_log?.explanation && (
+            {existingDoc.analysis_log?.explanation && existingDoc.status !== 'Vencido' && (
               <div className="rounded-md border bg-card p-4 space-y-2">
                 <div className="flex items-center gap-2 text-sm font-semibold text-primary">
                   <FileWarning className="w-4 h-4" />

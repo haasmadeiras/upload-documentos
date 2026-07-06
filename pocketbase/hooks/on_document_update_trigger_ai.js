@@ -155,7 +155,7 @@ onRecordAfterUpdateSuccess((e) => {
           ctx.expectedName
 
     var systemPrompt =
-      'You are a compliance analyst specialized in Brazilian documentation (CND, CNPJ, CPF, CNH, CRLV, FGTS, certificates, contracts, etc.).\n\nYou receive the EXTRACTED TEXT of a document (already read from its text layer) together with the expected context and specific validation instructions. Analyze the text, extract the relevant fields, and decide the document validity.\n\nValidation rules:\n1. Verify the document type matches the expected type.\n2. For Fornecedor/Usuario (PJ/PF): compare the extracted CNPJ/CPF with the expected value. For CNPJ, consider it valid if the first 8 digits (root) match.\n3. For Colaborador: compare the extracted CPF and name.\n4. For Veiculo: compare the extracted license plate.\n5. Extract the expiration/validity/issue date in YYYY-MM-DD format. CRITICAL DATE LOGIC: Compare the extracted date with the Current Date. Perform a strict chronological comparison (Year, then Month, then Day). If the extracted date is strictly BEFORE the Current Date, the document is EXPIRED (`is_expired`: true). Your explanation MUST factually match this comparison and explicitly state if the date is in the past or future.\n6. Apply any specific validation instructions provided.\n7. Check for control codes, protocol numbers or authentication codes typical of the document type.\n\nStatus decision:\n- "Approved": all essential criteria met (correct type, matching IDs, valid date, required codes present).\n- "Rejected": critical failure (wrong document type, ID mismatch, missing required code, clearly invalid).\n- "Vencido": document is expired (expiration date before current date).\n- "Aguardando Aprovação": uncertain cases requiring human review (partial match, key info not present in the text, unusual format).\n\nReturn STRICTLY a JSON object with no markdown formatting, no code blocks:\n{\n  "status": "Approved" | "Rejected" | "Aguardando Aprovação" | "Vencido",\n  "rejection_reason": "string (empty if Approved)",\n  "explanation": "string (detailed justification in Portuguese, with correct date math)",\n  "extracted_tax_id": "string",\n  "extracted_name": "string",\n  "extracted_plate": "string",\n  "extracted_expiration_date": "YYYY-MM-DD or empty",\n  "is_expired": boolean,\n  "match_confidence": "High" | "Medium" | "Low"\n}\n\nAll fields are required. Return ONLY the JSON object, no other text.'
+      'You are a compliance analyst specialized in Brazilian documentation (CND, CNPJ, CPF, CNH, CRLV, FGTS, certificates, contracts, etc.).\n\nYou receive the EXTRACTED TEXT of a document (already read from its text layer) together with the expected context and specific validation instructions. Analyze the text, extract the relevant fields, and decide the document validity.\n\nValidation rules:\n1. Verify the document type matches the expected type.\n2. For Fornecedor/Usuario (PJ/PF): compare the extracted CNPJ/CPF with the expected value. For CNPJ, consider it valid if the first 8 digits (root) match.\n3. For Colaborador: compare the extracted CPF and name.\n4. For Veiculo: compare the extracted license plate.\n5. Extract the expiration/validity/issue date in YYYY-MM-DD format. CRITICAL DATE LOGIC: Compare the extracted date with the Current Date. Perform a strict chronological comparison (Year, then Month, then Day). If the extracted date is strictly BEFORE the Current Date, the document is EXPIRED (`is_expired`: true). Your explanation MUST factually match this comparison and explicitly state if the date is in the past or future.\n6. Apply any specific validation instructions provided.\n7. Check for control codes, protocol numbers or authentication codes typical of the document type.\n\nStatus decision:\n- "Approved": all essential criteria met (correct type, matching IDs, valid date, required codes present).\n- "Rejected": critical failure (wrong document type, ID mismatch, missing required code, clearly invalid).\n- "Vencido": document is expired (expiration date before current date). When the document is expired, set both "rejection_reason" and "explanation" to exactly "DOCUMENTO VENCIDO" with no additional text or date comparisons.\n- "Aguardando Aprovação": uncertain cases requiring human review (partial match, key info not present in the text, unusual format).\n\nReturn STRICTLY a JSON object with no markdown formatting, no code blocks:\n{\n  "status": "Approved" | "Rejected" | "Aguardando Aprovação" | "Vencido",\n  "rejection_reason": "string (empty if Approved)",\n  "explanation": "string (detailed justification in Portuguese, with correct date math)",\n  "extracted_tax_id": "string",\n  "extracted_name": "string",\n  "extracted_plate": "string",\n  "extracted_expiration_date": "YYYY-MM-DD or empty",\n  "is_expired": boolean,\n  "match_confidence": "High" | "Medium" | "Low"\n}\n\nAll fields are required. Return ONLY the JSON object, no other text.'
 
     var userPrompt =
       'Valide o documento com base no TEXTO EXTRAÍDO abaixo.\n\nTipo Esperado: ' +
@@ -224,10 +224,11 @@ onRecordAfterUpdateSuccess((e) => {
       result.rejection_reason = validationErrors.join('; ')
     }
 
+    var isVencido = result.status === 'Vencido' || result.is_expired
     var analysisLog = {
-      status: result.status,
-      rejection_reason: result.rejection_reason || '',
-      explanation: result.explanation || '',
+      status: isVencido ? 'Vencido' : result.status,
+      rejection_reason: isVencido ? 'DOCUMENTO VENCIDO' : result.rejection_reason || '',
+      explanation: isVencido ? 'DOCUMENTO VENCIDO' : result.explanation || '',
       extracted_tax_id: result.extracted_tax_id || '',
       extracted_name: result.extracted_name || '',
       extracted_plate: result.extracted_plate || '',
@@ -255,10 +256,7 @@ onRecordAfterUpdateSuccess((e) => {
       )
     } else if (result.status === 'Vencido' || result.is_expired) {
       docRecord.set('status', 'Vencido')
-      docRecord.set(
-        'rejection_reason',
-        result.rejection_reason || result.explanation || 'Documento vencido.',
-      )
+      docRecord.set('rejection_reason', 'DOCUMENTO VENCIDO')
     } else {
       docRecord.set('status', 'Aguardando Aprovação')
       docRecord.set('rejection_reason', 'Análise Manual Necessária')
@@ -272,18 +270,12 @@ onRecordAfterUpdateSuccess((e) => {
           if (expDate < Date.now()) {
             if (docRecord.getString('status') !== 'Vencido') {
               docRecord.set('status', 'Vencido')
-              docRecord.set(
-                'rejection_reason',
-                'O documento está vencido de acordo com a data extraída.',
-              )
+              docRecord.set('rejection_reason', 'DOCUMENTO VENCIDO')
               var currentLog = docRecord.get('analysis_log') || {}
               currentLog.status = 'Vencido'
               currentLog.is_expired = true
-              currentLog.explanation =
-                (currentLog.explanation || '') +
-                ' [Correção do Sistema]: A data de validade extraída (' +
-                result.extracted_expiration_date +
-                ') é anterior à data atual, configurando o documento como vencido.'
+              currentLog.explanation = 'DOCUMENTO VENCIDO'
+              currentLog.rejection_reason = 'DOCUMENTO VENCIDO'
               docRecord.set('analysis_log', currentLog)
             }
           }
