@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-06T12:57:14.267Z",
+  "generatedAt": "2026-07-06T17:22:54.713Z",
   "collections": [
     {
       "name": "users",
@@ -843,9 +843,23 @@
           "required": false,
           "system": false,
           "collectionRef": "forest_areas"
+        },
+        {
+          "name": "supplier_type",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["MATRIZ", "FILIAL"]
+        },
+        {
+          "name": "parent_supplier",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "suppliers"
         }
       ],
-      "indexes": []
+      "indexes": ["CREATE INDEX `idx_suppliers_parent_supplier` ON `suppliers` (parent_supplier)"]
     },
     {
       "name": "audit_logs",

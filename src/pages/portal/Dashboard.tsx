@@ -37,6 +37,7 @@ import { getDocumentCategories, DocumentCategory } from '@/services/document_cat
 import { getDocumentDefinitions, DocumentDefinition } from '@/services/document_definitions'
 import { getDocuments, downloadDocument, deleteDocument } from '@/services/documents'
 import { getEmployees } from '@/services/employees'
+import { getCorporateGroupUserIds } from '@/services/suppliers'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useRealtime } from '@/hooks/use-realtime'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -63,19 +64,32 @@ export default function PortalDashboard() {
   }
 
   const loadData = async () => {
-    if (!user?.id) return
-    try {
-      setError(null)
-      const isAdmin = user?.isAdmin || user?.role === 'Admin'
-      const filter = isAdmin ? '' : `user = "${user?.id}"`
+  if (!user?.id) return
+  try {
+    setError(null)
+    const isAdmin = user?.isAdmin || user?.role === 'Admin'
 
-      const [cats, defs, docs, emps] = await Promise.all([
-        getDocumentCategories(),
-        getDocumentDefinitions(),
-        getDocuments(filter, 'definition.category'),
-        getEmployees(filter),
-      ])
-      setCategories(cats)
+    let filter = ''
+    if (!isAdmin) {
+      const userIds = [user.id]
+      if (user.supplier) {
+        try {
+          const groupUserIds = await getCorporateGroupUserIds(user.supplier)
+          userIds.push(...groupUserIds)
+        } catch (e) {
+          console.error('Error fetching corporate group:', e)
+        }
+      }
+      const uniqueUserIds = Array.from(new Set(userIds))
+      filter = uniqueUserIds.map((id) => `user = "${id}"`).join(' || ')
+    }
+
+    const [cats, defs, docs, emps] = await Promise.all([
+      getDocumentCategories(),
+      getDocumentDefinitions(),
+      getDocuments(filter, 'definition.category'),
+      getEmployees(filter),
+    ])      setCategories(cats)
       setDefinitions(defs)
       setUserDocs(docs)
       setEmployees(emps)
@@ -93,11 +107,8 @@ export default function PortalDashboard() {
 
   useRealtime(
     'documents',
-    (e) => {
-      const isAdmin = user?.isAdmin || user?.role === 'Admin'
-      if (isAdmin || e.record.user === user?.id) {
-        loadData()
-      }
+    () => {
+      loadData()
     },
     !!user?.id,
   )

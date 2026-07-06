@@ -85,6 +85,8 @@ const formSchema = z
     email: z.string().email('E-mail inválido'),
     tax_id: z.string().min(14, 'Documento inválido'),
     person_type: z.enum(['PF', 'PJ']),
+    supplier_type: z.enum(['MATRIZ', 'FILIAL']).default('MATRIZ'),
+    parent_supplier: z.string().optional().nullable(),
     phone: z.string().optional(),
     legal_name: z.string().optional(),
     address: z.string().optional(),
@@ -117,6 +119,16 @@ const formSchema = z
         path: ['legal_name'],
       })
     }
+    if (
+      data.supplier_type === 'FILIAL' &&
+      (!data.parent_supplier || data.parent_supplier.trim() === '')
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Vínculo com MATRIZ é obrigatório para FILIAL',
+        path: ['parent_supplier'],
+      })
+    }
   })
 
 function maskPhone(value: string) {
@@ -143,6 +155,7 @@ export default function AdminSuppliers() {
   const [isSaving, setIsSaving] = useState(false)
   const [deleteSupplierId, setDeleteSupplierId] = useState<string | null>(null)
   const [forestHistory, setForestHistory] = useState<ForestArea[]>([])
+  const [matrizSuppliers, setMatrizSuppliers] = useState<Supplier[]>([])
 
   const uniqueUfs = Array.from(new Set(suppliers.map((s) => s.uf).filter(Boolean))).sort()
 
@@ -161,6 +174,8 @@ export default function AdminSuppliers() {
       email: '',
       tax_id: '',
       person_type: 'PJ',
+      supplier_type: 'MATRIZ',
+      parent_supplier: '',
       phone: '',
       legal_name: '',
       cep: '',
@@ -195,6 +210,7 @@ export default function AdminSuppliers() {
         forests.length === 0 ? getForestAreas() : Promise.resolve(forests),
       ])
       setSuppliers(data)
+      setMatrizSuppliers(data.filter((s) => s.supplier_type === 'MATRIZ' || !s.supplier_type))
       if (forests.length === 0) setForests(fData)
     } catch (error) {
       toast.error('Erro ao carregar fornecedores')
@@ -239,6 +255,11 @@ export default function AdminSuppliers() {
         email: values.email,
         tax_id: values.tax_id,
         person_type: values.person_type,
+        supplier_type: values.supplier_type,
+        parent_supplier:
+          values.supplier_type === 'FILIAL' && values.parent_supplier
+            ? values.parent_supplier
+            : null,
         phone: values.phone,
         legal_name: values.legal_name,
         address: values.address,
@@ -365,6 +386,10 @@ export default function AdminSuppliers() {
             : formatCNPJ(s.tax_id)
           : '',
         person_type: s.person_type || 'PJ',
+        supplier_type: (s.supplier_type as 'MATRIZ' | 'FILIAL') || 'MATRIZ',
+        parent_supplier: Array.isArray(s.parent_supplier)
+          ? s.parent_supplier[0] || ''
+          : s.parent_supplier || '',
         phone: s.phone || '',
         legal_name: s.legal_name || '',
         address: s.address || '',
@@ -387,6 +412,8 @@ export default function AdminSuppliers() {
         email: '',
         tax_id: '',
         person_type: 'PJ',
+        supplier_type: 'MATRIZ',
+        parent_supplier: '',
         phone: '',
         legal_name: '',
         address: '',
@@ -459,6 +486,96 @@ export default function AdminSuppliers() {
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="supplier_type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tipo de Fornecedor</FormLabel>
+                        <Select
+                          onValueChange={(val) => {
+                            field.onChange(val)
+                            if (val === 'MATRIZ') {
+                              form.setValue('parent_supplier', '')
+                            }
+                          }}
+                          defaultValue={field.value || 'MATRIZ'}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o tipo" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="MATRIZ">MATRIZ (Sede)</SelectItem>
+                            <SelectItem value="FILIAL">FILIAL (Branch)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {form.watch('supplier_type') === 'FILIAL' && (
+                    <FormField
+                      control={form.control}
+                      name="parent_supplier"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel>Vínculo com MATRIZ *</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  className={cn('w-full justify-between font-normal')}
+                                >
+                                  {field.value
+                                    ? matrizSuppliers.find((s) => s.id === field.value)?.name ||
+                                      'Selecione a MATRIZ'
+                                    : 'Selecione a MATRIZ'}
+                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[300px] p-0" align="start">
+                              <Command>
+                                <CommandInput placeholder="Buscar MATRIZ..." />
+                                <CommandList>
+                                  <CommandEmpty>Nenhuma MATRIZ encontrada.</CommandEmpty>
+                                  <CommandGroup>
+                                    {matrizSuppliers
+                                      .filter((s) => s.id !== editingId)
+                                      .map((s) => (
+                                        <CommandItem
+                                          key={s.id}
+                                          value={s.name}
+                                          onSelect={() => {
+                                            field.onChange(s.id)
+                                          }}
+                                        >
+                                          <Check
+                                            className={cn(
+                                              'mr-2 h-4 w-4',
+                                              field.value === s.id ? 'opacity-100' : 'opacity-0',
+                                            )}
+                                          />
+                                          {s.name}
+                                        </CommandItem>
+                                      ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -898,6 +1015,7 @@ export default function AdminSuppliers() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nome / Razão Social</TableHead>
+                <TableHead>Tipo</TableHead>
                 <TableHead>Email Autorizado</TableHead>
                 <TableHead>CPF/CNPJ</TableHead>
                 <TableHead>Florestas</TableHead>
@@ -907,13 +1025,13 @@ export default function AdminSuppliers() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center h-24">
+                  <TableCell colSpan={6} className="text-center h-24">
                     Carregando fornecedores...
                   </TableCell>
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center h-24">
+                  <TableCell colSpan={6} className="text-center h-24">
                     Nenhum fornecedor encontrado.
                   </TableCell>
                 </TableRow>
@@ -925,6 +1043,14 @@ export default function AdminSuppliers() {
                       {s.legal_name && (
                         <div className="text-xs text-muted-foreground mt-0.5">{s.legal_name}</div>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={s.supplier_type === 'FILIAL' ? 'secondary' : 'default'}
+                        className="text-xs"
+                      >
+                        {s.supplier_type || 'MATRIZ'}
+                      </Badge>
                     </TableCell>
                     <TableCell>{s.email}</TableCell>
                     <TableCell>

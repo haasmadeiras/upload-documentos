@@ -33,6 +33,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useRealtime } from '@/hooks/use-realtime'
 import { StatusBadge } from '@/components/StatusBadge'
 import { downloadDocument, deleteDocument } from '@/services/documents'
+import { getCorporateGroupUserIds } from '@/services/suppliers'
 
 export default function SupplierDocuments() {
   const { categoryId } = useParams()
@@ -56,13 +57,25 @@ export default function SupplierDocuments() {
     try {
       const defsFilter = categoryId ? `category = "${categoryId}"` : ''
 
+      const userIds = [user.id]
+      if (user.supplier) {
+        try {
+          const groupUserIds = await getCorporateGroupUserIds(user.supplier)
+          userIds.push(...groupUserIds)
+        } catch (e) {
+          console.error('Error fetching corporate group:', e)
+        }
+      }
+      const uniqueUserIds = Array.from(new Set(userIds))
+      const docsFilter = uniqueUserIds.map((id) => `user = "${id}"`).join(' || ')
+
       const [defsRes, docsRes] = await Promise.all([
         pb.collection('document_definitions').getFullList({
           filter: defsFilter,
           sort: '-is_mandatory,name',
         }),
         pb.collection('documents').getFullList({
-          filter: `user = "${user.id}"`,
+          filter: docsFilter,
           sort: '-created',
         }),
       ])
