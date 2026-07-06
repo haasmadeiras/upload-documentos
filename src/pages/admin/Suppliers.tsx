@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import {
   Plus,
   Search,
@@ -10,6 +10,7 @@ import {
   ChevronsUpDown,
   Check,
   X,
+  Loader2,
 } from 'lucide-react'
 import { cn, formatCPF, formatCNPJ, isValidCPF, isValidCNPJ } from '@/lib/utils'
 import { SupplierImportDialog } from '@/components/admin/SupplierImportDialog'
@@ -20,6 +21,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
+import { Loader2 } from 'lucide-react'
 
 import {
   getSuppliers,
@@ -30,6 +32,7 @@ import {
 } from '@/services/suppliers'
 import { getForestAreas, ForestArea, updateForestArea } from '@/services/forest_areas'
 import { useRealtime } from '@/hooks/use-realtime'
+import { lookupCnpj } from '@/services/cnpj'
 import pb from '@/lib/pocketbase/client'
 import {
   AlertDialog,
@@ -187,11 +190,116 @@ export default function AdminSuppliers() {
 
   const personTypeValue = form.watch('person_type')
   const taxIdValue = form.watch('tax_id')
+  const [cnpjLoading, setCnpjLoading] = useState(false)
 
   const isTaxIdComplete =
     personTypeValue === 'PF' ? taxIdValue?.length === 14 : taxIdValue?.length === 18
   const isTaxIdValid =
     personTypeValue === 'PF' ? isValidCPF(taxIdValue || '') : isValidCNPJ(taxIdValue || '')
+
+  const lastCnpjLookupRef = useRef<string>('')
+
+  useEffect(() => {
+    if (personTypeValue !== 'PJ') return
+    const digits = (taxIdValue || '').replace(/\D/g, '')
+    if (digits.length !== 14) return
+    if (!isValidCNPJ(taxIdValue || '')) return
+    if (lastCnpjLookupRef.current === digits) return
+    lastCnpjLookupRef.current = digits
+
+    let cancelled = false
+    setCnpjLoading(true)
+
+    lookupCnpj(digits)
+      .then((result) => {
+        if (cancelled) return
+        if (result.legal_name) form.setValue('legal_name', result.legal_name)
+        if (result.name) form.setValue('name', result.name)
+        if (result.address) form.setValue('address', result.address)
+        if (result.cep) form.setValue('cep', result.cep)
+        if (result.municipio) form.setValue('municipio', result.municipio)
+        if (result.uf) form.setValue('uf', result.uf)
+        toast.success('Dados do CNPJ preenchidos automaticamente.')
+      })
+      .catch((err: any) => {
+        if (cancelled) return
+        const status = err?.status || 0
+        if (status === 404) {
+          toast.error('CNPJ não encontrado na base oficial. Preencha manualmente.')
+        } else if (status === 400) {
+          toast.error('CNPJ inválido. Verifique o número informado.')
+        } else {
+          toast.error('Não foi possível consultar o CNPJ. Preencha manualmente.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCnpjLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [taxIdValue, personTypeValue, form])
+
+  const handleOpenDialog = (s?: Supplier) => {
+    lastCnpjLookupRef.current = ''
+    if (s) {
+      const taxIdDigits = (s.tax_id || '').replace(/\D/g, '')
+      if (s.person_type === 'PJ' && taxIdDigits.length === 14) {
+        lastCnpjLookupRef.current = taxIdDigits
+      }
+      setEditingId(s.id)
+      fetchForestHistory(s.id)
+      form.reset({
+        name: s.name || '',
+        email: s.email || '',
+        tax_id: s.tax_id
+          ? s.person_type === 'PF'
+            ? formatCPF(s.tax_id)
+            : formatCNPJ(s.tax_id)
+          : '',
+        person_type: s.person_type || 'PJ',
+        supplier_type: (s.supplier_type as 'MATRIZ' | 'FILIAL') || 'MATRIZ',
+        parent_supplier: Array.isArray(s.parent_supplier)
+          ? s.parent_supplier[0] || ''
+          : s.parent_supplier || '',
+        phone: s.phone || '',
+        legal_name: s.legal_name || '',
+        address: s.address || '',
+        external_code: s.external_code || '',
+        forest_area: Array.isArray(s.forest_area)
+          ? s.forest_area
+          : s.forest_area
+            ? [s.forest_area]
+            : [],
+        controle_florestal: s.controle_florestal || '',
+        cep: s.cep || '',
+        municipio: s.municipio || '',
+        uf: s.uf || '',
+      })
+    } else {
+      setEditingId(null)
+      setForestHistory([])
+      form.reset({
+        name: '',
+        email: '',
+        tax_id: '',
+        person_type: 'PJ',
+        supplier_type: 'MATRIZ',
+        parent_supplier: '',
+        phone: '',
+        legal_name: '',
+        address: '',
+        external_code: '',
+        forest_area: [],
+        controle_florestal: '',
+        cep: '',
+        municipio: '',
+        uf: '',
+      })
+    }
+    setOpen(true)
+  }
 
   const fetchSuppliers = async () => {
     try {
@@ -371,61 +479,6 @@ export default function AdminSuppliers() {
     } catch (e) {
       console.error(e)
     }
-  }
-
-  const handleOpenDialog = (s?: Supplier) => {
-    if (s) {
-      setEditingId(s.id)
-      fetchForestHistory(s.id)
-      form.reset({
-        name: s.name || '',
-        email: s.email || '',
-        tax_id: s.tax_id
-          ? s.person_type === 'PF'
-            ? formatCPF(s.tax_id)
-            : formatCNPJ(s.tax_id)
-          : '',
-        person_type: s.person_type || 'PJ',
-        supplier_type: (s.supplier_type as 'MATRIZ' | 'FILIAL') || 'MATRIZ',
-        parent_supplier: Array.isArray(s.parent_supplier)
-          ? s.parent_supplier[0] || ''
-          : s.parent_supplier || '',
-        phone: s.phone || '',
-        legal_name: s.legal_name || '',
-        address: s.address || '',
-        external_code: s.external_code || '',
-        forest_area: Array.isArray(s.forest_area)
-          ? s.forest_area
-          : s.forest_area
-            ? [s.forest_area]
-            : [],
-        controle_florestal: s.controle_florestal || '',
-        cep: s.cep || '',
-        municipio: s.municipio || '',
-        uf: s.uf || '',
-      })
-    } else {
-      setEditingId(null)
-      setForestHistory([])
-      form.reset({
-        name: '',
-        email: '',
-        tax_id: '',
-        person_type: 'PJ',
-        supplier_type: 'MATRIZ',
-        parent_supplier: '',
-        phone: '',
-        legal_name: '',
-        address: '',
-        external_code: '',
-        forest_area: [],
-        controle_florestal: '',
-        cep: '',
-        municipio: '',
-        uf: '',
-      })
-    }
-    setOpen(true)
   }
 
   const searchClean = search.replace(/\D/g, '')
@@ -647,8 +700,14 @@ export default function AdminSuppliers() {
                             {taxIdValue && isTaxIdComplete && !isTaxIdValid && (
                               <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-destructive" />
                             )}
+                            {cnpjLoading && personTypeValue === 'PJ' && (
+                              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                            )}
                           </div>
                         </FormControl>
+                        {cnpjLoading && personTypeValue === 'PJ' && (
+                          <p className="text-sm text-muted-foreground mt-1">Consultando CNPJ...</p>
+                        )}
                         {taxIdValue && isTaxIdComplete && !isTaxIdValid && (
                           <p className="text-sm font-medium text-destructive mt-1">
                             Documento Inválido
