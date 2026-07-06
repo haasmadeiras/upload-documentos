@@ -7,6 +7,7 @@ export interface CnpjLookupResult {
   cep: string
   municipio: string
   uf: string
+  source: 'api' | 'ai'
 }
 
 export const lookupCnpj = async (cnpj: string): Promise<CnpjLookupResult> => {

@@ -218,17 +218,18 @@ export default function AdminSuppliers() {
         if (result.cep) form.setValue('cep', result.cep)
         if (result.municipio) form.setValue('municipio', result.municipio)
         if (result.uf) form.setValue('uf', result.uf)
-        toast.success('Dados do CNPJ preenchidos automaticamente.')
+        const sourceLabel = result.source === 'ai' ? 'via IA' : 'via API'
+        toast.success(`Dados do CNPJ preenchidos automaticamente (${sourceLabel}).`)
       })
       .catch((err: any) => {
         if (cancelled) return
         const status = err?.status || 0
-        if (status === 404) {
-          toast.error('CNPJ não encontrado na base oficial. Preencha manualmente.')
-        } else if (status === 400) {
+        if (status === 400) {
           toast.error('CNPJ inválido. Verifique o número informado.')
         } else {
-          toast.error('Não foi possível consultar o CNPJ. Preencha manualmente.')
+          toast.error(
+            'Não foi possível consultar o CNPJ automaticamente. Por favor, preencha os campos manualmente.',
+          )
         }
       })
       .finally(() => {
