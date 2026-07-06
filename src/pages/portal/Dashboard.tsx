@@ -64,32 +64,33 @@ export default function PortalDashboard() {
   }
 
   const loadData = async () => {
-  if (!user?.id) return
-  try {
-    setError(null)
-    const isAdmin = user?.isAdmin || user?.role === 'Admin'
+    if (!user?.id) return
+    try {
+      setError(null)
+      const isAdmin = user?.isAdmin || user?.role === 'Admin'
 
-    let filter = ''
-    if (!isAdmin) {
-      const userIds = [user.id]
-      if (user.supplier) {
-        try {
-          const groupUserIds = await getCorporateGroupUserIds(user.supplier)
-          userIds.push(...groupUserIds)
-        } catch (e) {
-          console.error('Error fetching corporate group:', e)
+      let filter = ''
+      if (!isAdmin) {
+        const userIds = [user.id]
+        if (user.supplier) {
+          try {
+            const groupUserIds = await getCorporateGroupUserIds(user.supplier)
+            userIds.push(...groupUserIds)
+          } catch (e) {
+            console.error('Error fetching corporate group:', e)
+          }
         }
+        const uniqueUserIds = Array.from(new Set(userIds))
+        filter = uniqueUserIds.map((id) => `user = "${id}"`).join(' || ')
       }
-      const uniqueUserIds = Array.from(new Set(userIds))
-      filter = uniqueUserIds.map((id) => `user = "${id}"`).join(' || ')
-    }
 
-    const [cats, defs, docs, emps] = await Promise.all([
-      getDocumentCategories(),
-      getDocumentDefinitions(),
-      getDocuments(filter, 'definition.category'),
-      getEmployees(filter),
-    ])      setCategories(cats)
+      const [cats, defs, docs, emps] = await Promise.all([
+        getDocumentCategories(),
+        getDocumentDefinitions(),
+        getDocuments(filter, 'definition.category'),
+        getEmployees(filter),
+      ])
+      setCategories(cats)
       setDefinitions(defs)
       setUserDocs(docs)
       setEmployees(emps)
