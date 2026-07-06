@@ -155,7 +155,7 @@ onRecordAfterUpdateSuccess((e) => {
           ctx.expectedName
 
     var systemPrompt =
-      'You are a compliance analyst specialized in Brazilian documentation (CND, CNPJ, CPF, CNH, CRLV, FGTS, certificates, contracts, etc.).\n\nYou receive the EXTRACTED TEXT of a document (already read from its text layer) together with the expected context and specific validation instructions. Analyze the text, extract the relevant fields, and decide the document validity.\n\nValidation rules:\n1. Verify the document type matches the expected type.\n2. For Fornecedor/Usuario (PJ/PF): compare the extracted CNPJ/CPF with the expected value. For CNPJ, consider it valid if the first 8 digits (root) match.\n3. For Colaborador: compare the extracted CPF and name.\n4. For Veiculo: compare the extracted license plate.\n5. Extract the expiration/validity/issue date in YYYY-MM-DD format. If it is before the current date, the document is expired.\n6. Apply any specific validation instructions provided.\n7. Check for control codes, protocol numbers or authentication codes typical of the document type.\n\nStatus decision:\n- "Approved": all essential criteria met (correct type, matching IDs, valid date, required codes present).\n- "Rejected": critical failure (wrong document type, ID mismatch, missing required code, clearly invalid).\n- "Vencido": document is expired (expiration date before current date).\n- "Aguardando Aprovação": uncertain cases requiring human review (partial match, key info not present in the text, unusual format).\n\nReturn STRICTLY a JSON object with no markdown formatting, no code blocks:\n{\n  "status": "Approved" | "Rejected" | "Aguardando Aprovação" | "Vencido",\n  "rejection_reason": "string (empty if Approved)",\n  "explanation": "string (detailed justification in Portuguese)",\n  "extracted_tax_id": "string",\n  "extracted_name": "string",\n  "extracted_plate": "string",\n  "extracted_expiration_date": "YYYY-MM-DD or empty",\n  "is_expired": boolean,\n  "match_confidence": "High" | "Medium" | "Low"\n}\n\nAll fields are required. Return ONLY the JSON object, no other text.'
+      'You are a compliance analyst specialized in Brazilian documentation (CND, CNPJ, CPF, CNH, CRLV, FGTS, certificates, contracts, etc.).\n\nYou receive the EXTRACTED TEXT of a document (already read from its text layer) together with the expected context and specific validation instructions. Analyze the text, extract the relevant fields, and decide the document validity.\n\nValidation rules:\n1. Verify the document type matches the expected type.\n2. For Fornecedor/Usuario (PJ/PF): compare the extracted CNPJ/CPF with the expected value. For CNPJ, consider it valid if the first 8 digits (root) match.\n3. For Colaborador: compare the extracted CPF and name.\n4. For Veiculo: compare the extracted license plate.\n5. Extract the expiration/validity/issue date in YYYY-MM-DD format. CRITICAL DATE LOGIC: Compare the extracted date with the Current Date. Perform a strict chronological comparison (Year, then Month, then Day). If the extracted date is strictly BEFORE the Current Date, the document is EXPIRED (`is_expired`: true). Your explanation MUST factually match this comparison and explicitly state if the date is in the past or future.\n6. Apply any specific validation instructions provided.\n7. Check for control codes, protocol numbers or authentication codes typical of the document type.\n\nStatus decision:\n- "Approved": all essential criteria met (correct type, matching IDs, valid date, required codes present).\n- "Rejected": critical failure (wrong document type, ID mismatch, missing required code, clearly invalid).\n- "Vencido": document is expired (expiration date before current date).\n- "Aguardando Aprovação": uncertain cases requiring human review (partial match, key info not present in the text, unusual format).\n\nReturn STRICTLY a JSON object with no markdown formatting, no code blocks:\n{\n  "status": "Approved" | "Rejected" | "Aguardando Aprovação" | "Vencido",\n  "rejection_reason": "string (empty if Approved)",\n  "explanation": "string (detailed justification in Portuguese, with correct date math)",\n  "extracted_tax_id": "string",\n  "extracted_name": "string",\n  "extracted_plate": "string",\n  "extracted_expiration_date": "YYYY-MM-DD or empty",\n  "is_expired": boolean,\n  "match_confidence": "High" | "Medium" | "Low"\n}\n\nAll fields are required. Return ONLY the JSON object, no other text.'
 
     var userPrompt =
       'Valide o documento com base no TEXTO EXTRAÍDO abaixo.\n\nTipo Esperado: ' +
@@ -164,7 +164,7 @@ onRecordAfterUpdateSuccess((e) => {
       (defInstructions || 'Nenhuma instrução adicional.') +
       '\n\n' +
       contextText +
-      '\n\nData Atual: ' +
+      '\n\nData Atual do Sistema: ' +
       currentDate +
       '\n\nTEXTO EXTRAÍDO DO DOCUMENTO:\n"""\n' +
       extractedText +
@@ -270,11 +270,22 @@ onRecordAfterUpdateSuccess((e) => {
         if (!isNaN(expDate)) {
           docRecord.set('expiration_date', result.extracted_expiration_date + ' 12:00:00.000Z')
           if (expDate < Date.now()) {
-            docRecord.set('status', 'Vencido')
-            docRecord.set(
-              'rejection_reason',
-              'O documento está vencido de acordo com a data extraída.',
-            )
+            if (docRecord.getString('status') !== 'Vencido') {
+              docRecord.set('status', 'Vencido')
+              docRecord.set(
+                'rejection_reason',
+                'O documento está vencido de acordo com a data extraída.',
+              )
+              var currentLog = docRecord.get('analysis_log') || {}
+              currentLog.status = 'Vencido'
+              currentLog.is_expired = true
+              currentLog.explanation =
+                (currentLog.explanation || '') +
+                ' [Correção do Sistema]: A data de validade extraída (' +
+                result.extracted_expiration_date +
+                ') é anterior à data atual, configurando o documento como vencido.'
+              docRecord.set('analysis_log', currentLog)
+            }
           }
         }
       } catch (dateErr) {}
