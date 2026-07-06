@@ -212,14 +212,56 @@ export default function AdminSuppliers() {
     lookupCnpj(digits)
       .then((result) => {
         if (cancelled) return
-        if (result.legal_name) form.setValue('legal_name', result.legal_name)
-        if (result.name) form.setValue('name', result.name)
-        if (result.address) form.setValue('address', result.address)
-        if (result.cep) form.setValue('cep', result.cep)
-        if (result.municipio) form.setValue('municipio', result.municipio)
-        if (result.uf) form.setValue('uf', result.uf)
-        const sourceLabel = result.source === 'ai' ? 'via IA' : 'via API'
-        toast.success(`Dados do CNPJ preenchidos automaticamente (${sourceLabel}).`)
+        const hasValidData = !!(
+          result.legal_name ||
+          result.name ||
+          result.address ||
+          result.cep ||
+          result.municipio ||
+          result.uf
+        )
+        if (!hasValidData) {
+          toast.error(
+            'Não foi possível consultar o CNPJ para preenchimento automático. Por favor, preencha manualmente.',
+          )
+          return
+        }
+        const isNew = !editingId
+        const shouldSet = (field: string, value: string) => {
+          if (!value) return false
+          if (isNew) return true
+          const current = form.getValues(field as any)
+          return !current || current.trim() === ''
+        }
+        let injectedCount = 0
+        if (shouldSet('legal_name', result.legal_name)) {
+          form.setValue('legal_name', result.legal_name)
+          injectedCount++
+        }
+        if (shouldSet('name', result.name)) {
+          form.setValue('name', result.name)
+          injectedCount++
+        }
+        if (shouldSet('address', result.address)) {
+          form.setValue('address', result.address)
+          injectedCount++
+        }
+        if (shouldSet('cep', result.cep)) {
+          form.setValue('cep', result.cep)
+          injectedCount++
+        }
+        if (shouldSet('municipio', result.municipio)) {
+          form.setValue('municipio', result.municipio)
+          injectedCount++
+        }
+        if (shouldSet('uf', result.uf)) {
+          form.setValue('uf', result.uf)
+          injectedCount++
+        }
+        if (injectedCount > 0) {
+          const sourceLabel = result.source === 'ai' ? 'via IA' : 'via API'
+          toast.success(`Os dados do CNPJ foram preenchidos automaticamente (${sourceLabel}).`)
+        }
       })
       .catch((err: any) => {
         if (cancelled) return
@@ -228,7 +270,7 @@ export default function AdminSuppliers() {
           toast.error('CNPJ inválido. Verifique o número informado.')
         } else {
           toast.error(
-            'Não foi possível consultar o CNPJ automaticamente. Por favor, preencha os campos manualmente.',
+            'Não foi possível consultar o CNPJ para preenchimento automático. Por favor, preencha manualmente.',
           )
         }
       })
@@ -239,7 +281,7 @@ export default function AdminSuppliers() {
     return () => {
       cancelled = true
     }
-  }, [taxIdValue, personTypeValue, form])
+  }, [taxIdValue, personTypeValue, form, editingId])
 
   const handleOpenDialog = (s?: Supplier) => {
     lastCnpjLookupRef.current = ''
