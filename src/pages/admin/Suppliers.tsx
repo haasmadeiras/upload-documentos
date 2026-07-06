@@ -21,7 +21,6 @@ import { useAuth } from '@/hooks/use-auth'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
-import { Loader2 } from 'lucide-react'
 
 import {
   getSuppliers,
