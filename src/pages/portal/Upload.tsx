@@ -375,12 +375,12 @@ export default function PortalUpload() {
                 <AlertTitle className="text-rose-800 font-semibold">
                   {existingDoc.status === 'Vencido' ? 'DOCUMENTO VENCIDO' : 'Motivo da Rejeição'}
                 </AlertTitle>
-                <AlertDescription className="mt-2 text-rose-700 font-medium">
-                  {existingDoc.status === 'Vencido'
-                    ? 'DOCUMENTO VENCIDO'
-                    : existingDoc.rejection_reason ||
+                {existingDoc.status !== 'Vencido' && (
+                  <AlertDescription className="mt-2 text-rose-700 font-medium">
+                    {existingDoc.rejection_reason ||
                       'Documento rejeitado. Por favor, verifique os dados e tente novamente.'}
-                </AlertDescription>
+                  </AlertDescription>
+                )}
               </Alert>
             )}
 
