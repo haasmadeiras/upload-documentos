@@ -480,9 +480,7 @@ export default function AdminSuppliers() {
           />
           <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>
-                {editingId ? 'Editar Fornecedor' : 'Pré-cadastrar Novo Fornecedor'}
-              </DialogTitle>
+              <DialogTitle>{editingId ? 'EDITAR FORNECEDOR' : 'NOVO FORNECEDOR'}</DialogTitle>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -529,17 +527,24 @@ export default function AdminSuppliers() {
                                 <Button
                                   variant="outline"
                                   role="combobox"
-                                  className={cn('w-full justify-between font-normal')}
+                                  className={cn(
+                                    'w-full justify-between font-normal overflow-hidden',
+                                  )}
                                 >
-                                  {field.value
-                                    ? matrizSuppliers.find((s) => s.id === field.value)?.name ||
-                                      'Selecione a MATRIZ'
-                                    : 'Selecione a MATRIZ'}
+                                  <span className="truncate">
+                                    {field.value
+                                      ? matrizSuppliers.find((s) => s.id === field.value)?.name ||
+                                        'Selecione a MATRIZ'
+                                      : 'Selecione a MATRIZ'}
+                                  </span>
                                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                 </Button>
                               </FormControl>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[300px] p-0" align="start">
+                            <PopoverContent
+                              className="w-[var(--radix-popover-trigger-width)] p-0"
+                              align="start"
+                            >
                               <Command>
                                 <CommandInput placeholder="Buscar MATRIZ..." />
                                 <CommandList>
